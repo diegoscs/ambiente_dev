@@ -1,0 +1,20 @@
+# Segredos - o .env.example e o que vai para o repositorio
+.env
+*.env
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Saida dos robos: log de erro, estado local, caches
+temp/
+logs/
+
+# Projetos com repositorio proprio - nao entram neste repo.
+# Cada um tem o seu .git e o seu ciclo de vida; aninhar viraria submodulo
+# sem ninguem ter pedido, e traria node_modules junto.
+clientes/
+pipelines/

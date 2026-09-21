@@ -1,0 +1,10 @@
+# Dependencias dos robos do ambiente_dev.
+# Instalacao de usuario, Python 3.14 em C:\Users\ferna\AppData\Local\Python\bin\
+#   python.exe -m pip install -r requirements.txt
+
+# Driver Postgres. O [binary] traz o driver compilado no wheel: dispensa
+# compilador e cliente do Postgres instalado na maquina.
+psycopg[binary]==3.3.5
+
+# HTTP e Supabase saem do urllib da biblioteca padrao (lib_dscs/api.py):
+# o robo 002 fala com o PostgREST direto, sem supabase-py.
