@@ -148,9 +148,10 @@ O workflow está em [`.github/workflows/supabase_keepalive.yml`](../../.github/w
 — `cron: "12 9 */2 * *"` (a cada 2 dias, 06:12 em São Paulo) + `workflow_dispatch`.
 
 O repositório já existe: **`diegoscs/ambiente_dev`** (privado), com `origin`
-apontado e o primeiro commit pronto localmente.
+apontado e **todo o código já publicado** — menos o workflow.
 
-**O push está travado no scope do token.** Um PAT clássico com `repo` dá conta
+**Só o workflow ficou de fora, travado no scope do token.** Ele está isolado
+no último commit local, justamente para o resto poder subir sem ele. Um PAT clássico com `repo` dá conta
 do resto, mas **não** de gravar nada dentro de `.github/workflows/` — o GitHub
 recusa no servidor:
 
@@ -191,9 +192,10 @@ Implementação compartilhada em `lib_dscs/notificacao.py`
 
 ## Estado atual — 21/09/2026
 
-**O robô nunca executou, e o projeto já foi pausado.** O `financas-pipeline`
-está `INACTIVE` no Supabase: o keepalive não chegou a rodar uma vez desde que
-foi escrito, em 15/09.
+**O robô nunca executou, e o projeto chegou a ser pausado.** Escrito em 15/09,
+o keepalive não rodou uma única vez — e em 21/09 o `financas-pipeline` foi
+encontrado `INACTIVE`, exatamente o desfecho que ele existia para impedir. O
+projeto foi restaurado no mesmo dia.
 
 Nada disso apareceu como erro em lugar nenhum, e é a mesma lição do robô 001:
 robô que não roda não escreve log, não muda status e não dispara alerta — o
@@ -203,8 +205,6 @@ encontrar.
 
 ### Pendências
 
-- [ ] **Restaurar o projeto no Supabase.** Enquanto estiver `INACTIVE`, a string
-      do pooler não conecta e nem o `--dry-run` passa do ping Postgres.
 - [ ] **Preencher o `.env` da raiz** com `SUPABASE_URL`, `SUPABASE_KEY`
       (a `service_role`, não a `anon`) e `SUPABASE_DB_URL` (pooler, porta 6543).
       É o primeiro bloqueio: sem eles o robô morre na `validar_configuracao`,
@@ -214,10 +214,10 @@ encontrar.
       `flg_sincronizado`/`dta_sync` não existem — o espelhamento quebraria. O
       `robo_app` não serve: o dono da tabela é o `postgres`, e `ALTER` e `GRANT`
       pedem propriedade.
-- [ ] **Criar a tarefa** com o [`criar_tarefa.ps1`](criar_tarefa.ps1).
-- [ ] **Ativar o modo CLOUD**: `git push` do repositório e os cinco secrets em
-      *Settings → Secrets and variables → Actions*. Enquanto isso não for feito,
-      o workflow falha em toda execução do cron por falta de variável.
+- [ ] **Dar o scope `workflow` ao token** e rodar `git push`: o arquivo do
+      workflow é a única coisa que ficou de fora do repositório.
+- [ ] **Cadastrar os cinco secrets** em *Settings → Secrets and variables →
+      Actions*. Sem eles o workflow falha em toda execução do cron.
 
 > A ordem importa: a tarefa local **não** cobre o cenário que causou a pausa,
 > que é a máquina desligada. Quem protege de verdade é o cron do GitHub Actions;
@@ -225,6 +225,13 @@ encontrar.
 
 ### Resolvido
 
+- **Projeto restaurado** em 21/09/2026 — saiu de `INACTIVE`. É o que destrava
+  o resto: com o projeto pausado, nem o `--dry-run` passa do ping Postgres.
+- **Tarefa `002 - Check_Supabase` criada** em 21/09/2026, com `LogonType = S4U`
+  e `StartWhenAvailable = True`. Primeira execução agendada para 22/09 às 08:00
+  — ela vai **falhar** enquanto o `.env` e o `cadastro_carga.sql` não forem
+  feitos, deixando `temp\erro_*.txt`. É esperado, e é melhor que o silêncio de
+  antes.
 - Repositório git inicializado na raiz em 21/09/2026, com `clientes/` e
   `pipelines/` no `.gitignore`: os dois têm `.git` próprio, e aninhar viraria
   submódulo sem ninguém ter pedido. Conferido que o `.env` ficou de fora.
