@@ -1,0 +1,54 @@
+# =============================================
+# Keepalive do projeto Supabase - modo CLOUD do robo 002.
+#
+# Existe como rede de seguranca do Agendador do Windows: se a maquina estiver
+# desligada por uma semana, o projeto free e pausado do mesmo jeito. Aqui nao
+# ha Postgres local, entao a carga e gravada direto no Supabase.
+# =============================================
+name: supabase_keepalive
+
+on:
+  schedule:
+    # A cada 2 dias, 09:12 UTC (06:12 em Sao Paulo). O minuto quebrado e de
+    # proposito: a fila do GitHub atrasa jobs agendados na virada da hora.
+    - cron: "12 9 */2 * *"
+  workflow_dispatch:
+
+# Duas execucoes simultaneas fariam upsert na mesma linha de controle.
+concurrency:
+  group: supabase-keepalive
+  cancel-in-progress: false
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    env:
+      MODO_EXECUCAO: CLOUD
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+      TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Instalar dependencias
+        run: pip install -r requirements.txt
+
+      - name: Ping no Supabase
+        run: python automacoes/002_check_supabase/002_check_supabase.py
+
+      - name: Guardar o log do erro
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: log-erro-002
+          path: automacoes/002_check_supabase/temp/erro_*.txt
+          if-no-files-found: ignore
