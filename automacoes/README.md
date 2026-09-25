@@ -54,6 +54,28 @@ efeito colateral:
 cmd /c D:\ambiente_dev\automacoes\iniciar_robos.bat --dry-run
 ```
 
+## Conferir se rodou
+
+```powershell
+powershell -ExecutionPolicy Bypass -File D:mbiente_devutomacoeserificar_robos.ps1
+```
+
+Uma tela com tudo: quando a tarefa rodou e com que código de saída, o status e o
+carimbo de cada carga na `dbo.controle_cargas`, o dia UTC que o 001 já preencheu,
+e se sobrou arquivo de erro **daquela execução**. Sai com `0` se estiver tudo
+certo e `1` se não — dá para encadear.
+
+Ele existe por causa da lição que se repetiu nos dois robôs: **robô que não roda
+não escreve log, não muda status e não dispara alerta — o silêncio dele é
+idêntico ao do sucesso**. Por isso nada ali é deduzido de "não há erro": cada
+linha traz um carimbo de hora, e o veredito compara esses carimbos com a última
+execução da tarefa. Arquivo de erro antigo aparece contado à parte, em cinza, em
+vez de poluir o diagnóstico de hoje.
+
+A checagem que mais importa é "a última execução é anterior ao boot?" — é ela
+que pega o caso em que o gatilho simplesmente não disparou, que foi o que
+aconteceu nos 7 dias em branco de setembro.
+
 ## Criar / recriar a tarefa
 
 ```powershell
@@ -71,6 +93,7 @@ na mão no Agendador.
 automacoes\
 ├─ iniciar_robos.bat        chamado pela tarefa; roda os dois em sequência
 ├─ criar_tarefa_robos.ps1   cria a tarefa de logon e remove as antigas
+├─ verificar_robos.ps1      responde "rodou? como terminou?" numa tela só
 ├─ 001_check_github\        robô 001 + README próprio
 └─ 002_check_supabase\      robô 002 + README próprio
 ```
