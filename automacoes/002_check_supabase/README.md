@@ -162,30 +162,63 @@ pode trocar a causa real por uma falha de notificação.
 Implementação compartilhada em `lib_dscs/notificacao.py`
 (`dl.alertar_erro_robo`), disponível para os próximos robôs.
 
-## Estado atual — 21/09/2026
+## Estado atual — 25/09/2026
 
-**O robô nunca executou, e o projeto chegou a ser pausado.** Escrito em 15/09,
-o keepalive não rodou uma única vez — e em 21/09 o `financas-pipeline` foi
-encontrado `INACTIVE`, exatamente o desfecho que ele existia para impedir. O
-projeto foi restaurado no mesmo dia.
+**O robô rodou pela primeira vez com sucesso**, às 11:59 de 25/09/2026:
+
+```
+[PING] postgres OK em 244.5 ms   [PING] rest OK em 445.6 ms
+[ROBO002] RESULTADO FINAL: SUCESSO
+```
+
+`dbo.controle_cargas` tem a linha `id_carga = 2` em `SUCCESS`, e o espelho
+`public.controle_cargas` no Supabase recebeu a linha — o caminho inteiro,
+ponta a ponta, funciona.
+
+O que destravou: as três variáveis do Supabase entraram no `.env` da raiz. A
+senha do banco vai **percent-encoded** na `SUPABASE_DB_URL` (o `!` vira `%21`);
+o host do pooler continua sendo `aws-0-sa-east-1`, como estava documentado.
+
+### O `cadastro_carga.sql` foi aplicado pela metade
+
+Só a **parte 2** (o `INSERT` do robô) rodou, com o `robo_app`. A **parte 1**
+(`ALTER TABLE` + `COMMENT` + `GRANT`) exige o dono da tabela, que é o
+`postgres` — conferido: `robo_app` não é superuser nem membro de `postgres`.
+
+Efeito prático: `flg_sincronizado` e `dta_sync` não existem, então o robô **não
+consegue marcar que espelhou**. Toda execução reenvia a linha e loga:
+
+```
+[SYNC] ⚠ nem a marcacao de pendencia funcionou: coluna "dta_sync" nao existe
+```
+
+**Isso não derruba o robô** — o resultado final continua `SUCESSO`, que é o
+comportamento projetado (falha no passo 5 nunca derruba). O custo é um reenvio
+redundante por execução e um aviso no log. Rodar o arquivo inteiro como
+`postgres` fecha isso; ele é idempotente (`ADD COLUMN IF NOT EXISTS` e
+`ON CONFLICT DO UPDATE`), então aplicar de novo por cima não conflita.
+
+### Histórico — 21/09/2026
+
+Escrito em 15/09, o keepalive não rodou uma única vez até 25/09 — e em 21/09 o
+`financas-pipeline` foi encontrado `INACTIVE`, exatamente o desfecho que ele
+existia para impedir. O projeto foi restaurado no mesmo dia.
 
 Nada disso apareceu como erro em lugar nenhum, e é a mesma lição do robô 001:
 robô que não roda não escreve log, não muda status e não dispara alerta — o
-silêncio dele é idêntico ao do sucesso. Aqui foi pior, porque a linha
-`id_carga = 2` nem existe: não havia `dta_fim` velho para a consulta de atraso
+silêncio dele é idêntico ao do sucesso. Ali foi pior, porque a linha
+`id_carga = 2` nem existia: não havia `dta_fim` velho para a consulta de atraso
 encontrar.
 
 ### Pendências
 
-- [ ] **Preencher o `.env` da raiz** com `SUPABASE_URL`, `SUPABASE_KEY`
-      (a `service_role`, não a `anon`) e `SUPABASE_DB_URL` (pooler, porta 6543).
-      É o primeiro bloqueio: sem eles o robô morre na `validar_configuracao`,
-      antes de qualquer ping.
-- [ ] **Rodar o [`cadastro_carga.sql`](cadastro_carga.sql) como `postgres`.**
-      Hoje `dbo.controle_cargas` só tem `id_carga = 1`, e as colunas
-      `flg_sincronizado`/`dta_sync` não existem — o espelhamento quebraria. O
-      `robo_app` não serve: o dono da tabela é o `postgres`, e `ALTER` e `GRANT`
-      pedem propriedade.
+- [x] ~~Preencher o `.env` da raiz~~ — feito em 25/09/2026, validado com ping
+      real nos dois caminhos.
+- [ ] **Rodar o [`cadastro_carga.sql`](cadastro_carga.sql) inteiro como
+      `postgres`.** A parte 2 já foi aplicada com o `robo_app`; falta a parte 1
+      (`ALTER` + `GRANT`), que só o dono da tabela pode fazer. Sem ela o
+      espelhamento funciona mas não consegue se marcar como feito.
+
 - [ ] **Dar o scope `workflow` ao token** e rodar `git push`: o arquivo do
       workflow é a única coisa que ficou de fora do repositório.
 - [ ] **Cadastrar os cinco secrets** em *Settings → Secrets and variables →
