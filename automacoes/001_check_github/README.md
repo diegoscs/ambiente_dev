@@ -68,6 +68,44 @@ commit — é esse que a API pede para a próxima atualização):
 robô dobraria os commits do dia. Com ele, a segunda execução sai no ato.
 `--force` é a única coisa que ignora a trava.
 
+### A trava usa o dia **UTC**, não o de São Paulo
+
+Corrigido em **25/09/2026**. O calendário de contribuições conta o commit pela
+data do carimbo do próprio commit, e a Contents API carimba em **UTC** (offset
+`Z`). O quadradinho que fica verde é o do dia UTC — o fuso da máquina não entra
+na conta.
+
+Até 24/09 a trava usava `datetime.now()` (hora local). Com a tarefa às 20:40 de
+São Paulo isso dá **23:40 UTC**: vinte minutos de margem até a virada do dia.
+Em 24/09 a tarefa atrasou e rodou 22:06 local — **01:06 UTC do dia 25**:
+
+```
+2026-09-25  8 commits  UTC 01:06    <- a rodada "de 24/09"
+2026-09-23  4 commits  UTC 23:40
+2026-09-22  4 commits  UTC 23:40
+```
+
+Os oito commits caíram inteiros no quadrado do dia 25, e **24/09 ficou branco**.
+Nada acusou: `SUCCESS` na `dbo.controle_cargas`, `estado.json` marcando 24/09
+como processado, nenhum log de erro. É a mesma armadilha dos 7 dias em branco de
+setembro — o robô jura que deu certo e o gráfico discorda. Pior: no dia seguinte
+a trava barrava a execução ("24/09 já processado") justamente quando ela encheria
+o quadrado vazio.
+
+A correção é a função `dia_github()`, que devolve `datetime.now(timezone.utc)` e
+alimenta a trava, o `marcar_execucao` e a linha gravada no arquivo remoto. A
+`ja_executou_hoje` da `lib_dscs` já aceitava o parâmetro `hoje`, então **a lib não
+mudou**: o padrão dela continua sendo hora local, que é o certo para um robô cujo
+"dia" é o daqui. Aqui o dia é o da GitHub.
+
+Com isso, "uma execução por dia" passa a significar "uma execução por
+quadradinho". O gatilho de logon ajuda no mesmo sentido: logon de manhã cai no
+meio do dia UTC, longe da virada.
+
+> Na migração o `estado.json` foi de `2026-09-24` para `2026-09-25` — o dia UTC
+> em que aqueles commits de fato caíram. Sem isso o robô faria um segundo lote
+> no mesmo quadrado.
+
 ### Quem decide o dia é o Agendador
 
 O robô **não tem regra de calendário**: nada de sorteio de folga, nada de "pular
@@ -171,15 +209,18 @@ via).
 
 ## Agendamento
 
-| | |
-|---|---|
-| Ação | Iniciar um programa |
-| Programa | `D:\ambiente_dev\automacoes\001_check_github\001_check_github.bat` |
-| Iniciar em | `D:\ambiente_dev\automacoes\001_check_github` |
-| Gatilho | diário |
+O robô **não tem tarefa própria** desde 25/09/2026. Quem o chama é a tarefa
+única [`ambiente_dev - Robos`](../README.md), disparada **a cada logon** com 3
+minutos de atraso, através do [`iniciar_robos.bat`](../iniciar_robos.bat).
 
-Horário não importa muito — o commit conta no dia em que é feito. Vale marcar um
-horário em que a máquina costuma estar ligada; se o dia for perdido, o robô
+Antes era uma tarefa diária às 20:40. A troca foi pedida para amarrar a execução
+ao uso real da máquina em vez de um horário fixo: se o PC está ligado, o robô
+rodou; se não está, nenhum horário salvaria mesmo.
+
+Horário nunca importou muito aqui — o commit conta no dia em que é feito. O que
+importa é rodar **uma vez por dia**, e é a trava do `estado.json` que garante
+isso: você loga cinco vezes no dia, o robô commita na primeira e sai no ato nas
+outras quatro. Se o dia for perdido (máquina desligada o dia inteiro), ele
 **não** repõe retroativamente (ver Pendências).
 
 ## Validações que abortam a execução
@@ -264,6 +305,9 @@ select id_carga, nome_carga, status, dta_fim,
       (criar commit com `author.date` no passado), que é bem mais código.
 
 ### Resolvido
+
+- **Trava passou a usar o dia UTC** — 25/09/2026. Fecha o buraco que deixou
+  24/09 branco no calendário apesar do `SUCCESS`. Ver "A trava usa o dia UTC".
 
 - **Tarefa do Agendador corrigida** — conferido em 21/09/2026:
   `LogonType = S4U` e `StartWhenAvailable = True`, que é o que fecha os 7

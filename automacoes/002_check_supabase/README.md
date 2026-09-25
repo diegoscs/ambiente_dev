@@ -96,51 +96,23 @@ carimbo de hora. **Execução bem-sucedida não deixa rastro em disco.**
 
 ## Task Scheduler
 
-Criar a tarefa apontando para o `.bat` (nunca para o `.py` direto):
+O robô **não tem tarefa própria** desde 25/09/2026. Quem o chama é a tarefa
+única [`ambiente_dev - Robos`](../README.md), disparada **a cada logon** com 3
+minutos de atraso, através do [`iniciar_robos.bat`](../iniciar_robos.bat).
 
-| Campo | Valor |
-|---|---|
-| Nome | `002_check_supabase` |
-| Gatilho | Diariamente, **08:00** |
-| Ação | Iniciar um programa |
-| Programa | `D:\ambiente_dev\automacoes\002_check_supabase\002_check_supabase.bat` |
-| Iniciar em | `D:\ambiente_dev\automacoes\002_check_supabase` |
+Antes era uma tarefa diária às 08:00, criada pelo
+[`criar_tarefa.ps1`](criar_tarefa.ps1) — que ficou **obsoleto** e só continua na
+pasta como registro da configuração antiga (S4U, `StartWhenAvailable`, admin).
+Não rode mais esse arquivo: ele recria a tarefa das 08:00.
 
-Marcar, em **Geral**:
-- ☑ **Executar estando o usuário conectado ou não** — sem isso a tarefa só roda
-  com a sessão aberta, que é justamente o dia em que ela precisa rodar sozinha
-- ☐ Não armazenar senha (deixe **desmarcado**: sem a senha a tarefa não acessa
-  a rede nem o `D:`)
-- ☑ Executar com privilégios mais altos — opcional, não é necessário
+O atraso de 3 min do gatilho novo existe por causa deste robô: no logon a rede
+ainda está subindo, e tanto o ping Postgres quanto o REST falhariam por
+indisponibilidade em vez de por configuração.
 
-Em **Condições**:
-- ☐ Iniciar a tarefa somente se o computador estiver ocioso — **desmarcar**
-- ☑ Ativar o computador para executar esta tarefa — opcional, útil se a máquina
-  dorme
-
-Em **Configurações**:
-- ☑ **Executar a tarefa assim que possível após uma inicialização agendada ter
-  sido perdida** — máquina desligada às 08:00 roda quando ligar
-- ☑ Se houver falha, reiniciar a cada **10 minutos**, até **3** tentativas
-- ☑ Interromper a tarefa se ela for executada por mais de **1 hora**
-
-O jeito curto é o [`criar_tarefa.ps1`](criar_tarefa.ps1), que já traz essa
-configuração inteira — **PowerShell como administrador**, porque criar tarefa
-com `RunLevel Highest` devolve *Acesso negado* em sessão comum:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File D:\ambiente_dev\automacoes\002_check_supabase\criar_tarefa.ps1
-```
-
-Via linha de comando (PowerShell como administrador):
-
-```powershell
-schtasks /Create /TN "002_check_supabase" /TR "D:\ambiente_dev\automacoes\002_check_supabase\002_check_supabase.bat" /SC DAILY /ST 08:00 /RU "$env:USERNAME" /RP * /RL LIMITED /F
-```
-
-O `/RP *` pede a senha interativamente — é o equivalente a "executar mesmo sem
-usuário logado". As opções de "execução perdida" e retry o `schtasks` não expõe;
-ajuste-as depois na interface, ou importe um XML.
+> Continua valendo o aviso da seção anterior: a tarefa local **não** cobre o
+> cenário que causou a pausa do projeto, que é a máquina desligada — e o gatilho
+> de logon não muda isso, só troca "horário fixo" por "quando você usa o PC".
+> Quem protege de verdade é o cron do GitHub Actions.
 
 ## GitHub Actions (modo CLOUD)
 

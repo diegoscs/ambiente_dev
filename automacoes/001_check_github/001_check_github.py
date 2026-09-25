@@ -21,7 +21,7 @@ os.environ.setdefault("PYTHONIOENCODING", "utf-8")
 import base64
 import random
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 
 import lib_dscs as dl
 
@@ -197,14 +197,38 @@ def commitar(conteudo: str, sha: str | None, mensagem: str) -> str:
 # ============================================================
 # PROCESSAMENTO
 # ============================================================
+def dia_github() -> datetime:
+    """O "hoje" deste robo e o dia UTC, nao o dia de Sao Paulo.
+
+    O calendario de contribuicoes da GitHub conta o commit pela data do
+    carimbo do proprio commit, e a Contents API carimba em UTC (offset Z).
+    Entao o quadradinho que fica verde e o do dia UTC - nao o do fuso daqui.
+
+    Usar hora local na trava quebra nos dois sentidos:
+
+      * 24/09/2026 as 22:06 (Sao Paulo) = 25/09 01:06 UTC. Os 8 commits
+        cairam inteiros no quadrado do dia 25. O robo gravou SUCCESS, o
+        estado.json marcou 24/09 como processado, nao houve log de erro -
+        e 24/09 ficou BRANCO no calendario. Silencio identico ao do sucesso,
+        que e a mesma armadilha dos 7 dias em branco de setembro.
+
+      * no dia seguinte a trava barra a execucao ("24/09 ja processado")
+        justamente quando ela encheria o quadrado que ficou vazio.
+
+    Amarrando a trava ao dia UTC, "uma execucao por dia" passa a significar
+    "uma execucao por quadradinho", que e o que o robo existe para fazer.
+    """
+    return datetime.now(timezone.utc)
+
+
 def processar() -> None:
     resolver_owner()
 
-    dia = f"{datetime.now():%Y-%m-%d}"
+    dia = f"{dia_github():%Y-%m-%d}"
 
     # Travamento diario: o Agendador pode disparar de novo (retry da tarefa,
     # maquina que ligou tarde) e o robo nao pode dobrar os commits do dia.
-    if dl.ja_executou_hoje(BASE) and not FORCE:
+    if dl.ja_executou_hoje(BASE, dia_github()) and not FORCE:
         anterior = dl.ler_estado(BASE)
         dl.log(f"[ESTADO] dia {dia} ja processado ({anterior.get('commits', 0)} commit(s)) — nada a fazer")
         return
@@ -226,7 +250,9 @@ def processar() -> None:
 
     feitos = 0
     for i in range(1, quantidade + 1):
-        linha = f"- {datetime.now():%Y-%m-%d %H:%M:%S} | atividade registrada ({i}/{quantidade})\n"
+        # UTC de proposito: assim a linha do arquivo bate com a data do
+        # commit que a GitHub mostra, em vez de divergir perto da virada.
+        linha = f"- {dia_github():%Y-%m-%d %H:%M:%S} UTC | atividade registrada ({i}/{quantidade})\n"
         mensagem = random.choice(MENSAGENS)
 
         if DEBUG or DRY_RUN:
@@ -256,7 +282,7 @@ def processar() -> None:
 
     CACHE_REMOTO.parent.mkdir(parents=True, exist_ok=True)
     CACHE_REMOTO.write_text(conteudo, encoding="utf-8")
-    dl.marcar_execucao(BASE, commits=feitos, ultimo_sha=sha)
+    dl.marcar_execucao(BASE, dia_github(), commits=feitos, ultimo_sha=sha)
 
     dl.log(f"[ROBO{IDCARGA:03d}] {feitos} commit(s) em {OWNER}/{GITHUB_REPO} -> {ARQUIVO_REMOTO}")
 
@@ -267,7 +293,7 @@ def mostrar_status() -> None:
 
     dl.log("-" * 70)
     dl.log(f"Repositorio existe  : {'sim' if repositorio_existe() else 'NAO (rode com --setup)'}")
-    dl.log(f"Ultima execucao     : {estado.get('ultima_execucao', 'nunca')}")
+    dl.log(f"Ultima execucao     : {estado.get('ultima_execucao', 'nunca')} (dia UTC)")
     dl.log(f"Commits no dia      : {estado.get('commits', 0)}")
     dl.log(f"Ultimo sha          : {estado.get('ultimo_sha', '-')}")
     dl.log("-" * 70)
