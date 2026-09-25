@@ -116,16 +116,23 @@ indisponibilidade em vez de por configuração.
 
 ## GitHub Actions (modo CLOUD)
 
-O workflow está em [`.github/workflows/supabase_keepalive.yml`](../../.github/workflows/supabase_keepalive.yml)
+**No ar desde 25/09/2026.** O workflow está em
+[`.github/workflows/supabase_keepalive.yml`](../../.github/workflows/supabase_keepalive.yml)
 — `cron: "12 9 */2 * *"` (a cada 2 dias, 06:12 em São Paulo) + `workflow_dispatch`.
 
-O repositório já existe: **`diegoscs/ambiente_dev`** (privado), com `origin`
-apontado e **todo o código já publicado** — menos o workflow.
+Primeira execução disparada na mão em 25/09 às 17:20 UTC: **sucesso**, e a linha
+`id_carga = 2` apareceu em `public.controle_cargas` com `SUCCESS` e os carimbos
+batendo com o run. É a prova de que o modo CLOUD funciona sem o Postgres local.
 
-**Só o workflow ficou de fora, travado no scope do token.** Ele está isolado
-no último commit local, justamente para o resto poder subir sem ele. Um PAT clássico com `repo` dá conta
-do resto, mas **não** de gravar nada dentro de `.github/workflows/` — o GitHub
-recusa no servidor:
+Secrets cadastrados em *Settings → Secrets and variables → Actions*:
+`SUPABASE_URL`, `SUPABASE_KEY`, `SUPABASE_DB_URL`. Os dois do Telegram **não**
+foram criados — secret ausente vira string vazia, e o robô só registra
+"não configurado". Não quebra o workflow; só não há alerta se a nuvem falhar.
+
+### O que travava o push, e por quê
+
+Um PAT clássico com `repo` dá conta de tudo, **menos** de gravar dentro de
+`.github/workflows/`. O GitHub recusa no servidor:
 
 ```
 ! [remote rejected] main -> main (refusing to allow a Personal Access Token
@@ -133,22 +140,23 @@ recusa no servidor:
   without `workflow` scope)
 ```
 
-A restrição vale também para a Contents API, então não há desvio: ou o token
-ganha o scope, ou o arquivo não sobe. Em <https://github.com/settings/tokens>,
-marcar **`workflow`** no mesmo token do `GITHUB_TOKEN` — é o do robô 001; se
-preferir não ampliar o scope dele, um segundo token só para o push resolve.
-Depois:
+A restrição vale também para a Contents API, então não havia desvio: ou o token
+ganhava o scope, ou o arquivo não subia. Resolvido marcando **`workflow`** no
+mesmo token do `GITHUB_TOKEN` em <https://github.com/settings/tokens> — editar
+os scopes **não muda o valor do token**, então o `.env` não precisou de nada.
 
-```powershell
-cd D:\ambiente_dev
-git push -u origin main
-```
+> Segunda pegadinha, essa não documentada antes: o `credential.helper` daqui é o
+> `manager`, e **não havia credencial do GitHub guardada**. Com o scope já
+> concedido, o `git push` ainda parava num prompt de usuário/senha que pode
+> passar despercebido — dá para achar que o push foi feito quando não foi.
+> Conferência que não mente:
+>
+> ```powershell
+> git ls-remote --heads origin        # o sha que o remoto tem de fato
+> git status -sb                      # "## main...origin/main" sem ahead/behind
+> ```
 
-Feito o push, em **Settings → Secrets and variables → Actions**, criar os
-secrets: `SUPABASE_URL`, `SUPABASE_KEY`, `SUPABASE_DB_URL`, `TELEGRAM_TOKEN`,
-`TELEGRAM_CHAT_ID`. O `MODO_EXECUCAO=CLOUD` já está fixo no workflow.
-
-> O `.env` está fora do commit — conferido com
+> O `.env` continua fora do commit — conferido com
 > `git ls-files | Select-String "\.env$"`, que voltou vazio. Vale repetir a
 > conferência antes de qualquer push futuro.
 
@@ -219,10 +227,11 @@ encontrar.
       (`ALTER` + `GRANT`), que só o dono da tabela pode fazer. Sem ela o
       espelhamento funciona mas não consegue se marcar como feito.
 
-- [ ] **Dar o scope `workflow` ao token** e rodar `git push`: o arquivo do
-      workflow é a única coisa que ficou de fora do repositório.
-- [ ] **Cadastrar os cinco secrets** em *Settings → Secrets and variables →
-      Actions*. Sem eles o workflow falha em toda execução do cron.
+- [x] ~~Dar o scope `workflow` ao token e rodar `git push`~~ — feito em
+      25/09/2026. Remoto em `9815e24`, workflow no ar.
+- [x] ~~Cadastrar os secrets~~ — os três do Supabase criados em 25/09/2026 e
+      validados com um `workflow_dispatch` que terminou em sucesso. Os dois do
+      Telegram seguem ausentes, de propósito (opcionais).
 
 > A ordem importa: a tarefa local **não** cobre o cenário que causou a pausa,
 > que é a máquina desligada. Quem protege de verdade é o cron do GitHub Actions;
