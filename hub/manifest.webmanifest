@@ -1,0 +1,13 @@
+{
+  "name": "Hub dos Robôs",
+  "short_name": "Robôs",
+  "description": "Saúde dos robôs do ambiente_dev",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0D1116",
+  "theme_color": "#0D1116",
+  "lang": "pt-BR",
+  "icons": [
+    { "src": "/icone.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

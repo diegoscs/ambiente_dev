@@ -1,0 +1,413 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Hub dos Robôs</title>
+<meta name="description" content="Saúde dos robôs do ambiente_dev, lida do Supabase.">
+<meta name="theme-color" content="#0D1116" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#EEF1F4" media="(prefers-color-scheme: light)">
+<meta name="robots" content="noindex">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" href="/icone.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/icone.svg">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Robôs">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+:root{
+  color-scheme:light;
+  --bg:#EEF1F4; --card:#FFFFFF; --ink:#141A21; --muted:#5D6975; --line:#D5DCE3; --soft:#E4E9EE;
+  --ok:#17875A; --ok-bg:#DDF2E8; --err:#C23A2E; --err-bg:#FBE3E0; --late:#A8680C; --late-bg:#FBEBD2;
+  --run:#2C67B0; --run-bg:#DDE8F7; --none:#9AA6B2; --none-bg:#E6EAEE; --cell-empty:#E1E6EB;
+  --sans:"Manrope", "Segoe UI", system-ui, sans-serif;
+  --mono:"JetBrains Mono", Consolas, ui-monospace, monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    color-scheme:dark;
+    --bg:#0D1116; --card:#151B22; --ink:#E6ECF2; --muted:#8F9CA9; --line:#27313B; --soft:#1C242D;
+    --ok:#3CCB8C; --ok-bg:#12301F; --err:#FF7B6E; --err-bg:#3A1714; --late:#F0B454; --late-bg:#352511;
+    --run:#6FA6EE; --run-bg:#152A45; --none:#6B7784; --none-bg:#1E262F; --cell-empty:#1F2831;
+  }
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg); color:var(--ink); font:15px/1.5 var(--sans);
+  padding-inline:16px; padding-block:calc(20px + env(safe-area-inset-top, 0px)) calc(48px + env(safe-area-inset-bottom, 0px))}
+[hidden]{display:none !important}
+.wrap{max-width:720px; margin:0 auto; display:flex; flex-direction:column; gap:18px}
+header{display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap}
+h1{font-size:22px; font-weight:800; margin:0; letter-spacing:-.01em}
+.sub{font:12px var(--mono); color:var(--muted)}
+.acoes{display:flex; gap:8px}
+button{font:600 13px var(--sans); color:var(--ink); background:var(--card); border:1px solid var(--line); border-radius:999px; padding:8px 14px; cursor:pointer; display:inline-flex; align-items:center; gap:6px}
+button:hover{border-color:var(--muted)}
+button:focus-visible, a:focus-visible, input:focus-visible{outline:2px solid var(--run); outline-offset:2px}
+button[disabled]{opacity:.6; cursor:default}
+button.primario{background:var(--ink); color:var(--bg); border-color:var(--ink); justify-content:center; padding:11px 16px; font-size:14px}
+.spin{width:12px; height:12px; border:2px solid var(--line); border-top-color:var(--ink); border-radius:50%; animation:r .8s linear infinite}
+@keyframes r{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion: reduce){ .spin{animation:none} }
+
+.banner{border-radius:12px; padding:14px 16px; font-weight:600; display:flex; gap:10px; align-items:center}
+.banner .dot{width:10px; height:10px; border-radius:50%; flex:none}
+.b-ok{background:var(--ok-bg); color:var(--ok)} .b-ok .dot{background:var(--ok)}
+.b-bad{background:var(--err-bg); color:var(--err)} .b-bad .dot{background:var(--err)}
+.b-warn{background:var(--late-bg); color:var(--late)} .b-warn .dot{background:var(--late)}
+.b-info{background:var(--soft); color:var(--muted)} .b-info .dot{background:var(--none)}
+
+.card{background:var(--card); border:1px solid var(--line); border-radius:14px; padding:16px; display:flex; flex-direction:column; gap:12px}
+.top{display:flex; justify-content:space-between; align-items:flex-start; gap:10px}
+.name{font-weight:700; font-size:16px}
+.id{font:12px var(--mono); color:var(--muted)}
+.chip{font:600 11.5px var(--mono); letter-spacing:.04em; padding:4px 10px; border-radius:999px; white-space:nowrap}
+.s-OK{background:var(--ok-bg); color:var(--ok)}
+.s-ERRO,.s-TRAVADO{background:var(--err-bg); color:var(--err)}
+.s-ATRASADO{background:var(--late-bg); color:var(--late)}
+.s-RODANDO{background:var(--run-bg); color:var(--run)}
+.s-NUNCA_RODOU{background:var(--none-bg); color:var(--none)}
+.facts{display:grid; grid-template-columns:repeat(3,1fr); gap:10px}
+.fact{display:flex; flex-direction:column; gap:2px; min-width:0}
+.fact .k{font:11px var(--mono); color:var(--muted); text-transform:uppercase; letter-spacing:.05em}
+.fact .v{font-weight:600; font-variant-numeric:tabular-nums; overflow-wrap:anywhere}
+.msg{font:12.5px/1.5 var(--mono); color:var(--muted); background:var(--soft); border-radius:8px; padding:8px 10px; overflow-wrap:anywhere}
+.cal{display:flex; flex-direction:column; gap:6px}
+.cal .k{font:11px var(--mono); color:var(--muted); text-transform:uppercase; letter-spacing:.05em; display:flex; justify-content:space-between}
+.cells{display:grid; grid-template-columns:repeat(14,1fr); gap:4px}
+.cell{aspect-ratio:1; border-radius:4px; background:var(--cell-empty); max-width:100%}
+.cell.ok{background:var(--ok)} .cell.err{background:var(--err)} .cell.mix{background:linear-gradient(135deg,var(--ok) 50%,var(--err) 50%)}
+.cell.today{outline:1.5px solid var(--ink); outline-offset:1px}
+.links{display:flex; gap:10px 16px; flex-wrap:wrap; align-items:center; font-size:13px; font-weight:600}
+.links button{font-size:12.5px; padding:6px 12px}
+.aviso-run{font:12px var(--mono); color:var(--muted)}
+a{color:var(--run); text-decoration:none} a:hover{text-decoration:underline}
+
+h2{font-size:14px; margin:6px 0 0; color:var(--muted); font-weight:700; text-transform:uppercase; letter-spacing:.06em}
+.hist{background:var(--card); border:1px solid var(--line); border-radius:14px; overflow:hidden}
+.row{display:grid; grid-template-columns:10px 1fr auto; gap:12px; align-items:center; padding:10px 14px; border-top:1px solid var(--line)}
+.row:first-child{border-top:0}
+.row .dot{width:10px; height:10px; border-radius:50%}
+.row .t1{font-weight:600; font-size:14px}
+.row .t2{font:12px var(--mono); color:var(--muted); overflow-wrap:anywhere}
+.row .when{font:12px var(--mono); color:var(--muted); text-align:right; white-space:nowrap}
+.d-SUCCESS{background:var(--ok)} .d-ERROR{background:var(--err)}
+.empty{padding:16px; color:var(--muted); font-size:14px}
+footer{font:12px var(--mono); color:var(--muted); line-height:1.6}
+
+/* login */
+.login{max-width:380px; margin:8vh auto 0; display:flex; flex-direction:column; gap:14px}
+.login form{display:flex; flex-direction:column; gap:12px}
+.login label{display:flex; flex-direction:column; gap:6px; font-weight:600; font-size:13px}
+.login input{font:15px var(--sans); color:var(--ink); background:var(--card); border:1px solid var(--line); border-radius:10px; padding:11px 12px; width:100%}
+.login .erro{color:var(--err); font-size:13.5px; font-weight:600; min-height:1.2em}
+.login p{margin:0; color:var(--muted); font-size:13.5px}
+.trocar{background:none; border:0; padding:0; color:var(--run); font-weight:600; font-size:13.5px; cursor:pointer}
+@media (max-width:420px){ .facts{grid-template-columns:1fr 1fr} }
+</style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js"></script>
+</head>
+<body>
+
+<!-- ─── login ─── -->
+<main id="tela-login" class="login" hidden>
+  <div>
+    <h1>Hub dos Robôs</h1>
+    <p id="login-sub">Entre com a sua conta do Supabase Auth.</p>
+  </div>
+  <form id="form-login" novalidate>
+    <label>E-mail <input id="email" type="email" autocomplete="email" required></label>
+    <label>Senha <input id="senha" type="password" autocomplete="current-password" minlength="8" required></label>
+    <div id="login-erro" class="erro" role="alert"></div>
+    <button id="btn-login" class="primario" type="submit">Entrar</button>
+  </form>
+  <p><button id="alternar" class="trocar" type="button">Ainda não tenho conta: criar</button></p>
+</main>
+
+<!-- ─── painel ─── -->
+<div id="tela-painel" class="wrap" hidden>
+  <header>
+    <div>
+      <h1>Hub dos Robôs</h1>
+      <div class="sub" id="sub">ambiente_dev</div>
+    </div>
+    <div class="acoes">
+      <button id="refresh" type="button" aria-label="Atualizar agora"><span id="refresh-ico">↻</span> Atualizar</button>
+      <button id="sair" type="button">Sair</button>
+    </div>
+  </header>
+
+  <div id="banner" class="banner b-info" role="status"><span class="dot"></span><span id="banner-txt">Buscando o estado dos robôs…</span></div>
+  <div id="cards" class="wrap" style="gap:14px"></div>
+
+  <h2>Últimas execuções</h2>
+  <div id="hist" class="hist"><div class="empty">Carregando…</div></div>
+
+  <footer>Lê a view <b>vw_saude_robos</b> e a tabela <b>historico_cargas</b> do Supabase, com as regras de acesso do banco. Atualiza sozinho a cada 2 minutos com a página aberta.</footer>
+</div>
+
+<script>
+(() => {
+  // Chave publica: pode ficar no navegador. Quem protege os dados e a RLS.
+  const SUPABASE_URL = "https://mthipdxpedlfnkzddlar.supabase.co";
+  const SUPABASE_KEY = "sb_publishable_Y3utSlAXuOl3vzrMeJWr1Q_Rq6Xbz-D";
+  const REPO = "https://github.com/diegoscs/ambiente_dev";
+  const WORKFLOWS = { 1: "robo_001_check_github.yml", 2: "robo_002_check_supabase.yml" };
+  const DIAS = 14;
+
+  const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
+    auth: { persistSession: true, autoRefreshToken: true },
+  });
+
+  const $ = (id) => document.getElementById(id);
+  const TXT = { OK: "OK", ERRO: "ERRO", ATRASADO: "ATRASADO", TRAVADO: "TRAVADO", RODANDO: "RODANDO", NUNCA_RODOU: "NUNCA RODOU" };
+  let busy = false, timer = null, last = null, criando = false;
+
+  function el(tag, cls, text) {
+    const e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text != null) e.textContent = text;
+    return e;
+  }
+  function ago(iso, nowMs) {
+    if (!iso) return "—";
+    const min = Math.max(0, Math.round((nowMs - new Date(iso).getTime()) / 60000));
+    if (min < 1) return "agora";
+    if (min < 60) return `há ${min} min`;
+    const h = Math.floor(min / 60);
+    if (h < 48) return `há ${h} h`;
+    return `há ${Math.floor(h / 24)} dias`;
+  }
+  const hora = (iso) => iso ? new Date(iso).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : "—";
+  function dur(a, b) {
+    if (!a || !b) return "—";
+    const s = Math.round((new Date(b) - new Date(a)) / 1000);
+    return s < 90 ? `${s} s` : `${Math.round(s / 60)} min`;
+  }
+  const ambiente = (a) => a === "CLOUD" ? "Nuvem" : a === "LOCAL" ? "PC" : "—";
+  const diaUTC = (d) => new Date(d).toISOString().slice(0, 10);
+
+  function banner(kind, text) {
+    $("banner").className = `banner b-${kind}`;
+    $("banner-txt").textContent = text;
+  }
+
+  // ─── telas ───
+  function mostrarLogin(msg) {
+    clearInterval(timer);
+    last = null;
+    $("tela-painel").hidden = true;
+    $("tela-login").hidden = false;
+    $("login-erro").textContent = msg || "";
+  }
+  function mostrarPainel() {
+    $("tela-login").hidden = true;
+    $("tela-painel").hidden = false;
+  }
+
+  $("alternar").addEventListener("click", () => {
+    criando = !criando;
+    $("btn-login").textContent = criando ? "Criar conta" : "Entrar";
+    $("alternar").textContent = criando ? "Já tenho conta: entrar" : "Ainda não tenho conta: criar";
+    $("senha").autocomplete = criando ? "new-password" : "current-password";
+    $("login-sub").textContent = criando
+      ? "A conta é criada no Supabase Auth do projeto. Pode ser preciso confirmar pelo e-mail."
+      : "Entre com a sua conta do Supabase Auth.";
+    $("login-erro").textContent = "";
+  });
+
+  $("form-login").addEventListener("submit", async (ev) => {
+    ev.preventDefault();
+    const email = $("email").value.trim(), password = $("senha").value;
+    if (!email || password.length < 8) {
+      $("login-erro").textContent = "Informe o e-mail e uma senha com pelo menos 8 caracteres.";
+      return;
+    }
+    $("btn-login").disabled = true;
+    $("login-erro").textContent = "";
+    try {
+      if (criando) {
+        const { data, error } = await sb.auth.signUp({ email, password });
+        if (error) throw error;
+        if (!data.session) {
+          $("login-erro").textContent = "Conta criada. Confirme pelo link que chegou no seu e-mail e depois entre aqui.";
+          return;
+        }
+      } else {
+        const { error } = await sb.auth.signInWithPassword({ email, password });
+        if (error) throw error;
+      }
+      await entrar();
+    } catch (e) {
+      const m = (e && e.message) || "";
+      $("login-erro").textContent =
+        /invalid login/i.test(m) ? "E-mail ou senha incorretos." :
+        /email not confirmed/i.test(m) ? "Confirme o e-mail pelo link que o Supabase enviou e tente de novo." :
+        /already registered/i.test(m) ? "Esse e-mail já tem conta. Use Entrar." :
+        `Não consegui entrar: ${m || "erro desconhecido"}`;
+    } finally {
+      $("btn-login").disabled = false;
+    }
+  });
+
+  $("sair").addEventListener("click", async () => {
+    await sb.auth.signOut();
+    mostrarLogin("");
+  });
+
+  // Confere se o usuario pode ler o hub. O primeiro login no projeto vira o
+  // dono; os outros recebem "sem acesso" (o banco decide, nao a pagina).
+  async function entrar() {
+    const { data, error } = await sb.rpc("hub_acesso");
+    if (error) { mostrarLogin(`Não consegui conferir o acesso: ${error.message}`); return; }
+    if (!data) {
+      await sb.auth.signOut();
+      mostrarLogin("Esta conta não tem acesso ao hub.");
+      return;
+    }
+    mostrarPainel();
+    await carregar();
+    clearInterval(timer);
+    timer = setInterval(() => { if (document.visibilityState === "visible") carregar(); }, 120000);
+  }
+
+  // ─── dados ───
+  async function carregar() {
+    if (busy) return;
+    busy = true;
+    $("refresh").disabled = true;
+    $("refresh-ico").className = "spin"; $("refresh-ico").textContent = "";
+    try {
+      const desde = new Date(Date.now() - (DIAS + 1) * 86400000).toISOString();
+      const [saude, hist] = await Promise.all([
+        sb.from("vw_saude_robos").select("*").order("id_carga"),
+        sb.from("historico_cargas")
+          .select("id_carga,status,dta_ini,dta_fim,ambiente,qtd_itens,mensagem,url_execucao")
+          .gte("dta_ini", desde).order("dta_ini", { ascending: false }).limit(200),
+      ]);
+      if (saude.error) throw saude.error;
+      if (hist.error) throw hist.error;
+      last = { saude: saude.data, historico: hist.data, agora: new Date().toISOString() };
+      render(last);
+      $("sub").textContent = `atualizado ${new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`;
+    } catch (e) {
+      if (e && (e.status === 401 || /jwt/i.test(e.message || ""))) { mostrarLogin("Sua sessão expirou. Entre de novo."); return; }
+      banner(last ? "warn" : "bad", `Não consegui ler o Supabase (${(e && e.message) || "erro"}).${last ? " Mostrando a última leitura." : ""}`);
+    } finally {
+      busy = false;
+      $("refresh").disabled = false;
+      $("refresh-ico").className = ""; $("refresh-ico").textContent = "↻";
+    }
+  }
+
+  async function rodar(idCarga, botao, aviso) {
+    botao.disabled = true;
+    aviso.textContent = "disparando…";
+    try {
+      const { data } = await sb.auth.getSession();
+      const r = await fetch("/api/rodar", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${data.session?.access_token || ""}` },
+        body: JSON.stringify({ id_carga: idCarga }),
+      });
+      const j = await r.json().catch(() => ({}));
+      aviso.textContent = r.ok ? "disparado; aparece aqui em 1 ou 2 minutos" : (j.erro || `falhou (HTTP ${r.status})`);
+      if (r.ok) setTimeout(carregar, 90000);
+    } catch (e) {
+      aviso.textContent = "sem resposta do servidor";
+    } finally {
+      setTimeout(() => { botao.disabled = false; }, 15000);
+    }
+  }
+
+  function render(d) {
+    const nowMs = new Date(d.agora).getTime();
+    const hist = d.historico || [];
+    const ruins = d.saude.filter(r => ["ERRO", "TRAVADO", "ATRASADO", "NUNCA_RODOU"].includes(r.saude));
+    if (!d.saude.length) banner("info", "Nenhum robô ativo cadastrado.");
+    else if (!ruins.length) banner("ok", d.saude.length === 1 ? "O robô está em dia." : `Os ${d.saude.length} robôs estão em dia.`);
+    else banner(ruins.some(r => r.saude !== "ATRASADO") ? "bad" : "warn",
+      ruins.map(r => `${r.nome_carga}: ${TXT[r.saude] || r.saude}`).join(" · "));
+
+    const dias = [];
+    for (let i = DIAS - 1; i >= 0; i--) dias.push(diaUTC(nowMs - i * 86400000));
+    const hoje = diaUTC(nowMs);
+
+    const cards = $("cards");
+    cards.replaceChildren();
+    for (const r of d.saude) {
+      const c = el("article", "card");
+      const top = el("div", "top");
+      const left = el("div");
+      left.append(el("div", "name", r.nome_carga.replace(/^\d+\s*-\s*/, "")), el("div", "id", `id_carga ${r.id_carga}`));
+      top.append(left, el("span", `chip s-${r.saude}`, TXT[r.saude] || r.saude));
+      c.append(top);
+
+      const facts = el("div", "facts");
+      const f = (k, v) => { const x = el("div", "fact"); x.append(el("span", "k", k), el("span", "v", v)); return x; };
+      facts.append(
+        f("Última", ago(r.dta_fim || r.dta_ini, nowMs)),
+        f("Onde", ambiente(r.ambiente)),
+        f("Duração", dur(r.dta_ini, r.dta_fim)),
+      );
+      c.append(facts);
+      if (r.mensagem) c.append(el("div", "msg", r.mensagem));
+
+      const cal = el("div", "cal");
+      const k = el("div", "k"); k.append(el("span", null, `Últimos ${DIAS} dias (UTC)`), el("span", null, "hoje →"));
+      const cells = el("div", "cells");
+      const doRobo = hist.filter(h => h.id_carga === r.id_carga);
+      for (const dia of dias) {
+        const doDia = doRobo.filter(h => diaUTC(h.dta_ini) === dia);
+        const ok = doDia.some(h => h.status === "SUCCESS"), err = doDia.some(h => h.status === "ERROR");
+        const cell = el("div", "cell" + (ok && err ? " mix" : ok ? " ok" : err ? " err" : "") + (dia === hoje ? " today" : ""));
+        cell.title = `${dia}: ${doDia.length ? `${doDia.length} execução(ões)` : "sem execução"}${err ? ", com erro" : ""}`;
+        cell.setAttribute("aria-label", cell.title);
+        cells.append(cell);
+      }
+      cal.append(k, cells);
+      c.append(cal);
+
+      const links = el("div", "links");
+      if (WORKFLOWS[r.id_carga]) {
+        const b = el("button", null, "▶ Rodar agora");
+        b.type = "button";
+        const aviso = el("span", "aviso-run");
+        b.addEventListener("click", () => rodar(r.id_carga, b, aviso));
+        links.append(b, aviso);
+      }
+      if (r.url_execucao) { const a = el("a", null, "Log do último run"); a.href = r.url_execucao; a.target = "_blank"; a.rel = "noopener"; links.append(a); }
+      if (WORKFLOWS[r.id_carga]) { const a = el("a", null, "Workflow"); a.href = `${REPO}/actions/workflows/${WORKFLOWS[r.id_carga]}`; a.target = "_blank"; a.rel = "noopener"; links.append(a); }
+      c.append(links);
+      cards.append(c);
+    }
+
+    const box = $("hist");
+    box.replaceChildren();
+    if (!hist.length) box.append(el("div", "empty", "Nenhuma execução registrada nos últimos dias."));
+    const nomes = Object.fromEntries(d.saude.map(r => [r.id_carga, r.nome_carga]));
+    for (const h of hist.slice(0, 12)) {
+      const row = el("div", "row");
+      const txt = el("div");
+      txt.append(el("div", "t1", `${nomes[h.id_carga] || "id " + h.id_carga} · ${ambiente(h.ambiente)}`), el("div", "t2", h.mensagem || h.status));
+      const when = el("div", "when");
+      when.append(document.createTextNode(hora(h.dta_ini)), el("br"), document.createTextNode(dur(h.dta_ini, h.dta_fim)));
+      row.append(el("span", `dot d-${h.status}`), txt, when);
+      box.append(row);
+    }
+  }
+
+  $("refresh").addEventListener("click", carregar);
+  document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && last) carregar(); });
+
+  (async () => {
+    const { data } = await sb.auth.getSession();
+    if (data.session) await entrar();
+    else mostrarLogin("");
+  })();
+})();
+</script>
+</body>
+</html>
