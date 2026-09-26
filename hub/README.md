@@ -86,9 +86,8 @@ hub\
 ├─ manifest.webmanifest    instalação na tela inicial
 ├─ icone.svg
 ├─ vercel.json             cabeçalhos de segurança
-└─ artefato\               a primeira versão, como artefato do Claude (não publicada na Vercel)
+└─ .vercelignore
 ```
 
-A versão artefato ([`artefato/hub_robos.html`](artefato/hub_robos.html)) lê o
-Supabase pelo conector do Claude da conta de quem abre. Continua funcionando em
-https://claude.ai/artifact/Ef6brhUn8ntfNradu6shPa como reserva.
+A primeira versão do hub foi um artefato do Claude que lia o Supabase pelo
+conector; foi aposentada em 26/09/2026 e o código fica no histórico do git.

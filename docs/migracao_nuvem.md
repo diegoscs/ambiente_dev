@@ -53,7 +53,7 @@ Supabase foi pausado em 21/09 mesmo com o robô 002 "funcionando".
 ### Fase 0 · preparar
 - [x] Linha `id_carga = 1` no Supabase
 - [x] Secret `GH_PAT` (mesmo token do `.env`, com escrita no `daily-log`)
-- [ ] Secrets `TELEGRAM_TOKEN` e `TELEGRAM_CHAT_ID`. Sem eles, falha na nuvem só avisa pelo e-mail do GitHub
+- [x] Secrets `TELEGRAM_TOKEN` e `TELEGRAM_CHAT_ID`. Sem eles, falha na nuvem só avisa pelo e-mail do GitHub
 
 ### Fase 1 · código
 - [x] Registro no Supabase na `lib_dscs`, usado pelos dois robôs
@@ -63,12 +63,12 @@ Supabase foi pausado em 21/09 mesmo com o robô 002 "funcionando".
 ### Fase 2 · workflows
 - [x] Workflow do 001, disparado na mão: [run 36241476925](https://github.com/diegoscs/ambiente_dev/actions/runs/36241476925), sucesso, saiu pela trava
 - [x] Workflow do 002 diário, disparado na mão: [run 36241478211](https://github.com/diegoscs/ambiente_dev/actions/runs/36241478211), sucesso
-- [ ] Primeiro lote real de commits feito pela nuvem (27/09, 03:17 UTC). Conferir no hub e no calendário do perfil
+- [x] Primeiro lote real de commits feito pela nuvem (27/09, 03:17 UTC). Conferir no hub e no calendário do perfil
 
 ### Fase 3 · tirar o PC do caminho
-- [ ] Uma semana em paralelo (PC + nuvem), conferindo o hub. PC e nuvem usam a mesma trava, então não há commit dobrado
-- [ ] Desativar a tarefa `ambiente_dev - Robos` no Agendador (desativar, não apagar)
-- [ ] Decidir o destino do `verificar_robos.ps1`: o hub já responde "rodou? como terminou?"
+- [x] Uma semana em paralelo (PC + nuvem), conferindo o hub. PC e nuvem usam a mesma trava, então não há commit dobrado
+- [x] Desativar a tarefa `ambiente_dev - Robos` no Agendador (desativar, não apagar)
+- [x] `verificar_robos.ps1` substituído pelo hub e pelo vigia (continua na pasta, só enxerga o modo `LOCAL`)
 
 ### Fase 4 · alerta de "não rodou"
 - [x] `vw_saude_robos` com `ATRASADO` (mais de 26 h sem execução fechada)
@@ -80,9 +80,9 @@ Supabase foi pausado em 21/09 mesmo com o robô 002 "funcionando".
 ### Fase 5 · hub web
 - [x] Página na Vercel com login (Supabase Auth) e RLS: https://hub-robos.vercel.app
 - [x] Primeiro login do dono, que fica cadastrado como único leitor (autocadastro removido em seguida)
-- [ ] Trocar a senha provisória pelo botão *Senha* do hub
+- [x] Trocar a senha provisória pelo botão *Senha* do hub
 - [x] `GH_DISPATCH_TOKEN` (fine-grained, Actions: Read and write) na Vercel. Testado em 26/09 pelo celular: [001](https://github.com/diegoscs/ambiente_dev/actions/runs/36250050865) e [002](https://github.com/diegoscs/ambiente_dev/actions/runs/36250059803) disparados pelo hub, os dois verdes
-- [ ] Deploy automático: conectar o repositório na Vercel com Root Directory `hub`
+- [x] Deploy automático: conectar o repositório na Vercel com Root Directory `hub`
 
 ## Revisão de 26/09/2026
 
