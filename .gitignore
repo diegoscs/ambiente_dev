@@ -18,3 +18,6 @@ logs/
 # sem ninguem ter pedido, e traria node_modules junto.
 clientes/
 pipelines/
+
+# Configuracao pessoal do VS Code (commit + sync automatico)
+.vscode/
