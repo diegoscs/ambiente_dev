@@ -108,6 +108,25 @@ Arquivo corrompido vira `{}` com aviso no log, não exceção: o pior caso é pe
 a trava e rodar de novo — melhor do que a carga parar por causa do arquivo de
 controle local.
 
+### Supabase (`supabase.py`)
+
+O registro oficial das cargas desde a migração para o GitHub Actions
+(26/09/2026). Fala com o PostgREST pelo `chamar_api_json`, sem `supabase-py`.
+
+| Função | O que faz |
+|---|---|
+| `modo_execucao()` | `LOCAL` (padrão) ou `CLOUD`, de `MODO_EXECUCAO` |
+| `supabase_configurado()` | `True` com `SUPABASE_URL` e `SUPABASE_KEY` presentes |
+| `registrar_carga_supabase(id, status, dta_ini, fechar, mensagem, qtd_itens)` | atualiza `public.controle_cargas`; com `fechar=True` também insere em `public.historico_cargas`. **Nunca levanta** |
+| `trabalho_feito_no_dia(id, dia_utc)` | soma de `qtd_itens` das execuções `SUCCESS` do dia UTC: a trava diária que funciona na nuvem. **Levanta** se o Supabase não responder |
+| `url_execucao_actions()` | link do run atual no Actions, ou `None` fora dele |
+
+`registrar_carga_supabase` grava também `ambiente` (`LOCAL`/`CLOUD`) e o link do
+run, que o hub usa para abrir o log. `id_carga` inexistente vira erro no log, e
+não uma linha nova, pelo mesmo motivo do `controle_cargas.py`.
+
+A chave precisa ser a `service_role`: as tabelas têm RLS ligada e sem policy.
+
 ### Banco (`banco.py`)
 
 | Função | O que faz |
@@ -203,7 +222,11 @@ robô (`logs\robo_<id>_<nome>_AAAAMMDD.txt`, com traceback). A tabela responde
 nem do Postgres client instalado. `con.execute()` já devolve cursor, então não
 precisa do `with con.cursor()` a cada query.
 
-## Limitação conhecida: sem histórico
+## Limitação conhecida: sem histórico (no Postgres local)
+
+> Resolvido do lado do Supabase em 26/09/2026: `public.historico_cargas` guarda
+> uma linha por execução, gravada por `registrar_carga_supabase`. O que segue
+> vale só para a tabela local.
 
 `dbo.controle_cargas` tem **uma linha por carga**, e cada execução sobrescreve
 `status`/`dta_ini`/`dta_fim`. Você vê a última rodada, não as anteriores — não dá
@@ -235,6 +258,7 @@ lib_dscs\
 ├─ api.py                cliente HTTP/JSON dos robôs de API
 ├─ retry.py              executar_com_retry
 ├─ estado.py             trava diária em temp\estado.json
+├─ supabase.py           controle de cargas no Supabase + trava pela nuvem
 └─ README.md
 ```
 

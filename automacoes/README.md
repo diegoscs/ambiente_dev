@@ -1,5 +1,11 @@
 # automacoes — ponto de entrada único dos robôs
 
+> **Desde 26/09/2026 os dois robôs rodam no GitHub Actions**, um workflow por
+> robô em [`.github/workflows`](../.github/workflows), com o controle de cargas
+> no Supabase. A tarefa do Agendador descrita abaixo segue em paralelo por uma
+> semana e depois será desativada. Ver
+> [docs/migracao_nuvem.md](../docs/migracao_nuvem.md).
+
 Desde **25/09/2026** existe **uma tarefa só** no Agendador do Windows, disparada
 **a cada logon**, no lugar das duas tarefas por horário que havia antes.
 

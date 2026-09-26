@@ -2,8 +2,13 @@
 
 Impede que o projeto Supabase do plano free seja **pausado por inatividade**.
 Toda execução faz uma consulta real no projeto por **dois caminhos** — conexão
-Postgres e API REST (PostgREST) — e registra o resultado em
-`dbo.controle_cargas` (`id_carga = 2`).
+Postgres e API REST (PostgREST) — e registra o resultado no próprio Supabase:
+`public.controle_cargas` (última execução) e `public.historico_cargas` (uma
+linha por execução), `id_carga = 2`.
+
+> **Desde 26/09/2026 o robô roda no GitHub Actions, todo dia.** O Agendador do
+> Windows segue em paralelo até a migração fechar. Ver
+> [docs/migracao_nuvem.md](../../docs/migracao_nuvem.md).
 
 > Projeto alvo: **financas-pipeline** (`mthipdxpedlfnkzddlar`, sa-east-1).
 
@@ -19,11 +24,14 @@ garante o projeto acordado.
 
 | `MODO_EXECUCAO` | Onde roda | Controle de carga |
 |---|---|---|
-| `LOCAL` (padrão) | Agendador do Windows | `dbo.controle_cargas` no Postgres `dm` + espelho no Supabase |
-| `CLOUD` | GitHub Actions | sem Postgres local — grava a carga direto no Supabase |
+| `CLOUD` | GitHub Actions (**o principal**) | só o Supabase |
+| `LOCAL` (padrão) | Agendador do Windows | Supabase + `dbo.controle_cargas` no Postgres `dm` |
 
-O `CLOUD` é rede de segurança: se a máquina ficar desligada uma semana, o
-Agendador não salva o projeto. O cron do workflow roda a cada 2 dias.
+Nos dois modos o registro oficial é o Supabase, gravado pela
+[`lib_dscs`](../../lib_dscs/README.md) (`dl.registrar_carga_supabase`). No
+`LOCAL` a tabela do Postgres `dm` continua sendo atualizada, mas deixou de ser
+copiada: até 25/09 o robô espelhava a linha local no Supabase com uma fila de
+pendências (`sync_supabase.py`), que saiu na migração.
 
 ## Configuração
 
@@ -56,10 +64,12 @@ psql -U postgres -d dm -f D:\ambiente_dev\automacoes\002_check_supabase\cadastro
 Isso adiciona `flg_sincronizado`/`dta_sync` em `dbo.controle_cargas` e cadastra
 o robô com `id_carga = 2`, `dias_semana = {1..7}` (**DIÁRIA**).
 
-### 3. Tabela espelho no Supabase
+### 3. Tabelas no Supabase
 
-Já criada em `public.controle_cargas` (migration `criar_espelho_controle_cargas`),
-com RLS ligada e sem policy — só a `service_role` escreve.
+`public.controle_cargas`, `public.historico_cargas` e a view
+`public.vw_saude_robos`, versionadas em
+[`supabase/migrations`](../../supabase/migrations). RLS ligada e sem policy:
+só a `service_role` lê e escreve.
 
 ## Como rodar na mão
 
@@ -78,15 +88,15 @@ marcar `SUCCESS` neles mentiria no monitoramento. Pelo `.bat` a saída vai para
 
 ## Fluxo
 
-1. Reenvia pendências de espelhamento de execuções anteriores
-2. `status_inicio` → `RUNNING`, `dta_ini=now()`, `dta_fim=NULL`
-3. Ping Postgres (`select now()`) e ping REST — 3 tentativas cada, 20 s de espera
-4. `status_sucesso` → `SUCCESS` (ou `status_erro` → `ERROR` + alerta no Telegram)
-5. Espelha a linha no Supabase via upsert em `id_carga`
+1. `RUNNING` no Supabase (e no `dm`, no modo `LOCAL`), `dta_fim=NULL`
+2. Ping Postgres (`select now()`) e ping REST — 3 tentativas cada, 20 s de espera
+3. `SUCCESS` + uma linha em `historico_cargas` com as latências e o link do run
+4. Na falha: `ERROR` + histórico + alerta no Telegram
 
-**Falha no passo 5 nunca derruba o robô**: a linha fica com
-`flg_sincronizado = false` e a próxima execução reenvia. A tabela local é a
-fonte da verdade.
+**Falha ao registrar nunca derruba o robô**: vira linha de log. Se o Supabase
+inteiro estiver fora, o ping falha e o registro também; quem pega esse caso é o
+run vermelho no Actions (o GitHub manda e-mail) e o `ATRASADO` da
+`vw_saude_robos` no hub.
 
 ## Log: só em caso de erro
 
@@ -117,8 +127,9 @@ indisponibilidade em vez de por configuração.
 ## GitHub Actions (modo CLOUD)
 
 **No ar desde 25/09/2026.** O workflow está em
-[`.github/workflows/supabase_keepalive.yml`](../../.github/workflows/supabase_keepalive.yml)
-— `cron: "12 9 */2 * *"` (a cada 2 dias, 06:12 em São Paulo) + `workflow_dispatch`.
+[`.github/workflows/robo_002_check_supabase.yml`](../../.github/workflows/robo_002_check_supabase.yml)
+— `cron: "12 9 * * *"` (todo dia, 06:12 em São Paulo) + `workflow_dispatch`.
+Até 26/09 ele se chamava `supabase_keepalive.yml` e rodava a cada 2 dias.
 
 Primeira execução disparada na mão em 25/09 às 17:20 UTC: **sucesso**, e a linha
 `id_carga = 2` apareceu em `public.controle_cargas` com `SUCCESS` e os carimbos
@@ -170,7 +181,20 @@ pode trocar a causa real por uma falha de notificação.
 Implementação compartilhada em `lib_dscs/notificacao.py`
 (`dl.alertar_erro_robo`), disponível para os próximos robôs.
 
-## Estado atual — 25/09/2026
+## Estado atual — 26/09/2026
+
+**Migrado para a nuvem.** O run disparado na mão em 26/09
+([36241478211](https://github.com/diegoscs/ambiente_dev/actions/runs/36241478211))
+terminou em sucesso e gravou status, histórico e link do run no Supabase:
+
+```
+ping ok: postgres 1533.3 ms | rest 590.2 ms      ambiente = CLOUD
+```
+
+O `cadastro_carga.sql` pela metade (abaixo) **deixou de importar**: as colunas
+`flg_sincronizado`/`dta_sync` só serviam ao espelho, que saiu.
+
+## Estado em 25/09/2026
 
 **O robô rodou pela primeira vez com sucesso**, às 11:59 de 25/09/2026:
 
@@ -222,10 +246,9 @@ encontrar.
 
 - [x] ~~Preencher o `.env` da raiz~~ — feito em 25/09/2026, validado com ping
       real nos dois caminhos.
-- [ ] **Rodar o [`cadastro_carga.sql`](cadastro_carga.sql) inteiro como
-      `postgres`.** A parte 2 já foi aplicada com o `robo_app`; falta a parte 1
-      (`ALTER` + `GRANT`), que só o dono da tabela pode fazer. Sem ela o
-      espelhamento funciona mas não consegue se marcar como feito.
+- [x] ~~Rodar o `cadastro_carga.sql` inteiro como `postgres`~~ — **não precisa
+      mais** (26/09/2026). A parte 1 criava as colunas de controle do espelho,
+      que saiu na migração para a nuvem.
 
 - [x] ~~Dar o scope `workflow` ao token e rodar `git push`~~ — feito em
       25/09/2026. Remoto em `9815e24`, workflow no ar.
@@ -256,8 +279,8 @@ encontrar.
 002_check_supabase\
 ├─ 002_check_supabase.py    main: controle de carga, orquestra o resto
 ├─ config_robo.py           constantes, leitura e validação do ambiente
+│                           (o registro no Supabase vem da lib_dscs)
 ├─ ping.py                  ping_postgres() e ping_rest() + retry
-├─ sync_supabase.py         upsert no Supabase, pendências e modo CLOUD
 ├─ 002_check_supabase.bat   o que o Agendador chama
 ├─ cadastro_carga.sql       ALTER + INSERT do robô (rodar como postgres)
 ├─ criar_tarefa.ps1         cria a tarefa no Agendador (rodar como admin)

@@ -5,6 +5,11 @@ Faz **commits reais** em um repositório próprio no GitHub, via API REST
 Como são commits no branch padrão de um repo do próprio usuário, eles alimentam
 o **calendário de contribuições** do perfil.
 
+> **Desde 26/09/2026 roda no GitHub Actions**, todo dia às 03:17 UTC
+> ([workflow](../../.github/workflows/robo_001_check_github.yml)), com trava e
+> registro no Supabase. Ver [Na nuvem](#na-nuvem-github-actions) e
+> [docs/migracao_nuvem.md](../../docs/migracao_nuvem.md).
+
 > ⚠️ A atividade é sintética. O calendário fica verde de verdade, mas os commits
 > não representam trabalho — não use o gráfico como evidência de entrega.
 
@@ -48,7 +53,39 @@ devolvido por cada commit no commit seguinte, sem reler o arquivo a cada volta.
 - Repositório **privado** só aparece com *Private contributions* habilitado no
   perfil. Por isso `REPO_PRIVADO = False` é o padrão.
 
-## Estado e travamento diário
+## Na nuvem (GitHub Actions)
+
+`MODO_EXECUCAO=CLOUD`. A máquina do Actions nasce vazia a cada execução, então
+o `temp\estado.json` não serve de trava. A trava passa a ser o Supabase:
+`dl.trabalho_feito_no_dia(1, dia_utc)` soma o `qtd_itens` das execuções
+`SUCCESS` do dia UTC em `public.historico_cargas`. Se a soma for maior que zero,
+o robô sai sem commitar e registra a execução com `qtd_itens = 0`, que não conta
+como o lote do dia.
+
+```
+[ESTADO] dia 2026-09-26 (UTC) ja processado (5 commit(s)) - nada a fazer
+```
+
+- **PC e nuvem enxergam a mesma trava.** No `LOCAL`, com o Supabase
+  configurado, o robô também registra lá e soma as duas fontes (`estado.json` e
+  histórico). Rodar nos dois lugares no mesmo dia não dobra os commits.
+- **Sem Supabase, a nuvem não commita.** Se a leitura da trava falhar no modo
+  `CLOUD`, a execução termina em `ERROR`. Sem saber se o dia já foi feito, o
+  seguro é não fazer de novo. No PC o `estado.json` ainda protege, e a
+  execução segue com aviso no log.
+- **Token:** `GH_PAT` (secret do repositório) na nuvem e `GITHUB_TOKEN` no
+  `.env` do PC. O GitHub recusa secrets com prefixo `GITHUB_`.
+- **Horário:** 03:17 UTC, cedo no dia UTC. O atraso da fila do GitHub nunca
+  empurra o lote para o quadrado seguinte.
+- **Falha:** `ERROR` + histórico no Supabase, alerta no Telegram (se os secrets
+  existirem), e-mail do GitHub e o `erro_*.txt` como artifact `log-erro-001`.
+
+Validado em 26/09/2026: o run
+[36241476925](https://github.com/diegoscs/ambiente_dev/actions/runs/36241476925)
+leu os 5 commits já feitos no dia pelo PC e saiu pela trava. O primeiro lote de
+commits feito pela nuvem é o de 27/09.
+
+## Estado e travamento diário (PC)
 
 `temp\estado.json` guarda o último dia processado, quantos commits saíram, o
 motivo e o último `sha` **do arquivo** (o blob da Contents API, não o sha do
@@ -121,8 +158,10 @@ duplicava em código a decisão que já está no gatilho da tarefa.
 
 ## Controle de cargas
 
-O robô registra a execução em `dbo.controle_cargas` (Postgres `dm`), **`id_carga = 1`**,
-via `lib_dscs`:
+O registro oficial é o Supabase (`public.controle_cargas` + `public.historico_cargas`,
+**`id_carga = 1`**), com o número de commits em `qtd_itens` e um resumo em
+`mensagem`. No modo `LOCAL` o robô também atualiza `dbo.controle_cargas`
+(Postgres `dm`), via `lib_dscs`:
 
 | Momento | Status gravado |
 |---|---|
@@ -139,7 +178,8 @@ junto, o log continua mostrando o erro real do robô em vez de ser substituído
 pelo erro de conexão. Nesse caso a linha fica em `RUNNING` com `dta_fim` nulo —
 que é justamente o sinal de "morreu no meio".
 
-A tabela **não tem coluna de mensagem**: o motivo do erro fica no log do dia.
+A tabela local **não tem coluna de mensagem**; a do Supabase tem, e guarda o
+resumo da execução ou o erro.
 
 ## Execução
 
@@ -209,7 +249,11 @@ via).
 
 ## Agendamento
 
-O robô **não tem tarefa própria** desde 25/09/2026. Quem o chama é a tarefa
+**Principal: GitHub Actions**, todo dia às 03:17 UTC (ver
+[Na nuvem](#na-nuvem-github-actions)). O que segue descreve o Agendador do
+Windows, que roda em paralelo até a migração fechar.
+
+O robô **não tem tarefa própria** no Agendador desde 25/09/2026. Quem o chama é a tarefa
 única [`ambiente_dev - Robos`](../README.md), disparada **a cada logon** com 3
 minutos de atraso, através do [`iniciar_robos.bat`](../iniciar_robos.bat).
 
@@ -300,8 +344,9 @@ select id_carga, nome_carga, status, dta_fim,
 
 ## Pendências
 
-- [ ] Não há reposição retroativa: se a máquina ficar desligada o dia inteiro,
-      aquele dia fica em branco no calendário. Backfill exigiria a Git Data API
+- [ ] Não há reposição retroativa: se um dia inteiro passar sem execução,
+      aquele dia fica em branco no calendário. Com o Actions isso ficou raro
+      (não depende mais do PC ligado), mas o cron pode falhar. Backfill exigiria a Git Data API
       (criar commit com `author.date` no passado), que é bem mais código.
 
 ### Resolvido
