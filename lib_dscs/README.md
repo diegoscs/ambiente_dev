@@ -267,45 +267,33 @@ lib_dscs\
 
 ## Esqueleto de um robô novo
 
+O esqueleto oficial é [`automacoes/_modelo/NNN_nome_robo.py`](../automacoes/_modelo/NNN_nome_robo.py),
+e as regras estão em [`automacoes/PADRAO_ROBOS.md`](../automacoes/PADRAO_ROBOS.md).
+O miolo do `main()`:
+
 ```python
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-import lib_dscs as dl
+registrar = not (DEBUG or DRY_RUN or STATUS)
+try:
+    validar_configuracao()
+    if registrar:
+        dl.registrar_carga_supabase(IDCARGA, dl.STATUS_INICIO, dta_ini, fechar=False)
 
-IDCARGA = 999
-NOME_ROBO = "meu_robo"
-BASE = Path(__file__).resolve().parent
+    qtd, resumo = processar()
 
-def main() -> None:
-    dl.configurar_logger(IDCARGA, NOME_ROBO, BASE)
-    dl.logar_contexto("PRODUCAO", extras={"Tabela destino": TABELA})
-
-    registrar = not (DEBUG or DRY_RUN)
-    try:
-        if registrar:
-            dl.status_inicio(IDCARGA)
-
-        processar()
-
-        if registrar:
-            dl.status_sucesso(IDCARGA)
-        dl.log(f"[ROBO{IDCARGA:03d}] ✅ RESULTADO FINAL: SUCESSO")
-
-    except Exception as e:
-        dl.log(f"[ROBO{IDCARGA:03d}] ❌ erro final: {e}")
-        dl.logar_traceback("erro final")
-
-        if registrar:
-            try:
-                dl.status_erro(IDCARGA)
-            except Exception as erro_controle:
-                dl.log(f"[CONTROLE] ⚠ falha ao registrar: {erro_controle}")
-
-        dl.log(f"[ROBO{IDCARGA:03d}] ❌ RESULTADO FINAL: ERRO")
-        arquivo = dl.salvar_log_erro()
-        if arquivo:
-            print(f"Log do erro: {arquivo}", file=sys.stderr)
-        raise
+    if registrar:
+        dl.registrar_carga_supabase(IDCARGA, dl.STATUS_SUCESSO, dta_ini, fechar=True,
+                                    mensagem=resumo, qtd_itens=qtd)
+except Exception as e:
+    if registrar:
+        dl.registrar_carga_supabase(IDCARGA, dl.STATUS_ERRO, dta_ini, fechar=True,
+                                    mensagem=str(e)[:500], qtd_itens=ITENS_FEITOS)
+        dl.alertar_erro_robo(IDCARGA, NOME_ROBO, str(e))
+    dl.salvar_log_erro()
+    raise
 ```
+
+Os `status_inicio`/`status_sucesso`/`status_erro` do Postgres local (`dm`) só
+existem para o modo `LOCAL` dos robôs antigos; robô novo não usa.
 
 O `try/except` fica **explícito em cada robô**, por decisão sua — a alternativa
 era um `with dl.execucao(...)` que escondesse isso. Mais linhas, porém o fluxo

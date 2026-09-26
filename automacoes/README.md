@@ -100,8 +100,14 @@ automacoes\
 ├─ iniciar_robos.bat        chamado pela tarefa; roda os dois em sequência
 ├─ criar_tarefa_robos.ps1   cria a tarefa de logon e remove as antigas
 ├─ verificar_robos.ps1      responde "rodou? como terminou?" numa tela só
+├─ vigia_robos.py           vigia diário (workflow vigia_robos.yml): notificação no hub
+├─ PADRAO_ROBOS.md          regras para robôs novos
+├─ _modelo\                 esqueleto de robô, workflow e cadastro no Supabase
 ├─ 001_check_github\        robô 001 + README próprio
 └─ 002_check_supabase\      robô 002 + README próprio
+
+O `verificar_robos.ps1` lê o Postgres local e só enxerga o modo `LOCAL`. O
+estado real dos robôs está no [hub](../hub/README.md) e no vigia.
 ```
 
 O `002_check_supabase\criar_tarefa.ps1` está **obsoleto** — é o criador da tarefa

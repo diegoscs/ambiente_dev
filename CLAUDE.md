@@ -35,6 +35,8 @@ cd hub; vercel deploy --prod           # hub (ainda sem deploy automatico)
 
 ## Cuidados
 
+- Workflows e arquivos podem ser editados direto no site do GitHub: comece
+  sempre com `git pull` para não sobrescrever uma edição feita por lá.
 - `git push` pode travar num prompt de credencial: confira com
   `git ls-remote --heads origin`.
 - O `.env` nunca vai para o repositório (confira com `git ls-files`).
