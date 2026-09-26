@@ -37,8 +37,11 @@ cd hub; vercel deploy --prod           # hub (ainda sem deploy automatico)
 
 - Workflows e arquivos podem ser editados direto no site do GitHub: comece
   sempre com `git pull` para não sobrescrever uma edição feita por lá.
-- `git push` pode travar num prompt de credencial: confira com
-  `git ls-remote --heads origin`.
+- Credencial do GitHub guardada no Git Credential Manager (conta `diegoscs`,
+  fixada em `credential.https://github.com.username`). Se o push voltar a pedir
+  usuário e senha, confira `cmdkey /list` (duas contas do GitHub travam o GCM).
+- No VS Code (`.vscode/settings.json`, fora do repositório), commit já faz
+  sync (pull com rebase + push) e o autofetch traz edições feitas no GitHub.
 - O `.env` nunca vai para o repositório (confira com `git ls-files`).
 - Mudou `hub/`? O deploy na Vercel é manual até o repositório ser conectado lá.
 - Supabase do projeto: `mthipdxpedlfnkzddlar` (financas-pipeline, sa-east-1).
