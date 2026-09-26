@@ -1,0 +1,56 @@
+# =============================================
+# MODELO de workflow - copie para .github/workflows/robo_NNN_nome_robo.yml
+# (fora de .github/workflows ele nao roda). Regras em automacoes/PADRAO_ROBOS.md.
+#
+# Robo NNN - <o que faz, em uma linha>.
+# =============================================
+name: robo_NNN_nome_robo
+
+on:
+  schedule:
+    # <quando>, HH:MM UTC (HH:MM em Sao Paulo). Minuto quebrado de proposito:
+    # a fila do GitHub atrasa jobs agendados na virada da hora.
+    - cron: "23 6 * * *"
+  workflow_dispatch:
+
+# Duas execucoes simultaneas gravariam na mesma linha de controle.
+concurrency:
+  group: robo-NNN
+  cancel-in-progress: false
+
+jobs:
+  executar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    env:
+      MODO_EXECUCAO: CLOUD
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+      TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      # Segredos proprios do robo. Nome de secret NAO pode comecar com GITHUB_,
+      # e o prefixo precisa estar em PREFIXOS_AMBIENTE (lib_dscs/config.py).
+      # MINHA_API_TOKEN: ${{ secrets.MINHA_API_TOKEN }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Instalar dependencias
+        run: pip install -r requirements.txt
+
+      - name: Executar o robo
+        run: python automacoes/NNN_nome_robo/NNN_nome_robo.py
+
+      - name: Guardar o log do erro
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: log-erro-NNN
+          path: automacoes/NNN_nome_robo/temp/erro_*.txt
+          if-no-files-found: ignore

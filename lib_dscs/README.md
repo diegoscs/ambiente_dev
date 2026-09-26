@@ -118,8 +118,11 @@ O registro oficial das cargas desde a migração para o GitHub Actions
 | `modo_execucao()` | `LOCAL` (padrão) ou `CLOUD`, de `MODO_EXECUCAO` |
 | `supabase_configurado()` | `True` com `SUPABASE_URL` e `SUPABASE_KEY` presentes |
 | `registrar_carga_supabase(id, status, dta_ini, fechar, mensagem, qtd_itens)` | atualiza `public.controle_cargas`; com `fechar=True` também insere em `public.historico_cargas`. **Nunca levanta** |
-| `trabalho_feito_no_dia(id, dia_utc)` | soma de `qtd_itens` das execuções `SUCCESS` do dia UTC: a trava diária que funciona na nuvem. **Levanta** se o Supabase não responder |
+| `trabalho_feito_no_dia(id, dia_utc)` | soma de `qtd_itens` das execuções do dia UTC (inclusive lote parcial que quebrou): a trava diária que funciona na nuvem. **Levanta** se o Supabase não responder |
 | `url_execucao_actions()` | link do run atual no Actions, ou `None` fora dele |
+| `ler_saude_robos()` | linhas da `vw_saude_robos`; `SAUDE_BOA` = `("OK", "RODANDO")`. **Levanta** |
+| `notificar_hub(nivel, titulo, detalhe, origem)` | grava em `public.notificacoes_hub` (`info`/`atencao`/`resolvido`). **Nunca levanta** |
+| `ultima_notificacao(origem)` | a notificação mais recente de uma origem, ou `None` |
 
 `registrar_carga_supabase` grava também `ambiente` (`LOCAL`/`CLOUD`) e o link do
 run, que o hub usa para abrir o log. `id_carga` inexistente vira erro no log, e

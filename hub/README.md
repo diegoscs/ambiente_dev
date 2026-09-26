@@ -13,7 +13,12 @@ Painel de celular com a saúde dos robôs, lido ao vivo do Supabase.
 - **Últimas execuções**, de `historico_cargas`: onde rodou (PC ou nuvem),
   resumo e duração.
 - **▶ Rodar agora**, que dispara o workflow do robô no GitHub Actions, e o link
-  para o log do último run.
+  para o log do último run. O workflow vem da coluna `workflow` de
+  `controle_cargas`: robô novo cadastrado aparece com o botão sem mexer no hub.
+- **Notificações** do [vigia](../automacoes/vigia_robos.py): uma por
+  verificação diária (em dia, atenção ou resolvido), com contador de não lidas
+  e "Marcar como lidas".
+- **Troca de senha** pelo botão *Senha* no topo.
 
 Atualiza sozinho a cada 2 minutos com a página visível, e na volta para a aba.
 Instalável na tela inicial do celular (manifesto + ícone).
@@ -26,21 +31,28 @@ flowchart LR
     P -- "SELECT com o token do login" --> RLS{"RLS:<br/>eh_leitor_hub()?"}
     RLS -- sim --> DADOS[("vw_saude_robos<br/>historico_cargas")]
     P -- "POST /api/rodar + token" --> F["Função da Vercel"]
-    F -- "hub_acesso() com o token" --> RLS
+    F -- "lê o workflow do robô<br/>com o token" --> RLS
     F -- "GH_DISPATCH_TOKEN<br/>(só no servidor)" --> GA["GitHub Actions<br/>workflow_dispatch"]
 ```
 
 - **A página só tem a chave pública** do Supabase, que foi feita para ficar no
   navegador. Sem login ela não lê nada: as tabelas têm RLS, e a policy
   `hub_leitura` só libera `SELECT` para quem está em `private.hub_leitores`.
-- **Quem entra em `hub_leitores`:** o primeiro login no hub. A função
-  `public.hub_acesso()` cadastra o usuário só se a tabela estiver vazia; depois
-  disso, só por SQL. Contas novas no mesmo projeto recebem "sem acesso".
+- **Quem entra em `hub_leitores`:** só por SQL. O primeiro login se cadastrou
+  sozinho uma vez; depois disso o autocadastro foi removido
+  (`hub_acesso_sem_autocadastro`), para que apagar a conta do dono não deixe a
+  vaga aberta para o próximo cadastro. Contas novas recebem "sem acesso".
+- **O leitor só lê**, e nas notificações só pode mexer na coluna `lida`. A
+  escrita geral que o Supabase concede por padrão foi revogada
+  (`notificacoes_hub_so_coluna_lida`); testado com um usuário simulado.
 - **O token do GitHub nunca vai para a página.** Ele fica na variável
   `GH_DISPATCH_TOKEN` da Vercel. A função [`api/rodar.js`](api/rodar.js) confere
-  o login no Supabase antes de disparar, e o nome do workflow sai de uma lista
-  branca no servidor.
+  o login no Supabase antes de disparar: lê o `workflow` do robô com o token
+  do usuário (a RLS só devolve a linha para o leitor) e valida o nome do arquivo.
 - **Escrita** nas tabelas continua só com a `service_role`, que só os robôs têm.
+- **Página:** a biblioteca do Supabase vem do CDN com hash de integridade (SRI),
+  e a Vercel manda `Content-Security-Policy` restringindo scripts, conexões e
+  frames ([`vercel.json`](vercel.json)).
 
 Migration: [`supabase/migrations/20260926123000_hub_leitura_autenticada.sql`](../supabase/migrations/20260926123000_hub_leitura_autenticada.sql).
 

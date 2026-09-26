@@ -74,19 +74,42 @@ Supabase foi pausado em 21/09 mesmo com o robô 002 "funcionando".
 - [x] `vw_saude_robos` com `ATRASADO` (mais de 26 h sem execução fechada)
 - [x] Hub lendo a view
 
+### Fase 4b · vigia
+- [x] `vigia_robos.yml` diário às 13:07 UTC: notificação no hub a cada verificação, run vermelho se algum robô não estiver em dia
+
 ### Fase 5 · hub web
 - [x] Página na Vercel com login (Supabase Auth) e RLS: https://hub-robos.vercel.app
-- [ ] Primeiro login do dono, que fica cadastrado como único leitor
+- [x] Primeiro login do dono, que fica cadastrado como único leitor (autocadastro removido em seguida)
+- [ ] Trocar a senha provisória pelo botão *Senha* do hub
 - [ ] `GH_DISPATCH_TOKEN` (fine-grained, Actions: Read and write) na Vercel, para o botão "Rodar agora"
 - [ ] Deploy automático: conectar o repositório na Vercel com Root Directory `hub`
+
+## Revisão de 26/09/2026
+
+Corrigido na revisão geral:
+
+| Furo | Correção |
+|---|---|
+| Autocadastro do hub continuava ativo: apagar a conta do dono deixaria o próximo cadastro virar dono | `hub_acesso()` só consulta; leitor novo só por SQL |
+| O leitor podia alterar qualquer coluna das notificações (o Supabase concede escrita geral por padrão; grant de coluna não restringia) | `revoke` explícito; só `update (lida)`; testado com usuário simulado |
+| Lote do 001 que quebrasse no meio era registrado com 0 commits, e a execução seguinte faria outro lote inteiro | `qtd_itens` recebe os commits já enviados, e a trava soma também execuções com erro |
+| "Robô não rodou" só aparecia para quem abrisse o hub | vigia diário: notificação no hub + run vermelho (e-mail) |
+| Biblioteca do CDN sem verificação de integridade, sem CSP | SRI + `Content-Security-Policy` na Vercel |
+| Senha provisória passou pela conversa | botão *Senha* no hub para trocar |
+| Workflow de cada robô fixo no código do hub (dois lugares) | coluna `workflow` em `controle_cargas`, lida pela página e pela função |
+| Duas migrations com nome diferente da versão aplicada | arquivos renomeados |
 
 ## Riscos que continuam
 
 - **O cron do GitHub atrasa.** Normalmente são minutos, às vezes uma hora; em
   picos raros um horário é pulado. Os horários ficam longe da virada do dia UTC,
   e o `ATRASADO` aparece no hub com 26 h sem execução.
-- **Workflow que não roda não avisa.** O e-mail do GitHub só chega quando um run
-  falha. O caso "nem rodou" é o `ATRASADO`, e só aparece para quem abre o hub.
+- **Se o próprio GitHub Actions parar, o vigia para junto.** Ele cobre robô que
+  não rodou, não o Actions inteiro fora. O hub continua mostrando `ATRASADO`.
+- **Repositório público desliga os crons após 60 dias sem commit.** Hoje é
+  privado; se virar público para o portfólio, os commits do 001 vão para o
+  `daily-log`, não para cá, então um período sem mexer no `ambiente_dev`
+  desativa os workflows.
 - **Supabase fora do ar.** O 002 falha e o registro também; o run fica vermelho
   no Actions e o GitHub manda e-mail. Na nuvem o 001 **não commita** sem
   conseguir ler a trava, de propósito: sem saber se o dia já foi feito, o

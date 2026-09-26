@@ -87,6 +87,11 @@ MENSAGENS = [
 TOKEN = ""   # preenchido em validar_configuracao()
 OWNER = ""   # descoberto pelo token em resolver_owner()
 
+# Commits que chegaram de fato ao GitHub nesta execucao. Vai para o qtd_itens
+# mesmo quando a execucao quebra no meio: sem isso um lote parcial seria
+# registrado como 0 e a proxima execucao faria outro lote inteiro no dia.
+COMMITS_ENVIADOS = 0
+
 # LOCAL -> Agendador do Windows: trava em temp\estado.json + dbo.controle_cargas.
 # CLOUD -> GitHub Actions: a maquina nasce vazia a cada execucao, entao a trava
 #          e o registro ficam no Supabase (public.historico_cargas).
@@ -313,6 +318,8 @@ def processar() -> tuple[int, str]:
             SEGUNDOS_ENTRE_TENTATIVAS,
         )
         feitos += 1
+        global COMMITS_ENVIADOS
+        COMMITS_ENVIADOS = feitos
         dl.log(f"[COMMIT] {i}/{quantidade} enviado ({sha[:7]}): {mensagem}")
 
         if i < quantidade:
@@ -425,7 +432,7 @@ def main() -> None:
             # registrar_carga_supabase nunca levanta: o erro original segue intacto.
             dl.registrar_carga_supabase(
                 IDCARGA, dl.STATUS_ERRO, dta_ini, fechar=True,
-                mensagem=str(e)[:500], qtd_itens=0,
+                mensagem=str(e)[:500], qtd_itens=COMMITS_ENVIADOS,
             )
 
         if registrar_controle:

@@ -167,14 +167,15 @@ def registrar_carga_supabase(
 
 
 def trabalho_feito_no_dia(id_carga: int, dia_utc: datetime) -> int:
-    """Soma de qtd_itens das execucoes SUCCESS do dia UTC. 0 = nada feito ainda.
+    """Soma de qtd_itens das execucoes do dia UTC. 0 = nada feito ainda.
 
     E a trava diaria que funciona na nuvem: a maquina do Actions nasce vazia a
     cada execucao, entao um arquivo local de estado nao lembra de nada.
 
     Conta so execucoes que fizeram trabalho (qtd_itens > 0): uma execucao que
     saiu por causa da propria trava tambem fecha SUCCESS, com qtd_itens = 0, e
-    nao pode contar como o lote do dia.
+    nao pode contar como o lote do dia. ERROR entra na conta: um lote que
+    quebrou no meio registra o que chegou a fazer, e esse trabalho existe.
 
     Levanta se o Supabase nao responder. Quem chama decide: sem saber se o dia
     ja foi feito, o seguro e nao commitar de novo.
@@ -182,7 +183,7 @@ def trabalho_feito_no_dia(id_carga: int, dia_utc: datetime) -> int:
     inicio = dia_utc.astimezone(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
     filtro = (
         f"{TABELA_HISTORICO_SUPABASE}?select=qtd_itens"
-        f"&id_carga=eq.{id_carga}&status=eq.SUCCESS&qtd_itens=gt.0"
+        f"&id_carga=eq.{id_carga}&qtd_itens=gt.0"
         f"&dta_ini=gte.{inicio.isoformat().replace('+00:00', 'Z')}"
     )
     status_http, payload = chamar_api_json(
@@ -190,3 +191,58 @@ def trabalho_feito_no_dia(id_carga: int, dia_utc: datetime) -> int:
     )
     _checar(status_http, payload, "leitura historico_cargas")
     return sum(int(p.get("qtd_itens") or 0) for p in payload)
+
+
+SAUDE_BOA = ("OK", "RODANDO")
+
+
+def ler_saude_robos() -> list[dict[str, Any]]:
+    """Linhas da public.vw_saude_robos (uma por robo ativo). Levanta se falhar.
+
+    saude: OK / RODANDO / ERRO / ATRASADO / TRAVADO / NUNCA_RODOU. Qualquer
+    coisa fora de SAUDE_BOA pede atencao.
+    """
+    status_http, payload = chamar_api_json(
+        _url("vw_saude_robos?select=*&order=id_carga"),
+        "GET",
+        cabecalhos=_cabecalhos(),
+        timeout=TIMEOUT_SEGUNDOS,
+    )
+    _checar(status_http, payload, "leitura vw_saude_robos")
+    return payload
+
+
+# ─── notificacoes do hub ────────────────────────────────────────────────────
+
+TABELA_NOTIFICACOES = "notificacoes_hub"
+
+
+def ultima_notificacao(origem: str) -> dict[str, Any] | None:
+    """Notificacao mais recente de uma origem, ou None. Levanta se falhar."""
+    status_http, payload = chamar_api_json(
+        _url(f"{TABELA_NOTIFICACOES}?select=nivel,titulo,dta_add&origem=eq.{origem}"
+             f"&order=dta_add.desc&limit=1"),
+        "GET",
+        cabecalhos=_cabecalhos(),
+        timeout=TIMEOUT_SEGUNDOS,
+    )
+    _checar(status_http, payload, "leitura notificacoes_hub")
+    return payload[0] if payload else None
+
+
+def notificar_hub(nivel: str, titulo: str, detalhe: str | None = None, origem: str = "vigia") -> bool:
+    """Deixa uma notificacao no hub (info / atencao / resolvido). NUNCA levanta."""
+    try:
+        status_http, payload = chamar_api_json(
+            _url(TABELA_NOTIFICACOES),
+            "POST",
+            corpo={"origem": origem, "nivel": nivel, "titulo": titulo, "detalhe": detalhe},
+            cabecalhos=_cabecalhos({"Prefer": "return=minimal"}),
+            timeout=TIMEOUT_SEGUNDOS,
+        )
+        _checar(status_http, payload, "insert notificacoes_hub")
+        log(f"[HUB] notificacao '{nivel}': {titulo}")
+        return True
+    except Exception as e:  # noqa: BLE001 - notificacao nunca derruba quem chama
+        log(f"[HUB] ⚠ falha ao notificar o hub: {e}")
+        return False

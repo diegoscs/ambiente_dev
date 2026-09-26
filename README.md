@@ -9,6 +9,10 @@ caso de erro, retry nas etapas de rede e alerta de falha no Telegram.
 |---|---|---|
 | [**001 · Check GitHub**](automacoes/001_check_github/README.md) | commits diários num repositório próprio pela Contents API | todo dia, 03:17 UTC |
 | [**002 · Check Supabase**](automacoes/002_check_supabase/README.md) | keepalive do projeto Supabase (plano free pausa com 7 dias sem uso) | todo dia, 09:12 UTC |
+| [**Vigia**](automacoes/vigia_robos.py) | confere a `vw_saude_robos`, deixa notificação no hub e falha o run se algum robô estiver atrasado ou com erro | todo dia, 13:07 UTC |
+
+Robô novo segue o [padrão dos robôs](automacoes/PADRAO_ROBOS.md), a partir do
+[modelo](automacoes/_modelo).
 
 ## Arquitetura
 
@@ -69,7 +73,8 @@ sequenceDiagram
   rodar e o projeto do Supabase chegou a ser pausado, sem nenhum erro em lugar
   nenhum: o último status continuava `SUCCESS`. Por isso a
   [`vw_saude_robos`](supabase/migrations/20260926121254_robos_nuvem_historico_e_saude.sql)
-  mede **atraso** (`dta_fim` mais velha que `atraso_max_horas`), não só status.
+  mede **atraso** (`dta_fim` mais velha que `atraso_max_horas`), não só status,
+  e o vigia transforma isso em notificação e em run vermelho (e-mail do GitHub).
 - **Trava diária no banco, não em arquivo.** A máquina do Actions nasce vazia a
   cada execução, então o `estado.json` local não lembra de nada. A trava do 001
   soma os commits do dia UTC no `historico_cargas`. É o mesmo registro que o PC

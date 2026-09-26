@@ -1,0 +1,41 @@
+# =============================================
+# Vigia dos robos: le a vw_saude_robos e falha se algum robo estiver com
+# ERRO, ATRASADO, TRAVADO ou NUNCA_RODOU.
+#
+# Run vermelho = e-mail do GitHub para quem mexeu no cron por ultimo (e alerta
+# no Telegram, se os secrets existirem). E o que transforma "o robo nem rodou"
+# em aviso, sem depender de alguem abrir o hub.
+# =============================================
+name: vigia_robos
+
+on:
+  schedule:
+    # Todo dia, 13:07 UTC (10:07 em Sao Paulo): depois do 001 (03:17) e do 002
+    # (09:12), com folga para o atraso da fila do GitHub.
+    - cron: "7 13 * * *"
+  workflow_dispatch:
+
+jobs:
+  vigiar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+      TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Instalar dependencias
+        run: pip install -r requirements.txt
+
+      - name: Conferir a saude dos robos
+        run: python automacoes/vigia_robos.py
