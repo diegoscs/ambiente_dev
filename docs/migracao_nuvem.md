@@ -74,6 +74,12 @@ Supabase foi pausado em 21/09 mesmo com o robô 002 "funcionando".
 - [x] `vw_saude_robos` com `ATRASADO` (mais de 26 h sem execução fechada)
 - [x] Hub lendo a view
 
+### Fase 5 · hub web
+- [x] Página na Vercel com login (Supabase Auth) e RLS: https://hub-robos.vercel.app
+- [ ] Primeiro login do dono, que fica cadastrado como único leitor
+- [ ] `GH_DISPATCH_TOKEN` (fine-grained, Actions: Read and write) na Vercel, para o botão "Rodar agora"
+- [ ] Deploy automático: conectar o repositório na Vercel com Root Directory `hub`
+
 ## Riscos que continuam
 
 - **O cron do GitHub atrasa.** Normalmente são minutos, às vezes uma hora; em

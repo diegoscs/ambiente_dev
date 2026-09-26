@@ -30,8 +30,9 @@ flowchart LR
         CC --> VW
     end
 
-    HUB["Hub no celular<br/>artefato do Claude"] -. "consulta pelo<br/>conector do Supabase" .-> VW
+    HUB["Hub no celular<br/>hub-robos.vercel.app"] -. "login + RLS<br/>só leitura" .-> VW
     HUB -.-> HC
+    HUB -. "▶ rodar agora" .-> GA
 ```
 
 O Supabase é o **único registro oficial** do que os robôs fizeram. Antes da
@@ -83,8 +84,9 @@ sequenceDiagram
   grava o log inteiro com traceback, que no Actions sobe como artifact do run.
 - **Segredos só no servidor.** A `service_role` do Supabase fica nos secrets do
   Actions; as tabelas têm RLS ligada e sem policy, então a chave pública não lê
-  nada. O hub lê pelo conector do Supabase da minha conta no Claude, sem chave
-  nenhuma na página.
+  nada sem login. O [hub](hub/README.md) usa a chave pública com Supabase Auth e
+  uma policy que só libera leitura para o dono; o token do GitHub do botão
+  "Rodar agora" fica só na função da Vercel.
 
 ## Estrutura
 
@@ -95,7 +97,7 @@ ambiente_dev\
 │  ├─ 001_check_github\       robô 001 + README
 │  ├─ 002_check_supabase\     robô 002 + README
 │  └─ ...                     .bat e scripts do Agendador (modo LOCAL)
-├─ hub\                       painel de celular (artefato do Claude) + README
+├─ hub\                       painel de celular na Vercel (login, RLS, função serverless)
 ├─ lib_dscs\                  biblioteca compartilhada dos robôs
 ├─ supabase\migrations\       schema do controle de cargas, versionado
 └─ docs\                      migração para a nuvem, checklist e decisões
@@ -104,7 +106,8 @@ ambiente_dev\
 ## Stack
 
 Python 3.12 (Actions) / 3.14 (PC) · `urllib` da biblioteca padrão para HTTP ·
-`psycopg` 3 · GitHub Actions · Supabase (Postgres + PostgREST) · Telegram Bot API.
+`psycopg` 3 · GitHub Actions · Supabase (Postgres, PostgREST, Auth, RLS) ·
+Vercel (estático + função Node) · Telegram Bot API.
 
 ## Rodando localmente
 
