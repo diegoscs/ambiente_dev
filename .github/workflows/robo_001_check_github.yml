@@ -1,0 +1,57 @@
+# =============================================
+# Robo 001 - commits diarios no repo daily-log (modo CLOUD).
+#
+# A trava "um lote por dia" fica no Supabase (public.historico_cargas): a
+# maquina do Actions nasce vazia a cada execucao, entao o temp\estado.json do
+# PC nao serve aqui. O mesmo registro impede que PC e nuvem dobrem o dia.
+# =============================================
+name: robo_001_check_github
+
+on:
+  schedule:
+    # Todo dia, 03:17 UTC (00:17 em Sao Paulo). Cedo no dia UTC de proposito:
+    # o quadradinho do calendario e o do dia UTC, e o atraso da fila do GitHub
+    # (minutos, as vezes uma hora) nunca empurra o lote para o dia seguinte.
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: robo-001
+  cancel-in-progress: false
+
+jobs:
+  commits:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    env:
+      MODO_EXECUCAO: CLOUD
+      # Token com escrita no repo daily-log. Secret nao pode comecar com
+      # GITHUB_, por isso GH_PAT (o robo le GH_PAT antes de GITHUB_TOKEN).
+      GH_PAT: ${{ secrets.GH_PAT }}
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+      TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Instalar dependencias
+        run: pip install -r requirements.txt
+
+      - name: Commits do dia
+        run: python automacoes/001_check_github/001_check_github.py
+
+      - name: Guardar o log do erro
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: log-erro-001
+          path: automacoes/001_check_github/temp/erro_*.txt
+          if-no-files-found: ignore

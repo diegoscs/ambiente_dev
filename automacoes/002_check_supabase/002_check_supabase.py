@@ -23,13 +23,9 @@ from datetime import datetime, timezone
 
 import lib_dscs as dl
 
-import sync_supabase as sync
 from config_robo import (
     IDCARGA,
-    MODO_CLOUD,
-    MODO_LOCAL,
     NOME_ROBO,
-    modo_execucao,
     url_supabase,
     validar_configuracao,
 )
@@ -39,6 +35,11 @@ from ping import executar_pings
 # DEBUG=True  -> nada e gravado em lugar nenhum; so o ping e o log.
 # --dry-run   -> igual ao DEBUG, sem editar o arquivo.
 # --status    -> mostra a configuracao e sai, sem pingar nada.
+#
+# MODO_EXECUCAO (env):
+#   LOCAL -> Agendador do Windows: dbo.controle_cargas (Postgres dm) + Supabase.
+#   CLOUD -> GitHub Actions: sem Postgres local, so o Supabase.
+# Nos dois o registro oficial e o Supabase (controle_cargas + historico_cargas).
 DEBUG = False
 DRY_RUN = "--dry-run" in sys.argv
 STATUS = "--status" in sys.argv
@@ -46,45 +47,24 @@ STATUS = "--status" in sys.argv
 BASE = Path(__file__).resolve().parent
 
 
-def mostrar_status() -> None:
+def mostrar_status(modo: str) -> None:
     """Manutencao: o que o robo enxerga, sem tocar em nada."""
-    dl.log(f"[STATUS] modo         : {modo_execucao()}")
+    dl.log(f"[STATUS] modo         : {modo}")
     dl.log(f"[STATUS] supabase     : {url_supabase()}")
     dl.log(f"[STATUS] telegram     : {'configurado' if dl.telegram_configurado() else 'AUSENTE'}")
 
-    if modo_execucao() == MODO_LOCAL:
+    if modo == dl.MODO_LOCAL:
         carga = dl.obter_carga(IDCARGA)
         if carga is None:
             dl.log(f"[STATUS] ⚠ id_carga {IDCARGA} nao cadastrado - rode o cadastro_carga.sql")
             return
-        dl.log(f"[STATUS] ultima exec : {carga['status']} em {carga['dta_fim']}")
-        dl.log(
-            f"[STATUS] espelho     : "
-            f"{'sincronizado' if carga.get('flg_sincronizado') else 'PENDENTE'} "
-            f"(dta_sync={carga.get('dta_sync')})"
-        )
-
-
-def processar_local() -> None:
-    """Fluxo do Agendador: controle local + ping + espelho."""
-    # Pendencias primeiro: o que ficou para tras vai junto mesmo que o ping de
-    # hoje falhe depois.
-    sync.sincronizar_pendencias()
-
-    executar_pings()
-
-
-def processar_cloud(dta_ini: datetime, registrar: bool) -> None:
-    """Fluxo do GitHub Actions: sem Postgres local, registro direto no Supabase."""
-    if registrar:
-        sync.registrar_carga_cloud(dl.STATUS_INICIO, dta_ini, fechar=False)
-    executar_pings()
+        dl.log(f"[STATUS] ultima exec : {carga['status']} em {carga['dta_fim']} (tabela local)")
 
 
 def main() -> None:
     dl.configurar_logger(IDCARGA, NOME_ROBO, BASE)
 
-    modo = modo_execucao()
+    modo = dl.modo_execucao()
     dta_ini = datetime.now(timezone.utc)
 
     dl.logar_contexto(
@@ -94,9 +74,9 @@ def main() -> None:
             "Modo de execucao": modo,
             "Destino Supabase": dl.ler_env().get("SUPABASE_URL") or "(nao definido)",
             "Banco de controle": (
-                f"{dl.descrever_conexao()} | {dl.TABELA_CONTROLE} (id_carga {IDCARGA})"
-                if modo == MODO_LOCAL
-                else "nenhum - carga gravada direto no Supabase"
+                f"{dl.descrever_conexao()} | {dl.TABELA_CONTROLE} + Supabase (id_carga {IDCARGA})"
+                if modo == dl.MODO_LOCAL
+                else f"Supabase public.{dl.TABELA_CONTROLE_SUPABASE} (id_carga {IDCARGA})"
             ),
             "DEBUG / DRY_RUN": f"{DEBUG} / {DRY_RUN}",
         },
@@ -105,7 +85,7 @@ def main() -> None:
     # --status e manutencao, nao a carga: marcar SUCCESS nele mentiria no
     # monitoramento. Mesma regra do robo 001.
     registrar_controle = not (DEBUG or DRY_RUN or STATUS)
-    registrar_local = registrar_controle and modo == MODO_LOCAL
+    registrar_local = registrar_controle and modo == dl.MODO_LOCAL
 
     try:
         validar_configuracao(modo)
@@ -113,22 +93,24 @@ def main() -> None:
         if registrar_local:
             dl.status_inicio(IDCARGA)
             dl.log(f"[CONTROLE] id_carga {IDCARGA} marcado como '{dl.STATUS_INICIO}'")
+        if registrar_controle:
+            dl.registrar_carga_supabase(IDCARGA, dl.STATUS_INICIO, dta_ini, fechar=False)
 
+        resultados = []
         if STATUS:
-            mostrar_status()
-        elif modo == MODO_CLOUD:
-            processar_cloud(dta_ini, registrar_controle)
+            mostrar_status(modo)
         else:
-            processar_local()
+            resultados = executar_pings()
 
         if registrar_local:
             dl.status_sucesso(IDCARGA)
             dl.log(f"[CONTROLE] id_carga {IDCARGA} marcado como '{dl.STATUS_SUCESSO}'")
-            # Espelho por ultimo, com a linha ja fechada: falhar aqui nao muda o
-            # resultado da carga, so adia a copia para a proxima execucao.
-            sync.sincronizar_carga(IDCARGA)
-        elif registrar_controle and modo == MODO_CLOUD:
-            sync.registrar_carga_cloud(dl.STATUS_SUCESSO, dta_ini, fechar=True)
+        if registrar_controle:
+            resumo = " | ".join(f"{r['metodo']} {r['latencia_ms']} ms" for r in resultados)
+            dl.registrar_carga_supabase(
+                IDCARGA, dl.STATUS_SUCESSO, dta_ini, fechar=True,
+                mensagem=f"ping ok: {resumo}", qtd_itens=len(resultados),
+            )
 
         dl.log(f"[ROBO{IDCARGA:03d}] ✅ RESULTADO FINAL: SUCESSO")
         dl.log("=" * 70)
@@ -143,13 +125,15 @@ def main() -> None:
             try:
                 dl.status_erro(IDCARGA)
                 dl.log(f"[CONTROLE] id_carga {IDCARGA} marcado como '{dl.STATUS_ERRO}'")
-                sync.sincronizar_carga(IDCARGA)
             except Exception as erro_controle:  # noqa: BLE001
                 dl.log(f"[CONTROLE] ⚠ falha ao registrar o erro na tabela: {erro_controle}")
-        elif registrar_controle and modo == MODO_CLOUD:
-            sync.registrar_carga_cloud(dl.STATUS_ERRO, dta_ini, fechar=True)
-
         if registrar_controle:
+            # Com o Supabase fora do ar este registro tambem falha - e so vira
+            # log. Quem pega esse caso e o ATRASADO da vw_saude_robos.
+            dl.registrar_carga_supabase(
+                IDCARGA, dl.STATUS_ERRO, dta_ini, fechar=True,
+                mensagem=str(e)[:500], qtd_itens=0,
+            )
             dl.alertar_erro_robo(IDCARGA, NOME_ROBO, str(e))
 
         dl.log(f"[ROBO{IDCARGA:03d}] ❌ RESULTADO FINAL: ERRO")

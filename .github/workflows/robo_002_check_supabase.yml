@@ -1,22 +1,25 @@
 # =============================================
-# Keepalive do projeto Supabase - modo CLOUD do robo 002.
+# Robo 002 - keepalive do projeto Supabase (modo CLOUD).
 #
-# Existe como rede de seguranca do Agendador do Windows: se a maquina estiver
-# desligada por uma semana, o projeto free e pausado do mesmo jeito. Aqui nao
-# ha Postgres local, entao a carga e gravada direto no Supabase.
+# O plano free pausa o projeto depois de ~7 dias sem atividade. Rodando todo
+# dia aqui, a pausa so acontece se o workflow falhar uma semana inteira - e o
+# hub mostra ATRASADO bem antes disso.
+#
+# Sem Postgres local: o status e o historico vao direto para o Supabase
+# (public.controle_cargas e public.historico_cargas).
 # =============================================
-name: supabase_keepalive
+name: robo_002_check_supabase
 
 on:
   schedule:
-    # A cada 2 dias, 09:12 UTC (06:12 em Sao Paulo). O minuto quebrado e de
+    # Todo dia, 09:12 UTC (06:12 em Sao Paulo). O minuto quebrado e de
     # proposito: a fila do GitHub atrasa jobs agendados na virada da hora.
-    - cron: "12 9 */2 * *"
+    - cron: "12 9 * * *"
   workflow_dispatch:
 
-# Duas execucoes simultaneas fariam upsert na mesma linha de controle.
+# Duas execucoes simultaneas gravariam na mesma linha de controle.
 concurrency:
-  group: supabase-keepalive
+  group: robo-002
   cancel-in-progress: false
 
 jobs:
@@ -38,6 +41,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+          cache: pip
 
       - name: Instalar dependencias
         run: pip install -r requirements.txt

@@ -22,8 +22,10 @@ TIMEOUT_CONEXAO = 10  # segundos para a conexao com o banco
 # proposito: o os.environ inteiro traria PATH, TEMP e companhia para dentro do
 # dicionario de credenciais. Robo novo com prefixo novo entra aqui - foi o que
 # aconteceu com SUPABASE_/TELEGRAM_/MODO_ no robo 002, que roda no GitHub
-# Actions, onde NAO existe .env e tudo chega por variavel de ambiente.
-PREFIXOS_AMBIENTE = ("PG_", "GITHUB_", "SUPABASE_", "TELEGRAM_", "MODO_")
+# Actions, onde NAO existe .env e tudo chega por variavel de ambiente. GH_ veio
+# com o robo 001 na nuvem: o GitHub nao aceita secret com prefixo GITHUB_, entao
+# o token dele chega como GH_PAT.
+PREFIXOS_AMBIENTE = ("PG_", "GITHUB_", "GH_", "SUPABASE_", "TELEGRAM_", "MODO_")
 
 
 def ler_env() -> dict[str, str]:

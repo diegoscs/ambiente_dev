@@ -65,8 +65,19 @@ from .notificacao import (
     telegram_configurado,
 )
 from .retry import executar_com_retry
+from .supabase import (
+    MODO_CLOUD,
+    MODO_LOCAL,
+    TABELA_CONTROLE_SUPABASE,
+    TABELA_HISTORICO_SUPABASE,
+    modo_execucao,
+    registrar_carga_supabase,
+    supabase_configurado,
+    trabalho_feito_no_dia,
+    url_execucao_actions,
+)
 
-__version__ = "1.1.0"
+__version__ = "1.2.0"
 
 __all__ = [
     # config
@@ -109,6 +120,16 @@ __all__ = [
     "executar_com_retry",
     # api
     "chamar_api_json",
+    # supabase (controle de cargas na nuvem)
+    "MODO_LOCAL",
+    "MODO_CLOUD",
+    "TABELA_CONTROLE_SUPABASE",
+    "TABELA_HISTORICO_SUPABASE",
+    "modo_execucao",
+    "supabase_configurado",
+    "url_execucao_actions",
+    "registrar_carga_supabase",
+    "trabalho_feito_no_dia",
     # estado local
     "caminho_estado",
     "ler_estado",

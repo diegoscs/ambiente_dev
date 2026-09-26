@@ -12,15 +12,8 @@ import lib_dscs as dl
 
 IDCARGA = 2
 NOME_ROBO = "check_supabase"
-NOME_CARGA = "002 - Check Supabase"
 
-# ─── modo de execucao ────────────────────────────────────────────────────────
-# LOCAL -> registra em dbo.controle_cargas (Postgres dm) e espelha no Supabase.
-#          E o modo do Agendador do Windows; a tabela local e a fonte da verdade.
-# CLOUD -> nao existe Postgres local (GitHub Actions). Faz o ping e grava a
-#          carga direto no Supabase, que ali e a unica fonte disponivel.
-MODO_LOCAL = "LOCAL"
-MODO_CLOUD = "CLOUD"
+# O modo de execucao (LOCAL/CLOUD) vem da lib: dl.modo_execucao().
 
 # ─── Supabase ────────────────────────────────────────────────────────────────
 # SUPABASE_URL      https://<ref>.supabase.co
@@ -31,9 +24,8 @@ MODO_CLOUD = "CLOUD"
 TABELA_SUPABASE = "controle_cargas"
 
 # ─── comportamento ───────────────────────────────────────────────────────────
-# O projeto free e pausado por ~7 dias sem atividade. O cron do Actions roda a
-# cada 2 dias e o Agendador diariamente: margem de sobra para uma execucao
-# falhar inteira sem o projeto dormir.
+# O projeto free e pausado por ~7 dias sem atividade. O cron do Actions roda
+# todo dia: margem de sobra para varias execucoes falharem sem o projeto dormir.
 TENTATIVAS = 3
 SEGUNDOS_ENTRE_TENTATIVAS = 20
 TIMEOUT_SEGUNDOS = 30
@@ -42,16 +34,6 @@ TIMEOUT_SEGUNDOS = 30
 # banco. select 1 resolvido pelo pooler nao serve - por isso now() (PG) e um
 # select de verdade na tabela de controle (REST).
 SQL_PING = "select now() as agora, current_database() as banco, version() as versao"
-
-
-def modo_execucao() -> str:
-    """LOCAL (padrao) ou CLOUD, de MODO_EXECUCAO."""
-    modo = (dl.ler_env().get("MODO_EXECUCAO") or MODO_LOCAL).strip().upper()
-    if modo not in (MODO_LOCAL, MODO_CLOUD):
-        raise ValueError(
-            f"MODO_EXECUCAO invalido: {modo!r}. Use {MODO_LOCAL} ou {MODO_CLOUD}."
-        )
-    return modo
 
 
 def url_supabase() -> str:
