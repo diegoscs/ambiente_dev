@@ -118,7 +118,21 @@ footer{font:12px var(--mono); color:var(--muted); line-height:1.6}
 .troca{gap:8px} .troca label{font-weight:600; font-size:13px}
 .troca .linha{display:flex; gap:8px}
 .troca input{flex:1; min-width:0; font:15px var(--sans); color:var(--ink); background:var(--bg); border:1px solid var(--line); border-radius:10px; padding:10px 12px}
-@media (max-width:420px){ .facts{grid-template-columns:1fr 1fr} }
+.fact .s{font:11.5px var(--mono); color:var(--muted)}
+.facts.metricas{padding-top:12px; border-top:1px dashed var(--line)}
+.taxa-ok{color:var(--ok)} .taxa-warn{color:var(--late)} .taxa-bad{color:var(--err)}
+.resumo{display:grid; grid-template-columns:repeat(4,1fr); gap:10px}
+.resumo .v{font-size:20px; font-weight:800}
+.grafico{display:flex; flex-direction:column; gap:6px}
+.grafico .k{font:11px var(--mono); color:var(--muted); text-transform:uppercase; letter-spacing:.05em; display:flex; justify-content:space-between; align-items:center; gap:8px}
+.abas{display:inline-flex; gap:4px}
+.abas button{font:600 10.5px var(--mono); padding:3px 9px; letter-spacing:.04em; text-transform:uppercase; color:var(--muted)}
+.abas button[aria-pressed="true"]{background:var(--ink); color:var(--bg); border-color:var(--ink)}
+.grafico svg{width:100%; height:56px; display:block}
+.grafico .b-ok{fill:var(--ok)} .grafico .b-err{fill:var(--err)} .grafico .b-vazio{fill:var(--cell-empty)}
+.grafico .eixo{display:flex; justify-content:space-between; font:10.5px var(--mono); color:var(--muted)}
+.row .when b{color:var(--ink); font-weight:600}
+@media (max-width:420px){ .facts{grid-template-columns:1fr 1fr} .resumo{grid-template-columns:1fr 1fr} }
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js" integrity="sha384-Rj26LVGvoeRVR6+mwQmFfcR3QOBEwT+ZmuCWpuiqeTzJpCs0ER4ITAWGb4Hiy3Ok" crossorigin="anonymous"></script>
 </head>
@@ -171,12 +185,17 @@ footer{font:12px var(--mono); color:var(--muted); line-height:1.6}
     <div id="notif-lista"></div>
   </section>
 
+  <section id="resumo" class="card" hidden aria-labelledby="resumo-titulo">
+    <div class="top"><div class="name" id="resumo-titulo">Últimos 30 dias</div><span class="id">todos os robôs</span></div>
+    <div id="resumo-itens" class="resumo"></div>
+  </section>
+
   <div id="cards" class="wrap" style="gap:14px"></div>
 
   <h2>Últimas execuções</h2>
   <div id="hist" class="hist"><div class="empty">Carregando…</div></div>
 
-  <footer>Lê a view <b>vw_saude_robos</b> e a tabela <b>historico_cargas</b> do Supabase, com as regras de acesso do banco. Atualiza sozinho a cada 2 minutos com a página aberta.</footer>
+  <footer>Lê as views <b>vw_saude_robos</b>, <b>vw_metricas_robos</b> e <b>vw_execucoes_diarias</b> e a tabela <b>historico_cargas</b> do Supabase. Horários em São Paulo, com as regras de acesso do banco. Atualiza sozinho a cada 2 minutos com a página aberta.</footer>
 </div>
 
 <script>
@@ -210,12 +229,33 @@ footer{font:12px var(--mono); color:var(--muted); line-height:1.6}
     if (h < 48) return `há ${h} h`;
     return `há ${Math.floor(h / 24)} dias`;
   }
-  const hora = (iso) => iso ? new Date(iso).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : "—";
   function dur(a, b) {
     if (!a || !b) return "—";
     const s = Math.round((new Date(b) - new Date(a)) / 1000);
-    return s < 90 ? `${s} s` : `${Math.round(s / 60)} min`;
+    return segTxt(s);
   }
+  // Horario legivel em Sao Paulo: "hoje 07:38", "ontem 13:09", "seg 07:12", "02/10 07:38"
+  const TZ = "America/Sao_Paulo";
+  const diaSP = (ms) => new Date(ms).toLocaleDateString("en-CA", { timeZone: TZ });
+  const horaSP = (ms) => new Date(ms).toLocaleTimeString("pt-BR", { timeZone: TZ, hour: "2-digit", minute: "2-digit" });
+  const SEMANA = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"];
+  function quando(iso, nowMs) {
+    if (!iso) return "—";
+    const ms = new Date(iso).getTime();
+    const dias = Math.round((Date.parse(diaSP(nowMs)) - Date.parse(diaSP(ms))) / 86400000);
+    if (dias === 0) return `hoje ${horaSP(ms)}`;
+    if (dias === 1) return `ontem ${horaSP(ms)}`;
+    if (dias > 1 && dias < 7) return `${SEMANA[new Date(diaSP(ms) + "T12:00:00Z").getUTCDay()]} ${horaSP(ms)}`;
+    return `${new Date(ms).toLocaleDateString("pt-BR", { timeZone: TZ, day: "2-digit", month: "2-digit" })} ${horaSP(ms)}`;
+  }
+  const completo = (iso) => iso ? new Date(iso).toLocaleString("pt-BR", { timeZone: TZ, dateStyle: "full", timeStyle: "medium" }) : "";
+  function segTxt(s) {
+    if (s == null || isNaN(s)) return "—";
+    s = Math.round(Number(s));
+    return s < 60 ? `${s}s` : `${Math.floor(s / 60)}m ${String(s % 60).padStart(2, "0")}s`;
+  }
+  const num = (v, casas = 0) => v == null ? "—" : Number(v).toLocaleString("pt-BR", { maximumFractionDigits: casas });
+  const classeTaxa = (t) => t == null ? "" : t >= 95 ? "taxa-ok" : t >= 80 ? "taxa-warn" : "taxa-bad";
   const ambiente = (a) => a === "CLOUD" ? "Nuvem" : a === "LOCAL" ? "PC" : "—";
   const diaUTC = (d) => new Date(d).toISOString().slice(0, 10);
 
@@ -331,17 +371,22 @@ footer{font:12px var(--mono); color:var(--muted); line-height:1.6}
     $("refresh-ico").className = "spin"; $("refresh-ico").textContent = "";
     try {
       const desde = new Date(Date.now() - (DIAS + 1) * 86400000).toISOString();
-      const [saude, hist, notif] = await Promise.all([
+      const desde30 = new Date(Date.now() - 31 * 86400000).toISOString().slice(0, 10);
+      const [saude, hist, notif, metr, diario] = await Promise.all([
         sb.from("vw_saude_robos").select("*").order("id_carga"),
         sb.from("historico_cargas")
           .select("id_carga,status,dta_ini,dta_fim,ambiente,qtd_itens,mensagem,url_execucao")
           .gte("dta_ini", desde).order("dta_ini", { ascending: false }).limit(200),
         sb.from("notificacoes_hub").select("id,dta_add,nivel,titulo,detalhe,lida")
           .order("dta_add", { ascending: false }).limit(8),
+        sb.from("vw_metricas_robos").select("*"),
+        sb.from("vw_execucoes_diarias").select("*").gte("dia", desde30),
       ]);
       if (saude.error) throw saude.error;
       if (hist.error) throw hist.error;
-      last = { saude: saude.data, historico: hist.data, agora: new Date().toISOString() };
+      // Metricas sao extras: se falharem, o painel segue sem elas.
+      last = { saude: saude.data, historico: hist.data, agora: new Date().toISOString(),
+               metricas: metr.error ? [] : metr.data, diario: diario.error ? [] : diario.data };
       render(last);
       renderNotif(notif.error ? null : notif.data);
       $("sub").textContent = `atualizado ${new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`;
@@ -406,6 +451,88 @@ footer{font:12px var(--mono); color:var(--muted); line-height:1.6}
     carregar();
   });
 
+  // Barras SVG dos ultimos 30 dias (dia de Sao Paulo). Verde = so sucesso, vermelho = teve erro.
+  const SVGNS = "http://www.w3.org/2000/svg";
+  function grafico(linhas, nowMs, campo) {
+    const N = 30, W = 300, H = 56, gap = 2, bw = (W - gap * (N - 1)) / N;
+    const porDia = Object.fromEntries(linhas.map(l => [l.dia, l]));
+    const dias = [];
+    for (let i = N - 1; i >= 0; i--) dias.push(diaSP(nowMs - i * 86400000));
+    const valor = (l) => l ? Number(campo === "itens" ? l.itens : l.duracao_media_s) || 0 : 0;
+    const maxReal = Math.max(0, ...dias.map(dd => valor(porDia[dd])));
+    const max = Math.max(1, maxReal);
+    const svg = document.createElementNS(SVGNS, "svg");
+    svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+    svg.setAttribute("preserveAspectRatio", "none");
+    svg.setAttribute("role", "img");
+    dias.forEach((dd, i) => {
+      const l = porDia[dd], v = valor(l);
+      const h = l ? Math.max(3, (v / max) * (H - 2)) : 3;
+      const r = document.createElementNS(SVGNS, "rect");
+      r.setAttribute("x", (i * (bw + gap)).toFixed(2));
+      r.setAttribute("y", (H - h).toFixed(2));
+      r.setAttribute("width", bw.toFixed(2));
+      r.setAttribute("height", h.toFixed(2));
+      r.setAttribute("rx", "1.5");
+      r.setAttribute("class", !l ? "b-vazio" : l.erros > 0 ? "b-err" : "b-ok");
+      const t = document.createElementNS(SVGNS, "title");
+      const dataTxt = dd.split("-").reverse().slice(0, 2).join("/");
+      t.textContent = !l ? `${dataTxt}: sem execução`
+        : `${dataTxt}: ${l.execucoes} execução(ões)${l.erros ? `, ${l.erros} com erro` : ""} · ` +
+          (campo === "itens" ? `${num(l.itens)} itens` : `média ${segTxt(l.duracao_media_s)}`);
+      r.append(t);
+      svg.append(r);
+    });
+    svg.setAttribute("aria-label", campo === "itens" ? `Itens por dia, máximo ${num(maxReal)}` : `Duração média por dia, máximo ${segTxt(maxReal)}`);
+    return { svg, max: maxReal };
+  }
+
+  function blocoGrafico(idCarga, d, nowMs) {
+    const linhas = (d.diario || []).filter(l => l.id_carga === idCarga);
+    const box = el("div", "grafico");
+    const k = el("div", "k");
+    const titulo = el("span", null, "Duração média por dia · 30 dias");
+    const abas = el("span", "abas");
+    const corpo = el("div");
+    const eixo = el("div", "eixo");
+    const desenhar = (campo) => {
+      const { svg, max } = grafico(linhas, nowMs, campo);
+      corpo.replaceChildren(svg);
+      titulo.textContent = campo === "itens" ? "Itens por dia · 30 dias" : "Duração média por dia · 30 dias";
+      eixo.replaceChildren(el("span", null, "30 dias atrás"), el("span", null, `máx ${campo === "itens" ? num(max) : segTxt(max)}`), el("span", null, "hoje"));
+      for (const b of abas.children) b.setAttribute("aria-pressed", String(b.dataset.campo === campo));
+    };
+    for (const [campo, rot] of [["duracao", "Duração"], ["itens", "Itens"]]) {
+      const b = el("button", null, rot);
+      b.type = "button"; b.dataset.campo = campo;
+      b.addEventListener("click", () => desenhar(campo));
+      abas.append(b);
+    }
+    k.append(titulo, abas);
+    box.append(k, corpo, eixo);
+    desenhar("duracao");
+    return box;
+  }
+
+  function renderResumo(d) {
+    const m = d.metricas || [];
+    const box = $("resumo");
+    if (!m.length) { box.hidden = true; return; }
+    box.hidden = false;
+    const exec = m.reduce((a, r) => a + (r.execucoes_30d || 0), 0);
+    const suc = m.reduce((a, r) => a + (r.sucessos_30d || 0), 0);
+    const itens = m.reduce((a, r) => a + (r.itens_total_30d || 0), 0);
+    const erros = m.reduce((a, r) => a + (r.erros_30d || 0), 0);
+    const taxa = exec ? Math.round((1000 * suc) / exec) / 10 : null;
+    const f = (k, v, s, cls) => { const x = el("div", "fact"); x.append(el("span", "k", k), el("span", "v " + (cls || ""), v)); if (s) x.append(el("span", "s", s)); return x; };
+    $("resumo-itens").replaceChildren(
+      f("Execuções", num(exec), `${m.length} robô(s)`),
+      f("Sucesso", taxa == null ? "—" : `${num(taxa, 1)}%`, `${num(suc)} de ${num(exec)}`, classeTaxa(taxa)),
+      f("Erros", num(erros), erros ? "veja o histórico" : "nenhum", erros ? "taxa-bad" : ""),
+      f("Itens", num(itens), "processados"),
+    );
+  }
+
   function render(d) {
     const nowMs = new Date(d.agora).getTime();
     const hist = d.historico || [];
@@ -430,14 +557,33 @@ footer{font:12px var(--mono); color:var(--muted); line-height:1.6}
       c.append(top);
 
       const facts = el("div", "facts");
-      const f = (k, v) => { const x = el("div", "fact"); x.append(el("span", "k", k), el("span", "v", v)); return x; };
+      const f = (k, v, s, cls, tip) => {
+        const x = el("div", "fact");
+        const val = el("span", "v " + (cls || ""), v);
+        if (tip) val.title = tip;
+        x.append(el("span", "k", k), val);
+        if (s) x.append(el("span", "s", s));
+        return x;
+      };
       facts.append(
-        f("Última", ago(r.dta_fim || r.dta_ini, nowMs)),
+        f("Última", quando(r.dta_ini, nowMs), ago(r.dta_fim || r.dta_ini, nowMs), null, completo(r.dta_ini)),
         f("Onde", ambiente(r.ambiente)),
         f("Duração", dur(r.dta_ini, r.dta_fim)),
       );
       c.append(facts);
+
+      const m = (d.metricas || []).find(x => x.id_carga === r.id_carga);
+      if (m && m.execucoes_30d) {
+        const met = el("div", "facts metricas");
+        met.append(
+          f("Sucesso 30d", `${num(m.taxa_sucesso_pct, 1)}%`, `${num(m.sucessos_30d)} de ${num(m.execucoes_30d)}`, classeTaxa(Number(m.taxa_sucesso_pct))),
+          f("Duração média", segTxt(m.duracao_media_s), `máx ${segTxt(m.duracao_max_s)}`),
+          f("Itens/execução", num(m.itens_medio, 1), `${num(m.itens_total_30d)} no total`),
+        );
+        c.append(met);
+      }
       if (r.mensagem) c.append(el("div", "msg", r.mensagem));
+      if ((d.diario || []).some(l => l.id_carga === r.id_carga)) c.append(blocoGrafico(r.id_carga, d, nowMs));
 
       const cal = el("div", "cal");
       const k = el("div", "k"); k.append(el("span", null, `Últimos ${DIAS} dias (UTC)`), el("span", null, "hoje →"));
@@ -468,6 +614,8 @@ footer{font:12px var(--mono); color:var(--muted); line-height:1.6}
       cards.append(c);
     }
 
+    renderResumo(d);
+
     const box = $("hist");
     box.replaceChildren();
     if (!hist.length) box.append(el("div", "empty", "Nenhuma execução registrada nos últimos dias."));
@@ -477,7 +625,8 @@ footer{font:12px var(--mono); color:var(--muted); line-height:1.6}
       const txt = el("div");
       txt.append(el("div", "t1", `${nomes[h.id_carga] || "id " + h.id_carga} · ${ambiente(h.ambiente)}`), el("div", "t2", h.mensagem || h.status));
       const when = el("div", "when");
-      when.append(document.createTextNode(hora(h.dta_ini)), el("br"), document.createTextNode(dur(h.dta_ini, h.dta_fim)));
+      when.title = completo(h.dta_ini);
+      when.append(el("b", null, quando(h.dta_ini, nowMs)), el("br"), document.createTextNode(`${ago(h.dta_fim || h.dta_ini, nowMs)} · ${dur(h.dta_ini, h.dta_fim)}`));
       row.append(el("span", `dot d-${h.status}`), txt, when);
       box.append(row);
     }
