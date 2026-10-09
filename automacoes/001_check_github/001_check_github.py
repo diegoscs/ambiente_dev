@@ -279,7 +279,7 @@ def processar() -> tuple[int, str]:
     ja_feitos = commits_ja_feitos_hoje()
     if ja_feitos and not FORCE:
         # Mensagem do hub: curta e legivel (o detalhe tecnico fica no log)
-        resumo = f"Ok, tudo certo: os commits de hoje já foram feitos ✅ ({ja_feitos} no dia {dia_github():%d/%m})"
+        resumo = f"Ok, tudo certo: commits do dia já feitos ✅ ({ja_feitos} no dia {dia_github():%d/%m})"
         dl.log(f"[ESTADO] {resumo}")
         return 0, resumo
 
