@@ -278,7 +278,8 @@ def processar() -> tuple[int, str]:
     # robo nao pode dobrar os commits.
     ja_feitos = commits_ja_feitos_hoje()
     if ja_feitos and not FORCE:
-        resumo = f"dia {dia} (UTC) ja processado ({ja_feitos} commit(s)) - nada a fazer"
+        # Mensagem do hub: curta e legivel (o detalhe tecnico fica no log)
+        resumo = f"Ok, tudo certo: os commits de hoje já foram feitos ✅ ({ja_feitos} no dia {dia_github():%d/%m})"
         dl.log(f"[ESTADO] {resumo}")
         return 0, resumo
 
@@ -335,8 +336,8 @@ def processar() -> tuple[int, str]:
     CACHE_REMOTO.write_text(conteudo, encoding="utf-8")
     dl.marcar_execucao(BASE, dia_github(), commits=feitos, ultimo_sha=sha)
 
-    resumo = f"{feitos} commit(s) em {OWNER}/{GITHUB_REPO} (ultimo {sha[:7]})"
-    dl.log(f"[ROBO{IDCARGA:03d}] {resumo} -> {ARQUIVO_REMOTO}")
+    resumo = f"✅ {feitos} {'commit feito' if feitos == 1 else 'commits feitos'} no {GITHUB_REPO}"
+    dl.log(f"[ROBO{IDCARGA:03d}] {resumo} (ultimo {sha[:7]}) -> {ARQUIVO_REMOTO}")
     return feitos, resumo
 
 
@@ -432,7 +433,7 @@ def main() -> None:
             # registrar_carga_supabase nunca levanta: o erro original segue intacto.
             dl.registrar_carga_supabase(
                 IDCARGA, dl.STATUS_ERRO, dta_ini, fechar=True,
-                mensagem=str(e)[:500], qtd_itens=COMMITS_ENVIADOS,
+                mensagem=f"⚠️ {e}"[:500], qtd_itens=COMMITS_ENVIADOS,
             )
 
         if registrar_controle:
