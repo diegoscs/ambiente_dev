@@ -106,10 +106,15 @@ def main() -> None:
             dl.status_sucesso(IDCARGA)
             dl.log(f"[CONTROLE] id_carga {IDCARGA} marcado como '{dl.STATUS_SUCESSO}'")
         if registrar_controle:
-            resumo = " | ".join(f"{r['metodo']} {r['latencia_ms']} ms" for r in resultados)
+            # Mensagem do hub: curta e legivel ("banco 1,1 s · API 0,2 s")
+            nomes = {"postgres": "banco", "rest": "API"}
+            tempos = " · ".join(
+                f"{nomes.get(r['metodo'], r['metodo'])} {float(r['latencia_ms']) / 1000:.1f} s".replace(".", ",")
+                for r in resultados
+            )
             dl.registrar_carga_supabase(
                 IDCARGA, dl.STATUS_SUCESSO, dta_ini, fechar=True,
-                mensagem=f"ping ok: {resumo}", qtd_itens=len(resultados),
+                mensagem=f"Ok, tudo certo: Supabase ativo ✅ · {tempos}", qtd_itens=len(resultados),
             )
 
         dl.log(f"[ROBO{IDCARGA:03d}] ✅ RESULTADO FINAL: SUCESSO")
@@ -132,7 +137,7 @@ def main() -> None:
             # log. Quem pega esse caso e o ATRASADO da vw_saude_robos.
             dl.registrar_carga_supabase(
                 IDCARGA, dl.STATUS_ERRO, dta_ini, fechar=True,
-                mensagem=str(e)[:500], qtd_itens=0,
+                mensagem=f"⚠️ {e}"[:500], qtd_itens=0,
             )
             dl.alertar_erro_robo(IDCARGA, NOME_ROBO, str(e))
 
