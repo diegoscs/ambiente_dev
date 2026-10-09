@@ -8,3 +8,7 @@ psycopg[binary]==3.3.5
 
 # HTTP e Supabase saem do urllib da biblioteca padrao (lib_dscs/api.py):
 # o robo 002 fala com o PostgREST direto, sem supabase-py.
+
+# Fuso horario (zoneinfo) no Windows, que nao traz a base de fusos do sistema.
+# Usado pelo vigia para mostrar horarios de Sao Paulo nas notificacoes.
+tzdata==2025.2
