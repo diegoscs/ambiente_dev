@@ -1,0 +1,46 @@
+# =============================================
+# Robo 003 - Sync Open Finance (disparo manual pelo hub).
+#
+# O sync mora no repo financas-app (sync-openfinance.yml), que roda sozinho
+# 2x/dia e registra TODA execucao no hub (controle_cargas/historico_cargas).
+# Este workflow existe porque o botao do hub so dispara workflows deste repo:
+# ele aciona o sync de la e acompanha ate o fim.
+#
+# Secret: FINANCAS_DISPATCH_TOKEN (PAT com Actions read/write no financas-app).
+# =============================================
+name: robo_003_sync_openfinance
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: robo-003
+  cancel-in-progress: false
+
+jobs:
+  disparar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      GH_TOKEN: ${{ secrets.FINANCAS_DISPATCH_TOKEN }}
+      REPO_SYNC: diegoscs/financas-app
+      WORKFLOW_SYNC: sync-openfinance.yml
+
+    steps:
+      - name: Dispara o sync no financas-app e acompanha
+        run: |
+          T0=$(date -u +%FT%TZ)
+          gh workflow run "$WORKFLOW_SYNC" -R "$REPO_SYNC" --ref main
+
+          RUN_ID=""
+          for i in $(seq 1 12); do
+            sleep 5
+            RUN_ID=$(gh run list -R "$REPO_SYNC" -w "$WORKFLOW_SYNC" -e workflow_dispatch -L 5 \
+              --json databaseId,createdAt \
+              -q "[.[] | select(.createdAt >= \"$T0\")][0].databaseId // empty")
+            [ -n "$RUN_ID" ] && break
+          done
+          if [ -z "$RUN_ID" ]; then echo "o run do sync nao apareceu"; exit 1; fi
+
+          echo "sync: https://github.com/$REPO_SYNC/actions/runs/$RUN_ID" | tee -a "$GITHUB_STEP_SUMMARY"
+          gh run watch "$RUN_ID" -R "$REPO_SYNC" --exit-status --interval 15
