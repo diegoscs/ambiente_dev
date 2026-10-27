@@ -20,6 +20,11 @@ from .log import log, logar_traceback
 TABELA_CONTROLE_SUPABASE = "controle_cargas"
 TABELA_HISTORICO_SUPABASE = "historico_cargas"
 
+# Valores da check constraint de status das duas tabelas - nao invente outros.
+STATUS_INICIO = "RUNNING"
+STATUS_SUCESSO = "SUCCESS"
+STATUS_ERRO = "ERROR"
+
 TIMEOUT_SEGUNDOS = 30
 
 # LOCAL -> rodou no PC (na mao, ou robo que precisa de algo que so existe nele).

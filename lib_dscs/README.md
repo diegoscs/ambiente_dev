@@ -1,8 +1,8 @@
 # lib_dscs — biblioteca compartilhada dos robôs
 
-Mesmo papel da `marche_lib` do trabalho: **conexão com o banco, credenciais e
-controle de cargas em um lugar só**. Robô não abre conexão na mão nem lê
-credencial direto do arquivo — tudo passa por aqui.
+Mesmo papel da `marche_lib` do trabalho: **credenciais, log, HTTP e controle de
+cargas em um lugar só**. Robô não fala com o Supabase na mão nem lê credencial
+direto do arquivo — tudo passa por aqui.
 
 ---
 
@@ -23,9 +23,11 @@ do 205.
 No `main()`, o registro no Supabase com `dl.registrar_carga_supabase` — o miolo
 completo está em [Esqueleto de um robô novo](#esqueleto-de-um-robô-novo).
 
-> Postgres local (`banco.py`, `controle_cargas.py`) e trava em arquivo
-> (`estado.py`) existem só para robô em modo `LOCAL`, que o padrão reserva a
-> quem precisa de algo do PC. **Desde 02/10/2026 nenhum robô usa.**
+> **2.0.0 (27/10/2026):** saíram `banco.py`, `controle_cargas.py` e `estado.py`
+> (Postgres local `dm`, `dbo.controle_cargas` e a trava em `temp\estado.json`).
+> Desde 02/10/2026 nenhum robô usava. As constantes `STATUS_*` passaram para o
+> `supabase.py`, com o mesmo nome em `dl.`. O código antigo está no histórico do
+> Git (`git show 17c1b5c:lib_dscs/banco.py`).
 
 ## API
 
@@ -33,10 +35,8 @@ completo está em [Esqueleto de um robô novo](#esqueleto-de-um-robô-novo).
 
 | Função | O que faz |
 |---|---|
-| `ler_env()` | dicionário com o `.env` da raiz |
+| `ler_env()` | dicionário com o `.env` da raiz + variáveis de ambiente com prefixo em `PREFIXOS_AMBIENTE` |
 | `obter_variavel(chave, padrao=None)` | uma variável; estoura se faltar e não houver padrão |
-| `obter_configuracao()` | parâmetros de conexão do Postgres, validados |
-| `descrever_conexao()` | `usuario@host:porta/banco` para log — **sem a senha** |
 
 ### Log (`log.py`)
 
@@ -88,21 +88,6 @@ Use só onde a falha é transitória — rede, SFTP, API fora do ar. Credencial,
 permissão e layout errado não melhoram com insistência: ali o certo é estourar
 na primeira.
 
-### Estado local (`estado.py`) — só modo `LOCAL`
-
-Na nuvem a trava é `trabalho_feito_no_dia` (Supabase): a máquina do Actions
-nasce vazia e o arquivo não lembra de nada.
-
-| Função | O que faz |
-|---|---|
-| `ja_executou_hoje(base_dir)` | a trava diária: `True` se já rodou hoje |
-| `marcar_execucao(base_dir, **campos)` | grava a data de hoje + os campos do robô |
-| `ler_estado(base_dir)` / `gravar_estado(base_dir, dados)` | acesso direto ao `temp\estado.json` |
-
-Arquivo corrompido vira `{}` com aviso no log, não exceção: o pior caso é perder
-a trava e rodar de novo — melhor do que a carga parar por causa do arquivo de
-controle local.
-
 ### Supabase (`supabase.py`)
 
 O registro oficial das cargas desde a migração para o GitHub Actions
@@ -118,63 +103,29 @@ O registro oficial das cargas desde a migração para o GitHub Actions
 | `ler_saude_robos()` | linhas da `vw_saude_robos`; `SAUDE_BOA` = `("OK", "RODANDO")`. **Levanta** |
 | `notificar_hub(nivel, titulo, detalhe, origem)` | grava em `public.notificacoes_hub` (`info`/`atencao`/`resolvido`). **Nunca levanta** |
 | `ultima_notificacao(origem)` | a notificação mais recente de uma origem, ou `None` |
+| `supabase_ler(consulta)` / `supabase_inserir(tabela, linhas, conflito)` / `supabase_atualizar(tabela, filtro, campos)` / `supabase_apagar(tabela, filtro)` | CRUD genérico no PostgREST; `conflito` vira upsert; filtro vazio no apagar é recusado. **Levantam** |
+| `gravar_status_minecraft`, `gravar_eventos_minecraft`, `ultimo_evento_minecraft`, `comandos_minecraft_abertos`, `fechar_comando_minecraft` | tabelas `minecraft_*` do monitor do server. **Levantam** |
+
+Status: use `dl.STATUS_INICIO` (`RUNNING`), `dl.STATUS_SUCESSO` (`SUCCESS`) e
+`dl.STATUS_ERRO` (`ERROR`), os valores da check constraint das tabelas, em vez
+de strings soltas.
 
 `registrar_carga_supabase` grava também `ambiente` (`LOCAL`/`CLOUD`) e o link do
-run, que o hub usa para abrir o log. `id_carga` inexistente vira erro no log, e
-não uma linha nova, pelo mesmo motivo do `controle_cargas.py`.
+run, que o hub usa para abrir o log. **`id_carga` inexistente vira erro no log, e
+não uma linha nova** — de propósito: silenciar esconderia um número digitado
+errado, e o sintoma seria um monitoramento vazio que ninguém liga ao robô.
 
 A chave precisa ser a `service_role`: as tabelas têm RLS ligada e sem policy.
 
-### Banco (`banco.py`) — só modo `LOCAL`
-
-| Função | O que faz |
-|---|---|
-| `conexao(autocommit=True)` | context manager, fecha sempre — **é o preferido** |
-| `abrir_conexao_banco(autocommit=True)` | conexão crua; quem chama fecha |
-| `executar_query(sql, params)` | SELECT → lista de tuplas |
-| `executar_query_dict(sql, params)` | SELECT → lista de dicionários |
-| `executar_comando(sql, params)` | INSERT/UPDATE/DELETE → nº de linhas |
-| `testar_conexao()` | versão + banco + usuário; use para validar o `.env` |
-
-### Controle de cargas local (`controle_cargas.py`) — só modo `LOCAL`
-
-| Função | Efeito em `dbo.controle_cargas` |
-|---|---|
-| `status_inicio(id_carga)` | `status='RUNNING'`, `dta_ini=now()`, **`dta_fim=NULL`** |
-| `status_sucesso(id_carga)` | `status='SUCCESS'`, `dta_fim=now()` |
-| `status_erro(id_carga)` | `status='ERROR'`, `dta_fim=now()` |
-| `obter_carga(id_carga)` | a linha como dicionário, ou `None` |
-| `listar_cargas(somente_ativas=False)` | todas as cargas cadastradas |
-
-> Os valores vêm da check constraint da tabela — não invente outros:
-> ```sql
-> CHECK (status = ANY (ARRAY['RUNNING', 'SUCCESS', 'ERROR']))
-> ```
-> Use as constantes `dl.STATUS_INICIO`, `dl.STATUS_SUCESSO` e `dl.STATUS_ERRO`
-> em vez das strings soltas.
-
-Todas atualizam `dta_modif`. **`id_carga` inexistente estoura `ValueError`** — de
-propósito: silenciar esconderia um número digitado errado, e o sintoma seria um
-monitoramento vazio que ninguém liga ao robô.
-
 ## Credenciais
 
-Tudo no `.env` da **raiz** (`D:\ambiente_dev\.env`), fora das pastas dos robôs:
+No PC, tudo no `.env` da **raiz** (`D:\ambiente_dev\.env`), fora das pastas dos
+robôs; o modelo é o [`.env.example`](../.env.example). No Actions não existe
+`.env`: os secrets chegam como variável de ambiente, e só entram os prefixos de
+`PREFIXOS_AMBIENTE` (`config.py`).
 
-```
-PG_HOST=localhost
-PG_PORT=5432
-PG_DB=dm
-PG_USER=postgres
-PG_PASSWORD=...
-
-GITHUB_TOKEN=...
-```
-
-Variável de ambiente do Windows tem prioridade sobre o arquivo, para sobrescrever
-numa execução pontual sem editar o `.env`. `PG_HOST` e `PG_PORT` têm padrão
-(`localhost:5432`); banco, usuário e senha **não têm** — sem eles o erro diz
-qual chave falta, em vez de "conexão recusada".
+Variável de ambiente tem prioridade sobre o arquivo, para sobrescrever numa
+execução pontual sem editar o `.env`.
 
 > A `marche_lib` usa `credenciais.json`; aqui é `.env` por decisão sua, e porque
 > o `GITHUB_TOKEN` do robô 001 já morava lá.
@@ -184,79 +135,29 @@ qual chave falta, em vez de "conexão recusada".
 ### Por que `dta_fim = NULL` no início
 
 `status='RUNNING'` **com `dta_fim` nulo** significa "rodando agora, ou morreu no
-meio sem fechar". É assim que se descobre robô que caiu sem registrar o erro —
-máquina desligada, processo morto, queda de energia. Se o `status_inicio` não
-limpasse o `dta_fim`, a linha ficaria com a data da execução anterior e o estado
-pareceria consistente.
+meio sem fechar". É assim que se descobre robô que caiu sem registrar o erro
+(run cancelado, timeout do Actions). Se o registro de início não limpasse o
+`dta_fim`, a linha ficaria com a data da execução anterior e o estado pareceria
+consistente. A `vw_saude_robos` cruza isso com o `tempo_min` e mostra `TRAVADO`.
 
-Consulta de robô travado (cruze o `tempo_min` da própria tabela para saber se
-já passou do tempo esperado):
-
-```sql
-select id_carga, nome_carga, dta_ini, tempo_min,
-       round(extract(epoch from now() - dta_ini) / 60) as minutos_rodando
-  from dbo.controle_cargas
- where status = 'RUNNING'
-   and dta_fim is null
-   and now() - dta_ini > (tempo_min || ' minutes')::interval;
-```
-
-### Por que autocommit no registro de status
-
-O status precisa ficar gravado **mesmo que a carga estoure logo depois** — é
-justamente o caso do `status_erro`. Com autocommit, cada `UPDATE` fecha sozinho.
-Carga de dados é o oposto: `abrir_conexao_banco(autocommit=False)`, uma transação
-só, commit/rollback na mão.
-
-### Por que `status_erro` não grava a mensagem
-
-`dbo.controle_cargas` não tem coluna de mensagem. O motivo do erro fica no log do
-robô (`logs\robo_<id>_<nome>_AAAAMMDD.txt`, com traceback). A tabela responde
-"quando rodou e como terminou"; o log responde "por quê".
-
-### psycopg 3, não psycopg2
-
-`psycopg[binary]` 3.3.5 — wheel com o driver embutido, sem precisar de compilador
-nem do Postgres client instalado. `con.execute()` já devolve cursor, então não
-precisa do `with con.cursor()` a cada query.
-
-## Limitação conhecida: sem histórico (no Postgres local)
-
-> Resolvido do lado do Supabase em 26/09/2026: `public.historico_cargas` guarda
-> uma linha por execução, gravada por `registrar_carga_supabase`. O que segue
-> vale só para a tabela local.
-
-`dbo.controle_cargas` tem **uma linha por carga**, e cada execução sobrescreve
-`status`/`dta_ini`/`dta_fim`. Você vê a última rodada, não as anteriores — não dá
-para saber se o robô falhou três vezes essa semana.
-
-No trabalho isso é resolvido com `Cargas` (config) + `CargaHistorico` (uma linha
-por execução). Se um dia isso incomodar, o caminho é criar
-`dbo.controle_cargas_historico` e fazer os `status_*` inserirem lá além de
-atualizar aqui — a mudança fica **toda dentro de `controle_cargas.py`**, nenhum
-robô precisa mudar.
-
-## Colunas que a lib não usa
+### Colunas que a lib não usa
 
 `tempo_min`, `dias_semana`, `flg_ativo`, `origem` e `script` são **documentação
 por decisão sua** — quem decide se e quando o robô roda é o cron do workflow e o
-código. Se um dia quiser inverter isso (o banco mandando), o gancho é ler
-`obter_carga(id)` no começo do `main()` e encerrar se `flg_ativo` for falso ou o
-dia da semana não estiver em `dias_semana`.
+código. `tempo_min` e `atraso_max_horas` alimentam a `vw_saude_robos`, e
+`workflow` é o que o botão do hub dispara.
 
 ## Arquivos
 
 ```
 lib_dscs\
 ├─ __init__.py           API pública (é o que o robô importa)
-├─ config.py             .env da raiz + parâmetros de conexão
-├─ banco.py              conexão psycopg e helpers de query
-├─ controle_cargas.py    status_inicio / sucesso / erro
+├─ config.py             .env da raiz + variáveis de ambiente
 ├─ log.py                log em memória, arquivo só em caso de erro
 ├─ api.py                cliente HTTP/JSON dos robôs de API
 ├─ retry.py              executar_com_retry
-├─ estado.py             trava diária em temp\estado.json
-├─ supabase.py           controle de cargas no Supabase + trava pela nuvem
+├─ notificacao.py        alerta no Telegram
+├─ supabase.py           controle de cargas, trava diária, hub e Minecraft
 └─ README.md
 ```
 
@@ -286,9 +187,6 @@ except Exception as e:
     dl.salvar_log_erro()
     raise
 ```
-
-Os `status_inicio`/`status_sucesso`/`status_erro` do Postgres local (`dm`) só
-servem a robô em modo `LOCAL`; nenhum robô atual usa.
 
 O `try/except` fica **explícito em cada robô**, por decisão sua — a alternativa
 era um `with dl.execucao(...)` que escondesse isso. Mais linhas, porém o fluxo

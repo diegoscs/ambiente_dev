@@ -10,13 +10,10 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import Any
 
 # lib_dscs\config.py -> lib_dscs -> D:\ambiente_dev
 RAIZ = Path(__file__).resolve().parent.parent
 ENV_FILE = RAIZ / ".env"
-
-TIMEOUT_CONEXAO = 10  # segundos para a conexao com o banco
 
 # Prefixos das variaveis que o ambiente pode sobrescrever. A lista e branca de
 # proposito: o os.environ inteiro traria PATH, TEMP e companhia para dentro do
@@ -24,8 +21,8 @@ TIMEOUT_CONEXAO = 10  # segundos para a conexao com o banco
 # aconteceu com SUPABASE_/TELEGRAM_/MODO_ no robo 002, que roda no GitHub
 # Actions, onde NAO existe .env e tudo chega por variavel de ambiente. GH_ veio
 # com o robo 001 na nuvem: o GitHub nao aceita secret com prefixo GITHUB_, entao
-# o token dele chega como GH_PAT.
-PREFIXOS_AMBIENTE = ("PG_", "GITHUB_", "GH_", "SUPABASE_", "TELEGRAM_", "MODO_")
+# o token dele chega como GH_PAT. (PG_ saiu em 27/10/2026 com o Postgres local.)
+PREFIXOS_AMBIENTE = ("GITHUB_", "GH_", "SUPABASE_", "TELEGRAM_", "MODO_")
 
 
 def ler_env() -> dict[str, str]:
@@ -59,33 +56,3 @@ def obter_variavel(chave: str, padrao: str | None = None) -> str:
         raise ValueError(f"Variavel '{chave}' nao configurada em {ENV_FILE}")
 
     return valor
-
-
-def obter_configuracao() -> dict[str, Any]:
-    """Parametros de conexao com o Postgres, validados antes de conectar.
-
-    Host e porta tem padrao porque o banco e local; banco, usuario e senha nao
-    tem - errar em silencio ali daria "conexao recusada" sem dizer o motivo.
-    """
-    env = ler_env()
-
-    faltando = [c for c in ("PG_DB", "PG_USER", "PG_PASSWORD") if not env.get(c)]
-    if faltando:
-        raise ValueError(
-            f"Credenciais do Postgres ausentes em {ENV_FILE}: {', '.join(faltando)}"
-        )
-
-    return {
-        "host": env.get("PG_HOST", "localhost"),
-        "port": int(env.get("PG_PORT", "5432")),
-        "dbname": env["PG_DB"],
-        "user": env["PG_USER"],
-        "password": env["PG_PASSWORD"],
-        "connect_timeout": TIMEOUT_CONEXAO,
-    }
-
-
-def descrever_conexao() -> str:
-    """Identificacao da conexao para log, sem a senha."""
-    cfg = obter_configuracao()
-    return f"{cfg['user']}@{cfg['host']}:{cfg['port']}/{cfg['dbname']}"
