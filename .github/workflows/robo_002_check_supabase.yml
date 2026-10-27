@@ -11,10 +11,9 @@
 name: robo_002_check_supabase
 
 on:
-  schedule:
-    # Todo dia, 09:12 UTC (06:12 em Sao Paulo). O minuto quebrado e de
-    # proposito: a fila do GitHub atrasa jobs agendados na virada da hora.
-    - cron: "12 9 * * *"
+  # Todo dia as 08:00 de Sao Paulo (11:00 UTC), disparado pelo pg_cron do
+  # Supabase (migration 20261027233340_robos_disparo_pg_cron). O schedule do
+  # GitHub atrasava 2 a 7 h. Sem disparo, o vigia de reserva avisa.
   workflow_dispatch:
 
 # Duas execucoes simultaneas gravariam na mesma linha de controle.

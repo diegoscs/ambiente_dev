@@ -31,21 +31,30 @@ robô falhou, mas também se ele **deixou de rodar**.
 
 ## Robôs
 
-| Robô | O que faz | Quando roda (UTC) |
+| Robô | O que faz | Quando roda (São Paulo) |
 |---|---|---|
-| [**001 · Check GitHub**](automacoes/001_check_github/README.md) | registro diário num repositório próprio pela Contents API, com trava de uma execução por dia | 03:17 |
-| [**002 · Check Supabase**](automacoes/002_check_supabase/README.md) | keepalive do projeto Supabase: consulta real por Postgres e por REST, para o plano free não pausar | 09:12 |
-| [**Minecraft na nuvem**](automacoes/minecraft_gcp/README.md) | servidor da galera numa VM do Google: status, chat, custo e backups no [hub do servidor](https://server-galera.vercel.app); desliga sozinho após 15 min vazio (não é carga) | a cada minuto, dentro da VM |
-| [**Vigia**](automacoes/vigia_robos.py) | lê a saúde de todos os robôs, deixa uma notificação no hub e falha o run se algum estiver atrasado ou com erro | 13:07 |
+| [**003 · Sync Open Finance**](.github/workflows/robo_003_sync_openfinance.yml) | sync do [financas-app](https://github.com/diegoscs/financas-app) (Pluggy → Supabase OpenFinance), registrado no hub | 06:00 e 15:00 |
+| [**001 · Check GitHub**](automacoes/001_check_github/README.md) | registro diário num repositório próprio pela Contents API, com trava de uma execução por dia | 07:00 |
+| [**002 · Check Supabase**](automacoes/002_check_supabase/README.md) | keepalive do projeto Supabase: consulta real por Postgres e por REST, para o plano free não pausar | 08:00 |
+| [**Vigia**](automacoes/vigia_robos.py) | lê a saúde de todos os robôs, deixa uma notificação no hub e falha o run se algum estiver atrasado ou com erro | 09:00 (+ reserva à tarde) |
+| [**Minecraft na nuvem**](automacoes/minecraft_gcp/README.md) | servidor da galera numa VM do Google: status, chat, custo e backups no [hub do servidor](https://server-galera.vercel.app); desliga sozinho após 5 min vazio (não é carga) | a cada minuto, dentro da VM |
+
+Os horários são em **hora cheia**, disparados pelo `pg_cron` do Supabase, que
+chama o `workflow_dispatch` de cada robô
+([migration](supabase/migrations/20261027233340_robos_disparo_pg_cron.sql)). O
+`schedule` do GitHub atrasava as execuções de 2 a 7 horas. Ele ficou só no
+vigia, como reserva independente: se o vigia das 09:00 não passou, o disparo
+falhou, e a reserva avisa.
 
 ## Arquitetura
 
 ```mermaid
 flowchart LR
+    PC["pg_cron do Supabase<br/>hora cheia"] -- "workflow_dispatch" --> GA
     subgraph GA["GitHub Actions"]
-        C1["cron 03:17"] --> R1["Robô 001"]
-        C2["cron 09:12"] --> R2["Robô 002"]
-        C3["cron 13:07"] --> VG["Vigia"]
+        R1["Robô 001 · 07:00"]
+        R2["Robô 002 · 08:00"]
+        VG["Vigia · 09:00"]
     end
 
     R1 -- "commits" --> DL[("repo daily-log")]

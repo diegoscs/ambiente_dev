@@ -72,11 +72,15 @@ dl.registrar_carga_supabase(IDCARGA, dl.STATUS_ERRO, dta_ini, fechar=True,
 
 Copie [`_modelo/robo_NNN_nome_robo.yml`](_modelo/robo_NNN_nome_robo.yml). O que não muda:
 
-- `schedule` com **minuto quebrado** e horário em UTC comentado com o de São
-  Paulo, mais `workflow_dispatch` (é o que o botão "Rodar agora" usa).
+- Só `workflow_dispatch`, **sem `schedule`**: o do GitHub atrasa 2 a 7 h. O
+  horário entra numa migration com `cron.schedule(...)` chamando
+  `private.disparar_workflow('diegoscs/ambiente_dev', 'robo_NNN_nome_robo.yml')`
+  ([exemplo](../supabase/migrations/20261027233340_robos_disparo_pg_cron.sql)).
+  O mesmo `workflow_dispatch` é o que o botão "Rodar agora" usa.
 - `concurrency` por robô, `timeout-minutes`, `MODO_EXECUCAO: CLOUD`.
 - Upload do log de erro com `if: failure()`.
-- Horário longe dos outros robôs e **antes do vigia** (13:07 UTC).
+- **Hora cheia** de São Paulo (o cron do `pg_cron` é em UTC: SP + 3), sem
+  repetir a de outro robô e **antes do vigia** (09:00).
 
 ## 7. Segredos
 

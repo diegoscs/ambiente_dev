@@ -28,6 +28,8 @@ os.environ.setdefault("PYTHONIOENCODING", "utf-8")
 import lib_dscs as dl
 
 
+RESERVA = "--reserva" in sys.argv
+
 TZ = ZoneInfo("America/Sao_Paulo")
 SEMANA = ["seg", "ter", "qua", "qui", "sex", "sáb", "dom"]
 
@@ -76,12 +78,34 @@ def descrever_problema(r: dict) -> str:
 
 
 def main() -> int:
+    # Uma notificacao por verificacao, para o hub mostrar que o vigia passou.
+    # "resolvido" quando a anterior era de atencao e agora esta tudo em dia.
+    try:
+        anterior = dl.ultima_notificacao("vigia")
+    except Exception as e:  # noqa: BLE001 - so muda o texto da notificacao
+        print(f"(nao consegui ler a notificacao anterior: {e})", file=sys.stderr)
+        anterior = None
+
+    # --reserva: o schedule do GitHub. O vigia de verdade sai as 09:00 pelo
+    # pg_cron do Supabase; se ele ja passou hoje, a reserva nao tem o que fazer.
+    # Se nao passou, o disparo falhou - e isso vira um problema a mais.
+    problemas = []
+    if RESERVA:
+        if anterior and datetime.fromisoformat(
+            anterior["dta_add"].replace("Z", "+00:00")
+        ).astimezone(TZ).date() == datetime.now(TZ).date():
+            print("Reserva: o vigia ja passou hoje - nada a fazer.")
+            return 0
+        problemas.append(
+            "🛰️ O vigia das 09:00 não rodou: o disparo pelo Supabase (pg_cron) "
+            "pode ter falhado. Confira o token github_dispatch_token no Vault."
+        )
+
     robos = dl.ler_saude_robos()
-    if not robos:
+    if not robos and not problemas:
         print("Nenhum robo ativo em vw_saude_robos - nada a vigiar.")
         return 0
 
-    problemas = []
     for r in robos:
         horas = r.get("horas_desde") or "?"
         print(
@@ -90,14 +114,6 @@ def main() -> int:
         )
         if r["saude"] not in dl.SAUDE_BOA:
             problemas.append(descrever_problema(r))
-
-    # Uma notificacao por verificacao, para o hub mostrar que o vigia passou.
-    # "resolvido" quando a anterior era de atencao e agora esta tudo em dia.
-    try:
-        anterior = dl.ultima_notificacao("vigia")
-    except Exception as e:  # noqa: BLE001 - so muda o texto da notificacao
-        print(f"(nao consegui ler a notificacao anterior: {e})", file=sys.stderr)
-        anterior = None
 
     # Detalhe das notificacoes: um robo por linha, com a ultima execucao.
     em_dia = "\n".join(

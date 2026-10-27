@@ -5,7 +5,8 @@ Faz **commits reais** em um repositório próprio no GitHub, via API REST
 Como são commits no branch padrão de um repo do próprio usuário, eles alimentam
 o **calendário de contribuições** do perfil.
 
-Roda no **GitHub Actions**, todo dia às 03:17 UTC
+Roda no **GitHub Actions**, todo dia às 07:00 de São Paulo (10:00 UTC),
+disparado pelo `pg_cron` do Supabase
 ([workflow](../../.github/workflows/robo_001_check_github.yml)), com trava e
 registro no Supabase (`id_carga = 1`).
 
@@ -95,9 +96,8 @@ vazio.
 
 A correção é a função `dia_github()`, que devolve `datetime.now(timezone.utc)` e
 alimenta a trava e a linha gravada no arquivo remoto. "Uma execução por dia"
-passa a significar "uma execução por quadradinho". O cron às 03:17 UTC fica
-longe da virada: o atraso da fila do GitHub nunca empurra o lote para o dia
-seguinte.
+passa a significar "uma execução por quadradinho". O disparo às 10:00 UTC fica
+longe da virada, então nenhum atraso empurra o lote para o dia seguinte.
 
 ### Quem decide o dia é o cron
 

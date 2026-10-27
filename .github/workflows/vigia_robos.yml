@@ -9,10 +9,15 @@
 name: vigia_robos
 
 on:
+  # O vigia de verdade sai as 09:00 de Sao Paulo (12:00 UTC), disparado pelo
+  # pg_cron do Supabase depois de todos os robos da manha.
+  #
+  # Este schedule e a RESERVA (--reserva), independente do Supabase: se o vigia
+  # das 09:00 ja passou no dia, ele sai sem gravar nada; se nao passou, o
+  # disparo falhou (token vencido, Supabase fora) e ele avisa. Marcado para
+  # 12:00 SP; com o atraso do GitHub, roda na tarde.
   schedule:
-    # Todo dia, 13:07 UTC (10:07 em Sao Paulo): depois do 001 (03:17) e do 002
-    # (09:12), com folga para o atraso da fila do GitHub.
-    - cron: "7 13 * * *"
+    - cron: "0 15 * * *"
   workflow_dispatch:
 
 jobs:
@@ -38,4 +43,4 @@ jobs:
         run: pip install -r requirements.txt
 
       - name: Conferir a saude dos robos
-        run: python automacoes/vigia_robos.py
+        run: python automacoes/vigia_robos.py ${{ github.event_name == 'schedule' && '--reserva' || '' }}

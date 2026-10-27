@@ -7,11 +7,10 @@
 name: robo_001_check_github
 
 on:
-  schedule:
-    # Todo dia, 03:17 UTC (00:17 em Sao Paulo). Cedo no dia UTC de proposito:
-    # o quadradinho do calendario e o do dia UTC, e o atraso da fila do GitHub
-    # (minutos, as vezes uma hora) nunca empurra o lote para o dia seguinte.
-    - cron: "17 3 * * *"
+  # Todo dia as 07:00 de Sao Paulo (10:00 UTC), disparado pelo pg_cron do
+  # Supabase (migration 20261027233340_robos_disparo_pg_cron). O schedule do
+  # GitHub atrasava 2 a 7 h. 10:00 UTC fica longe da virada do dia UTC, que e o
+  # quadradinho do calendario. Sem disparo, o vigia de reserva avisa.
   workflow_dispatch:
 
 concurrency:

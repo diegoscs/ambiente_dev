@@ -7,10 +7,10 @@
 name: robo_NNN_nome_robo
 
 on:
-  schedule:
-    # <quando>, HH:MM UTC (HH:MM em Sao Paulo). Minuto quebrado de proposito:
-    # a fila do GitHub atrasa jobs agendados na virada da hora.
-    - cron: "23 6 * * *"
+  # <quando>, HH:00 de Sao Paulo, disparado pelo pg_cron do Supabase: o horario
+  # entra numa migration com cron.schedule + private.disparar_workflow (ver
+  # 20261027233340_robos_disparo_pg_cron). Hora cheia e antes do vigia (09:00).
+  # Nada de schedule aqui: o do GitHub atrasa 2 a 7 h.
   workflow_dispatch:
 
 # Duas execucoes simultaneas gravariam na mesma linha de controle.

@@ -6,11 +6,17 @@ Supabase (`public.controle_cargas` + `public.historico_cargas`). O PC não é
 agendador: robô que depende da máquina ligada para quando ela desliga, e
 ninguém percebe.
 
-| Robô | Workflow | Quando roda (UTC) |
+| Robô | Workflow | Quando roda (São Paulo) |
 |---|---|---|
-| [001 · Check GitHub](001_check_github/README.md) | `robo_001_check_github.yml` | 03:17 |
-| [002 · Check Supabase](002_check_supabase/README.md) | `robo_002_check_supabase.yml` | 09:12 |
-| [Vigia](vigia_robos.py) | `vigia_robos.yml` | 13:07 |
+| 003 · Sync Open Finance | `sync-openfinance.yml` no financas-app (botão: `robo_003_sync_openfinance.yml`) | 06:00 e 15:00 |
+| [001 · Check GitHub](001_check_github/README.md) | `robo_001_check_github.yml` | 07:00 |
+| [002 · Check Supabase](002_check_supabase/README.md) | `robo_002_check_supabase.yml` | 08:00 |
+| [Vigia](vigia_robos.py) | `vigia_robos.yml` | 09:00 (reserva pelo `schedule` à tarde) |
+
+Quem marca a hora é o `pg_cron` do Supabase: na hora cheia ele chama o
+`workflow_dispatch` do robô, e o run começa em segundos
+([migration](../supabase/migrations/20261027233340_robos_disparo_pg_cron.sql)).
+O token fica no Vault (`github_dispatch_token`).
 
 ## Conferir se rodou
 
@@ -65,3 +71,7 @@ automacoes\
   `.bat`, os scripts de criar/verificar a tarefa, o `cadastro_carga.sql` do
   Postgres local e o modo `LOCAL` do código dos robôs 001 e 002. Os arquivos
   continuam no histórico do git.
+- **27/10/2026** — disparo em hora cheia pelo `pg_cron` do Supabase. O
+  `schedule` do GitHub atrasou os robôs de 2 a 7 h entre 20 e 27/10 (001 marcado
+  00:17 rodou entre 05:11 e 06:03; 002 marcado 06:12, entre 10:17 e 13:05). O
+  `schedule` só ficou no vigia, como reserva (`--reserva`).

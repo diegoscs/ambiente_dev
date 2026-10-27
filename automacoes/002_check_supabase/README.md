@@ -6,7 +6,8 @@ Postgres e API REST (PostgREST) — e registra o resultado no próprio Supabase:
 `public.controle_cargas` (última execução) e `public.historico_cargas` (uma
 linha por execução), `id_carga = 2`.
 
-Roda no **GitHub Actions**, todo dia às 09:12 UTC (06:12 em São Paulo)
+Roda no **GitHub Actions**, todo dia às 08:00 de São Paulo (11:00 UTC),
+disparado pelo `pg_cron` do Supabase
 ([workflow](../../.github/workflows/robo_002_check_supabase.yml)).
 
 > Projeto alvo: **financas-pipeline** (`mthipdxpedlfnkzddlar`, sa-east-1).
