@@ -18,7 +18,7 @@ TIMEOUT_PADRAO = 30  # segundos
 def chamar_api_json(
     url: str,
     metodo: str = "GET",
-    corpo: dict | None = None,
+    corpo: dict | list | None = None,
     cabecalhos: dict[str, str] | None = None,
     token: str | None = None,
     timeout: int = TIMEOUT_PADRAO,

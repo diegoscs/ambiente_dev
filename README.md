@@ -35,6 +35,7 @@ robô falhou, mas também se ele **deixou de rodar**.
 |---|---|---|
 | [**001 · Check GitHub**](automacoes/001_check_github/README.md) | registro diário num repositório próprio pela Contents API, com trava de uma execução por dia | 03:17 |
 | [**002 · Check Supabase**](automacoes/002_check_supabase/README.md) | keepalive do projeto Supabase: consulta real por Postgres e por REST, para o plano free não pausar | 09:12 |
+| [**Minecraft na nuvem**](automacoes/minecraft_gcp/README.md) | servidor da galera numa VM do Google: status, chat, custo e backups no [hub do servidor](https://server-galera.vercel.app); desliga sozinho após 15 min vazio (não é carga) | a cada minuto, dentro da VM |
 | [**Vigia**](automacoes/vigia_robos.py) | lê a saúde de todos os robôs, deixa uma notificação no hub e falha o run se algum estiver atrasado ou com erro | 13:07 |
 
 ## Arquitetura
@@ -143,8 +144,9 @@ python automacoes/002_check_supabase/002_check_supabase.py --dry-run
 python automacoes/vigia_robos.py
 ```
 
-`--dry-run` executa sem gravar status nem alterar nada no destino. Com
-`MODO_EXECUCAO=CLOUD` o robô se comporta como no GitHub Actions.
+`--dry-run` executa sem gravar status nem alterar nada no destino. Execução
+real registra o `MODO_EXECUCAO` na coluna `ambiente` (`LOCAL` no PC, `CLOUD`
+no Actions).
 
 ## Criando um robô novo
 

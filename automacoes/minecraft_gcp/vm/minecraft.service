@@ -1,0 +1,26 @@
+# Servidor de Minecraft como servico: sobe quando a VM liga e, quando a VM
+# desliga (botao, inatividade ou o proprio Google), manda "stop" e espera o
+# mundo salvar antes de deixar o sistema cair.
+# Console: tmux, sessao "mc" do usuario minecraft (console.bat no PC).
+# Instalado em /etc/systemd/system/minecraft.service.
+[Unit]
+Description=Servidor Minecraft da galera (tmux "mc")
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=forking
+User=minecraft
+WorkingDirectory=/opt/minecraft/server
+ExecStart=/usr/bin/tmux new-session -d -s mc /opt/minecraft/iniciar.sh
+ExecStop=/usr/bin/tmux send-keys -t mc stop Enter
+ExecStop=/bin/bash -c 'while /usr/bin/tmux has-session -t mc 2>/dev/null; do sleep 1; done'
+# Com o servidor parado (mundo salvo e consistente): backup para o Cloud
+# Storage. O "+" roda como root, que le o .env do monitor.
+ExecStopPost=+/usr/bin/python3 /opt/monitor/automacoes/minecraft_gcp/vm/monitor_vm.py --backup
+# O Google espera ~90 s antes de cortar a VM; salvar + backup levam ~15 s.
+TimeoutStopSec=80
+Restart=no
+
+[Install]
+WantedBy=multi-user.target

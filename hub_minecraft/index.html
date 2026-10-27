@@ -1,0 +1,815 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Server da Galera</title>
+<meta name="description" content="Status, chat, custo e botão de ligar do servidor de Minecraft da galera.">
+<meta name="theme-color" content="#0D1116" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#EEF1F4" media="(prefers-color-scheme: light)">
+<meta name="robots" content="noindex, nofollow">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" href="/icone.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/icone-180.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Server">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+:root{
+  color-scheme:light;
+  --bg:#EEF1F4; --card:#FFFFFF; --ink:#141A21; --muted:#5D6975; --line:#D5DCE3; --soft:#E4E9EE;
+  --ok:#17875A; --ok-bg:#DDF2E8; --err:#C23A2E; --err-bg:#FBE3E0; --late:#A8680C; --late-bg:#FBEBD2;
+  --run:#2C67B0; --run-bg:#DDE8F7; --none:#9AA6B2; --none-bg:#E6EAEE; --cell-empty:#E1E6EB;
+  --sans:"Manrope", "Segoe UI", system-ui, sans-serif;
+  --mono:"JetBrains Mono", Consolas, ui-monospace, monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    color-scheme:dark;
+    --bg:#0D1116; --card:#151B22; --ink:#E6ECF2; --muted:#8F9CA9; --line:#27313B; --soft:#1C242D;
+    --ok:#3CCB8C; --ok-bg:#12301F; --err:#FF7B6E; --err-bg:#3A1714; --late:#F0B454; --late-bg:#352511;
+    --run:#6FA6EE; --run-bg:#152A45; --none:#6B7784; --none-bg:#1E262F; --cell-empty:#1F2831;
+  }
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg); color:var(--ink); font:15px/1.5 var(--sans);
+  padding-inline:max(16px, env(safe-area-inset-left, 0px)); padding-block:calc(20px + env(safe-area-inset-top, 0px)) calc(48px + env(safe-area-inset-bottom, 0px))}
+[hidden]{display:none !important}
+.wrap{max-width:720px; margin:0 auto; display:flex; flex-direction:column; gap:16px}
+header{display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap}
+h1{font-size:22px; font-weight:800; margin:0; letter-spacing:-.01em}
+.sub{font:12px var(--mono); color:var(--muted)}
+button{font:600 13px var(--sans); color:var(--ink); background:var(--card); border:1px solid var(--line); border-radius:999px; padding:8px 14px; cursor:pointer; display:inline-flex; align-items:center; gap:6px}
+button:hover{border-color:var(--muted)}
+button:focus-visible, a:focus-visible, input:focus-visible, summary:focus-visible{outline:2px solid var(--run); outline-offset:2px}
+button[disabled]{opacity:.55; cursor:default}
+button.primario{background:var(--ok); color:#fff; border-color:var(--ok); justify-content:center; padding:13px 18px; font-size:15px; width:100%}
+@media (prefers-color-scheme: dark){ button.primario{color:#0D1116} }
+.spin{width:12px; height:12px; border:2px solid var(--line); border-top-color:var(--ink); border-radius:50%; animation:r .8s linear infinite}
+@keyframes r{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion: reduce){ .spin{animation:none} }
+
+.card{background:var(--card); border:1px solid var(--line); border-radius:14px; padding:16px; display:flex; flex-direction:column; gap:12px}
+.top{display:flex; justify-content:space-between; align-items:flex-start; gap:10px}
+.name{font-weight:700; font-size:16px}
+.id{font:12px var(--mono); color:var(--muted)}
+.chip{font:600 11.5px var(--mono); letter-spacing:.04em; padding:4px 10px; border-radius:999px; white-space:nowrap}
+.s-ONLINE{background:var(--ok-bg); color:var(--ok)}
+.s-OFFLINE,.s-ERRO{background:var(--err-bg); color:var(--err)}
+.s-LIGANDO,.s-DESLIGANDO{background:var(--run-bg); color:var(--run)}
+.s-DORMINDO,.s-SEM_SINAL{background:var(--none-bg); color:var(--none)}
+.s-OK{background:var(--ok-bg); color:var(--ok)}
+.facts{display:grid; grid-template-columns:repeat(3,1fr); gap:10px}
+.fact{display:flex; flex-direction:column; gap:2px; min-width:0}
+.k{font:11px var(--mono); color:var(--muted); text-transform:uppercase; letter-spacing:.05em}
+.fact .v{font-weight:700; font-variant-numeric:tabular-nums; overflow-wrap:anywhere}
+.fact .s{font:11.5px var(--mono); color:var(--muted)}
+.msg{font:12.5px/1.5 var(--mono); color:var(--muted); background:var(--soft); border-radius:8px; padding:8px 10px; overflow-wrap:anywhere}
+a{color:var(--run); text-decoration:none} a:hover{text-decoration:underline}
+h2{font-size:13px; margin:8px 0 -4px; color:var(--muted); font-weight:700; text-transform:uppercase; letter-spacing:.06em}
+footer{font:12px var(--mono); color:var(--muted); line-height:1.6}
+
+/* status */
+.hero{gap:14px}
+.endereco{display:flex; align-items:center; gap:8px; background:var(--soft); border-radius:10px; padding:10px 12px}
+.endereco .t{flex:1; min-width:0}
+.endereco .v{font:600 15px var(--mono); overflow-wrap:anywhere}
+.endereco button{flex:none; font-size:12px; padding:6px 12px}
+.contagem{font-size:14px; font-weight:600}
+.contagem.alerta{color:var(--late)}
+.jog{display:flex; flex-wrap:wrap; gap:6px; align-items:center}
+.jog .j{font:600 13px var(--sans); background:var(--soft); border-radius:999px; padding:4px 11px; display:inline-flex; gap:7px; align-items:center}
+.jog .j::before{content:""; width:7px; height:7px; border-radius:50%; background:var(--ok)}
+.jog .j.off::before{background:var(--none)}
+.jog .j small{font:11.5px var(--mono); color:var(--muted)}
+.vazio{font-size:13.5px; color:var(--muted)}
+.ligar{display:flex; flex-direction:column; gap:8px}
+.ligar .quem{display:flex; gap:6px; flex-wrap:wrap; align-items:center; font-size:13px; color:var(--muted)}
+.ligar .quem button{font-size:12.5px; padding:5px 11px}
+.ligar .quem button[aria-pressed="true"]{background:var(--ink); color:var(--bg); border-color:var(--ink)}
+.aviso{font:12.5px var(--mono); color:var(--muted); min-height:1.2em}
+
+/* custo */
+.hero-num{display:flex; align-items:baseline; gap:8px; flex-wrap:wrap}
+.hero-num .n{font-size:30px; font-weight:800; font-variant-numeric:tabular-nums; letter-spacing:-.02em}
+.hero-num .u{font:12px var(--mono); color:var(--muted)}
+.medidor{display:flex; flex-direction:column; gap:6px}
+.medidor .barra{height:10px; border-radius:999px; background:var(--cell-empty); overflow:hidden}
+.medidor .barra span{display:block; height:100%; border-radius:999px; background:var(--ok)}
+.medidor .linha{display:flex; justify-content:space-between; font:12px var(--mono); color:var(--muted); gap:8px; flex-wrap:wrap}
+.grafico{display:flex; flex-direction:column; gap:6px; position:relative}
+.grafico svg{width:100%; height:72px; display:block; overflow:visible}
+.grafico rect.b{fill:var(--ok)} .grafico rect.vz{fill:var(--cell-empty)}
+.grafico rect.alvo{fill:transparent; cursor:pointer}
+.grafico .eixo{display:flex; justify-content:space-between; font:10.5px var(--mono); color:var(--muted)}
+.dica{position:absolute; top:-6px; transform:translate(-50%,-100%); background:var(--ink); color:var(--bg); font:12px var(--mono); padding:5px 8px; border-radius:6px; white-space:nowrap; pointer-events:none}
+.nota{font:11.5px var(--mono); color:var(--muted)}
+
+/* listas */
+.lista{display:flex; flex-direction:column}
+.lista .l{display:grid; grid-template-columns:10px 1fr auto; gap:10px; align-items:baseline; padding:8px 0; border-top:1px solid var(--line)}
+.lista .l:first-child{border-top:0}
+.lista .dot{width:9px; height:9px; border-radius:50%; align-self:center}
+.lista .t1{font-weight:600; font-size:14px}
+.lista .t2{font:12px var(--mono); color:var(--muted); overflow-wrap:anywhere}
+.lista .h{font:12px var(--mono); color:var(--muted); white-space:nowrap; text-align:right}
+.d-ok{background:var(--ok)} .d-err{background:var(--err)} .d-run{background:var(--run)} .d-none{background:var(--none)} .d-late{background:var(--late)}
+
+/* chat */
+.abas{display:inline-flex; gap:4px; flex-wrap:wrap}
+.abas button{font:600 10.5px var(--mono); padding:4px 10px; letter-spacing:.04em; text-transform:uppercase; color:var(--muted)}
+.abas button[aria-pressed="true"]{background:var(--ink); color:var(--bg); border-color:var(--ink)}
+.ev{display:flex; flex-direction:column; max-height:440px; overflow-y:auto}
+.ev .e{display:grid; grid-template-columns:auto 1fr; gap:10px; padding:6px 0; border-top:1px solid var(--line); font-size:14px; align-items:baseline}
+.ev .e:first-child{border-top:0}
+.ev .h{font:11.5px var(--mono); color:var(--muted); white-space:nowrap}
+.ev .t{overflow-wrap:anywhere; min-width:0}
+.ev .quem{font-weight:700}
+.ev .info{color:var(--muted); font-size:13px}
+.ev .cmd{font:12.5px var(--mono); color:var(--run)}
+
+.ev .morte{color:var(--err); font-size:13.5px}
+.jog .j .afk{font:600 10.5px var(--mono); color:var(--late); background:var(--late-bg); border-radius:999px; padding:1px 7px}
+.jog .j.parado::before{background:var(--late)}
+.ev .afk{color:var(--late); font-size:13px}
+.ev .efeito{font:600 10.5px var(--mono); padding:2px 7px; border-radius:999px; margin-left:6px; white-space:nowrap; vertical-align:1px}
+.ev .efeito.nada{background:var(--none-bg); color:var(--muted)}
+.ev .efeito.mudou{background:var(--ok-bg); color:var(--ok)}
+.mundo{font-size:14px; color:var(--muted)}
+.mundo b{color:var(--ink)}
+.s-LAG_OK{background:var(--ok-bg); color:var(--ok)}
+.s-LAG_LEVE{background:var(--late-bg); color:var(--late)}
+.s-LAG_FORTE{background:var(--err-bg); color:var(--err)}
+.grafico line.limite{stroke:var(--err); stroke-width:1; stroke-dasharray:3 3; opacity:.7}
+.rank{display:flex; flex-direction:column; gap:10px}
+.rank .r{display:grid; grid-template-columns:22px minmax(0, 7.5em) 1fr auto; gap:10px; align-items:center; font-size:14px}
+.rank .pos{font:12px var(--mono); color:var(--muted)}
+.rank .nome{font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.rank .trilho{height:8px; border-radius:999px; background:var(--cell-empty); overflow:hidden}
+.rank .trilho span{display:block; height:100%; border-radius:999px; background:var(--ok)}
+.rank .val{font:600 13px var(--mono); font-variant-numeric:tabular-nums; text-align:right; white-space:nowrap}
+details.card summary{cursor:pointer; font-weight:700; font-size:16px; list-style:none}
+details.card summary::-webkit-details-marker{display:none}
+details.card summary::after{content:" +"; color:var(--muted)}
+details[open].card summary::after{content:" −"}
+ol.passos{margin:0; padding-left:20px; display:flex; flex-direction:column; gap:8px; font-size:14px}
+code{font:13px var(--mono); background:var(--soft); padding:1px 6px; border-radius:5px}
+@media (max-width:420px){ .facts{grid-template-columns:1fr 1fr} }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Server da Galera</h1>
+      <div class="sub" id="sub">Create Chronicles: The Endventure</div>
+    </div>
+    <button id="atualizar" type="button" aria-label="Atualizar agora"><span id="atualizar-ico">↻</span> Atualizar</button>
+  </header>
+
+  <!-- status -->
+  <section class="card hero" aria-labelledby="st-titulo">
+    <div class="top">
+      <div><div class="name" id="st-titulo">Servidor</div><div class="id" id="st-sub">carregando…</div></div>
+      <span id="st-chip" class="chip s-SEM_SINAL">…</span>
+    </div>
+    <div class="endereco">
+      <div class="t"><div class="k" id="end-rotulo">Endereço no TLauncher</div><div class="v" id="end-valor">—</div></div>
+      <button id="copiar" type="button">Copiar</button>
+    </div>
+    <div class="facts" id="st-facts"></div>
+    <div class="mundo" id="mundo" hidden></div>
+    <div class="contagem" id="contagem" hidden></div>
+    <div class="jog" id="jog" hidden></div>
+    <div class="msg" id="st-msg" hidden></div>
+    <div class="ligar" id="ligar" hidden>
+      <div class="quem" id="quem"><span>Quem está ligando?</span></div>
+      <button id="btn-ligar" class="primario" type="button">▶ Ligar o servidor</button>
+      <div class="aviso" id="ligar-aviso" role="status"></div>
+    </div>
+  </section>
+
+  <section class="card" id="hoje-card" hidden aria-labelledby="hoje-titulo">
+    <div class="top"><div class="name" id="hoje-titulo">Quem jogou hoje</div><span class="id">tempo no servidor</span></div>
+    <div class="jog" id="hoje"></div>
+  </section>
+
+  <!-- chat -->
+  <section class="card" aria-labelledby="chat-titulo">
+    <div class="top"><div class="name" id="chat-titulo">Chat e comandos</div><span class="id">últimos 80</span></div>
+    <span class="abas" id="abas"></span>
+    <div class="ev" id="ev"><div class="vazio">Carregando…</div></div>
+  </section>
+
+  <!-- ranking -->
+  <section class="card" id="rank-card" hidden aria-labelledby="rank-titulo">
+    <div class="top">
+      <div class="name" id="rank-titulo">Ranking da galera</div>
+      <span class="id" id="rank-sub">desde o começo do mundo</span>
+    </div>
+    <span class="abas" id="rank-abas"></span>
+    <div class="rank" id="rank"></div>
+  </section>
+
+  <!-- desempenho -->
+  <section class="card" id="perf-card" hidden aria-labelledby="perf-titulo">
+    <div class="top"><div class="name" id="perf-titulo">Desempenho</div><span id="perf-chip" class="chip s-LAG_OK">—</span></div>
+    <div class="hero-num"><span class="n" id="perf-tps">—</span><span class="u" id="perf-tps-sub">TPS (20 = perfeito)</span></div>
+    <div class="facts" id="perf-facts"></div>
+    <div class="grafico" id="perf-grafico">
+      <div class="k">Tempo por tick · últimas 6 h <span>(acima de 50 ms = lag)</span></div>
+      <svg id="perf-svg" viewBox="0 0 300 72" preserveAspectRatio="none" role="img"></svg>
+      <div class="eixo"><span>6 h atrás</span><span id="perf-max">—</span><span>agora</span></div>
+    </div>
+    <div class="nota" id="perf-nota">Medido a cada minuto com o servidor ligado. Guardado por 7 dias.</div>
+  </section>
+
+  <!-- custo -->
+  <section class="card" aria-labelledby="custo-titulo">
+    <div class="top"><div class="name" id="custo-titulo">Custo</div><span class="id">estimativa</span></div>
+    <div class="hero-num"><span class="n" id="custo-mes">—</span><span class="u" id="custo-mes-sub">este mês</span></div>
+    <div class="facts" id="custo-facts"></div>
+    <div class="medidor">
+      <div class="linha"><span class="k">Créditos do teste grátis</span><span id="cred-texto">—</span></div>
+      <div class="barra" role="meter" aria-valuemin="0" aria-valuemax="100" id="cred-barra"><span id="cred-uso" style="width:0"></span></div>
+      <div class="linha"><span id="cred-usado">—</span><span id="cred-fim">—</span></div>
+    </div>
+    <div class="grafico" id="grafico">
+      <div class="k">Horas ligado por dia · 14 dias</div>
+      <svg id="graf-svg" viewBox="0 0 300 72" preserveAspectRatio="none" role="img"></svg>
+      <div class="eixo"><span id="graf-ini">—</span><span id="graf-max">—</span><span>hoje</span></div>
+    </div>
+    <div class="nota">Calculado pelas horas que a máquina ficou ligada, com preços públicos do Google. O valor oficial fica no faturamento do Google Cloud.</div>
+  </section>
+
+  <!-- backups -->
+  <section class="card" aria-labelledby="bk-titulo">
+    <div class="top"><div class="name" id="bk-titulo">Backups do mundo</div><span id="bk-chip" class="chip s-SEM_SINAL">—</span></div>
+    <div class="facts" id="bk-facts"></div>
+    <div class="lista" id="bk-lista"></div>
+    <div class="nota">Feito toda vez que o servidor desliga, com o mundo já salvo. Guardado no Google Cloud Storage por 30 dias.</div>
+  </section>
+
+  <!-- registro -->
+  <section class="card" aria-labelledby="reg-titulo">
+    <div class="top"><div class="name" id="reg-titulo">Registro</div><span class="id">liga, desliga e backups</span></div>
+    <div class="lista" id="reg"></div>
+  </section>
+
+  <details class="card">
+    <summary>Como entrar no servidor</summary>
+    <ol class="passos">
+      <li><b>TLauncher</b> → aba <b>Pacotes de mod</b> → instale <b>Create Chronicles: The Endventure</b> (o mesmo de sempre).</li>
+      <li>Engrenagem do TLauncher → <b>Memória: 6144 MB</b> ou mais.</li>
+      <li><b>Mod extra (obrigatório):</b> baixe o <a href="https://modrinth.com/mod/toms-storage/version/WQAMoIMC" target="_blank" rel="noopener">Tom's Simple Storage 1.21-2.4.2</a> (botão Download) e coloque o arquivo <code>toms_storage-1.21-2.4.2.jar</code> na pasta <code>%APPDATA%\.minecraft\versions\Create Chronicles The End Create Chronicles- The En\mods</code> (cole o caminho na barra do Explorador de Arquivos). Sem ele o servidor não deixa entrar.</li>
+      <li><b>Multijogador → Adicionar servidor</b> → cole o endereço do topo desta página.</li>
+      <li>Servidor desligado? Aperte <b>Ligar o servidor</b> aqui e espere uns 2 minutos.</li>
+      <li><b>Primeira vez:</b> a tela fica escura. Abra o chat (<code>T</code>) e crie sua senha: <code>/register senha senha</code>. Você tem 60 segundos.</li>
+      <li><b>Das próximas vezes:</b> <code>/login senha</code>.</li>
+      <li>Use <b>exatamente</b> o nick da whitelist (maiúsculas contam). Esqueceu a senha? Peça ao Diego.</li>
+      <li>Não precisa mais da Radmin VPN.</li>
+    </ol>
+    <div class="nota">Para economizar, o servidor desliga sozinho 5 minutos depois que o último sair. Depois de ligar, vocês têm 15 minutos para o primeiro entrar. Quem ficar 10 minutos parado (sem mexer a câmera, falar ou mexer em blocos) é desconectado, com aviso aos 8 minutos.</div>
+  </details>
+
+  <footer>Instale no celular: no iPhone, Safari → Compartilhar → <b>Adicionar à Tela de Início</b>. Atualiza sozinho a cada 30 s com a página aberta. Horários de São Paulo.</footer>
+</div>
+
+<script>
+(() => {
+  const DESLIGA_APOS_MIN = 5;   // depois que alguem jogou (antes do 1o entrar: 15, vem do monitor)
+  const GALERA = ["digoscs", "Marllonx12", "Xxkadu03xX", "darak2610", "watinha", "socasoca"];
+  const TZ = "America/Sao_Paulo";
+  const $ = (id) => document.getElementById(id);
+  let d = null, filtro = "tudo", busy = false, timer = null;
+
+  // ─── utilitarios (todo texto vindo do jogo entra como textContent) ───
+  function el(tag, cls, text) {
+    const e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text != null) e.textContent = text;
+    return e;
+  }
+  const lerLocal = (k) => { try { return localStorage.getItem(k); } catch { return null; } };
+  const gravarLocal = (k, v) => { try { localStorage.setItem(k, v); } catch {} };
+  const diaSP = (ms) => new Date(ms).toLocaleDateString("en-CA", { timeZone: TZ });
+  const horaSP = (ms) => new Date(ms).toLocaleTimeString("pt-BR", { timeZone: TZ, hour: "2-digit", minute: "2-digit" });
+  const SEMANA = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"];
+  function quando(iso, nowMs) {
+    if (!iso) return "—";
+    const ms = new Date(iso).getTime();
+    const dias = Math.round((Date.parse(diaSP(nowMs)) - Date.parse(diaSP(ms))) / 86400000);
+    if (dias === 0) return `hoje ${horaSP(ms)}`;
+    if (dias === 1) return `ontem ${horaSP(ms)}`;
+    if (dias > 1 && dias < 7) return `${SEMANA[new Date(diaSP(ms) + "T12:00:00Z").getUTCDay()]} ${horaSP(ms)}`;
+    return `${new Date(ms).toLocaleDateString("pt-BR", { timeZone: TZ, day: "2-digit", month: "2-digit" })} ${horaSP(ms)}`;
+  }
+  function ago(iso, nowMs) {
+    if (!iso) return "—";
+    const min = Math.max(0, Math.round((nowMs - new Date(iso).getTime()) / 60000));
+    if (min < 1) return "agora";
+    if (min < 60) return `há ${min} min`;
+    const h = Math.floor(min / 60);
+    return h < 48 ? `há ${h} h ${String(min % 60).padStart(2, "0")}` : `há ${Math.floor(h / 24)} dias`;
+  }
+  function duracao(min) {
+    min = Math.max(0, Math.round(min));
+    return min < 60 ? `${min} min` : `${Math.floor(min / 60)}h${String(min % 60).padStart(2, "0")}`;
+  }
+  const completo = (iso) => iso ? new Date(iso).toLocaleString("pt-BR", { timeZone: TZ, dateStyle: "full", timeStyle: "short" }) : "";
+  const reais = (v) => v == null ? "—" : Number(v).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+  const mb = (b) => b == null ? "—" : `${(b / 1e6).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} MB`;
+  function fact(k, v, s, tip) {
+    const x = el("div", "fact"), val = el("span", "v", v);
+    if (tip) val.title = tip;
+    x.append(el("span", "k", k), val);
+    if (s) x.append(el("span", "s", s));
+    return x;
+  }
+
+  // ─── estado do servidor ───
+  // A VM (Google) diz se a maquina esta ligada; a linha do monitor diz o resto.
+  function calcularEstado(nowMs) {
+    const vm = d.vm, s = d.servidor;
+    const fresco = s && nowMs - Date.parse(s.dta_verificacao) < 3 * 60000;
+    const minDesdeStart = vm && vm.ultimo_start ? (nowMs - Date.parse(vm.ultimo_start)) / 60000 : Infinity;
+    if (vm) {
+      if (["TERMINATED", "STOPPED", "SUSPENDED"].includes(vm.status)) return "DORMINDO";
+      if (["PROVISIONING", "STAGING", "REPAIRING"].includes(vm.status)) return "LIGANDO";
+      if (["STOPPING", "SUSPENDING"].includes(vm.status)) return "DESLIGANDO";
+      if (s && fresco && s.estado_vm === "desligando") return "DESLIGANDO";
+      if (s && fresco && s.online) return "ONLINE";
+      if (minDesdeStart < 6) return "LIGANDO";
+      return fresco ? "OFFLINE" : "SEM_SINAL";
+    }
+    // Sem resposta do Google: decide so pela linha do monitor.
+    if (!s) return "SEM_SINAL";
+    if (s.estado_vm === "desligada") return "DORMINDO";
+    if (!fresco) return "SEM_SINAL";
+    return s.online ? "ONLINE" : "OFFLINE";
+  }
+  const TXT = { ONLINE: "ONLINE", OFFLINE: "FORA DO AR", LIGANDO: "LIGANDO…", DESLIGANDO: "DESLIGANDO…", DORMINDO: "DESLIGADO", SEM_SINAL: "SEM SINAL" };
+
+  function renderStatus(nowMs) {
+    const s = d.servidor || {}, vm = d.vm, estado = calcularEstado(nowMs);
+    $("st-chip").className = `chip s-${estado}`;
+    $("st-chip").textContent = TXT[estado];
+    $("st-sub").textContent = estado === "ONLINE" ? `${s.motd || "Server da galera"} · ${s.versao || ""}` : vm ? `máquina ${vm.maquina}` : "";
+
+    // Endereco: o DuckDNS so serve quando aponta para o IP atual da VM.
+    const end = d.endereco || {};
+    const usarIp = !end.dominio_ok && end.ip;
+    $("end-rotulo").textContent = usarIp ? "Endereço no TLauncher (IP de agora, muda a cada vez que liga)" : "Endereço no TLauncher";
+    $("end-valor").textContent = usarIp ? end.ip : end.dominio || "—";
+
+    const facts = [];
+    if (estado === "ONLINE" || estado === "DESLIGANDO") {
+      facts.push(fact("Jogadores", `${s.jogadores_online ?? 0} / ${s.jogadores_max ?? "—"}`),
+                 fact("Ligado desde", quando(vm && vm.ultimo_start, nowMs), ago(vm && vm.ultimo_start, nowMs), completo(vm && vm.ultimo_start)),
+                 fact("Resposta", s.latencia_ms != null ? `${s.latencia_ms} ms` : "—", "do servidor"));
+    } else if (estado === "DORMINDO") {
+      const ult = (d.sessoes || [])[0];
+      facts.push(fact("Desligado desde", quando(vm ? vm.ultimo_stop : ult && ult.dta_desligou, nowMs), ago(vm ? vm.ultimo_stop : ult && ult.dta_desligou, nowMs)),
+                 fact("Motivo", ult && ult.motivo ? ult.motivo : "—"),
+                 fact("Custo agora", "só o disco", "centavos por dia"));
+    } else {
+      facts.push(fact("Máquina", vm ? vm.status.toLowerCase() : "—"),
+                 fact("Ligou", quando(vm && vm.ultimo_start, nowMs), ago(vm && vm.ultimo_start, nowMs)),
+                 fact("Verificado", ago(s.dta_verificacao, nowMs)));
+    }
+    $("st-facts").replaceChildren(...facts);
+
+    // Hora, dia e clima do jogo (0 ticks = 06:00; noite de 13000 a 23000).
+    const mundo = $("mundo");
+    mundo.hidden = !(estado === "ONLINE" && s.mundo_tick != null);
+    if (!mundo.hidden) {
+      const t = s.mundo_tick, h = (Math.floor(t / 1000) + 6) % 24, m = Math.floor((t % 1000) * 60 / 1000);
+      const noite = t >= 13000 && t < 23000;
+      const clima = s.trovoada ? "⛈️ tempestade" : s.chuva ? "🌧️ chuva" : noite ? "🌙 noite limpa" : "☀️ sol";
+      mundo.replaceChildren(document.createTextNode("🕐 "), el("b", null, `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`),
+        document.createTextNode(` no jogo · `), el("b", null, `dia ${s.mundo_dia ?? "—"}`), document.createTextNode(` · ${clima}`));
+    }
+
+    // Contagem do desligamento automatico.
+    const cont = $("contagem");
+    cont.hidden = true; cont.className = "contagem";
+    if (estado === "ONLINE" && s.dta_ultima_atividade) {
+      cont.hidden = false;
+      // O monitor informa o limite em vigor: 15 min ate o primeiro entrar, 5 depois.
+      const limite = s.desliga_apos_min ?? DESLIGA_APOS_MIN;
+      const ninguemAinda = limite > DESLIGA_APOS_MIN;
+      if (s.jogadores_online > 0) {
+        cont.textContent = `Desliga sozinho ${DESLIGA_APOS_MIN} min depois que todo mundo sair.`;
+      } else {
+        const vazio = (nowMs - Date.parse(s.dta_ultima_atividade)) / 60000;
+        const falta = Math.max(0, limite - vazio);
+        cont.textContent = falta <= 0.5 ? "Vazio: desligando a qualquer momento…"
+          : ninguemAinda ? `Ninguém entrou ainda · desliga em ~${duracao(falta)} se ninguém entrar`
+          : `Vazio há ${duracao(vazio)} · desliga sozinho em ~${duracao(falta)}`;
+        if (falta < 3) cont.className = "contagem alerta";
+      }
+    }
+
+    const jog = $("jog");
+    jog.replaceChildren();
+    jog.hidden = estado !== "ONLINE";
+    if (estado === "ONLINE") {
+      // AFK (afk_kick.js no servidor): parado ha 2+ min; kick aos 10.
+      const afk = s.afk || {};
+      for (const n of s.jogadores || []) {
+        const chip = el("span", "j" + (afk[n] != null ? " parado" : ""), n);
+        if (afk[n] != null) chip.append(el("span", "afk", `💤 AFK ${afk[n]} min`));
+        jog.append(chip);
+      }
+      if (!s.jogadores_online) jog.append(el("span", "vazio", "Ninguém online agora."));
+    }
+
+    const msg = $("st-msg");
+    const textos = {
+      DORMINDO: "O servidor está desligado para economizar. Aperte Ligar, espere uns 2 minutos e entre em até 15 minutos.",
+      LIGANDO: "Ligando a máquina e o servidor. Leva uns 2 minutos; esta tela atualiza sozinha.",
+      DESLIGANDO: "Salvando o mundo, fazendo backup e desligando.",
+      OFFLINE: "A máquina está ligada, mas o servidor não responde. Se continuar assim, ela desliga sozinha.",
+      SEM_SINAL: "Sem notícias do servidor há alguns minutos. Tente atualizar daqui a pouco.",
+    };
+    msg.hidden = !textos[estado];
+    msg.textContent = textos[estado] || "";
+
+    $("ligar").hidden = estado !== "DORMINDO";
+    return estado;
+  }
+
+  // ─── quem esta ligando (obrigatorio; a funcao tambem recusa sem nome) ───
+  const nomeEscolhido = () => { const n = lerLocal("mc_nome"); return GALERA.includes(n) ? n : null; };
+  let ligando = false;
+  function atualizarBotaoLigar() {
+    const btn = $("btn-ligar"), escolhido = nomeEscolhido();
+    btn.disabled = ligando || !escolhido;
+    btn.textContent = escolhido ? `▶ Ligar o servidor (${escolhido})` : "▶ Ligar o servidor";
+    if (!ligando) $("ligar-aviso").textContent = escolhido ? "" : "Escolha quem está ligando para liberar o botão.";
+  }
+  function renderQuem() {
+    const box = $("quem"), atual = nomeEscolhido();
+    box.replaceChildren(el("span", null, "Quem está ligando?"));
+    for (const n of GALERA) {
+      const b = el("button", null, n);
+      b.type = "button";
+      b.setAttribute("aria-pressed", String(n === atual));
+      b.addEventListener("click", () => { gravarLocal("mc_nome", n); renderQuem(); });
+      box.append(b);
+    }
+    atualizarBotaoLigar();
+  }
+
+  $("btn-ligar").addEventListener("click", async () => {
+    const nome = nomeEscolhido(), aviso = $("ligar-aviso");
+    if (!nome) { atualizarBotaoLigar(); return; }
+    ligando = true;
+    atualizarBotaoLigar();
+    aviso.textContent = "pedindo ao Google…";
+    try {
+      const r = await fetch("/api/ligar", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ nome }) });
+      const j = await r.json().catch(() => ({}));
+      aviso.textContent = r.ok ? j.mensagem : (j.erro || `falhou (HTTP ${r.status})`);
+      if (r.ok) agendar(10000);
+    } catch {
+      aviso.textContent = "Sem resposta. Confira a internet e tente de novo.";
+    } finally {
+      setTimeout(() => { ligando = false; atualizarBotaoLigar(); }, 20000);
+    }
+  });
+
+  $("copiar").addEventListener("click", async () => {
+    const txt = $("end-valor").textContent;
+    try { await navigator.clipboard.writeText(txt); $("copiar").textContent = "Copiado!"; }
+    catch { $("copiar").textContent = "Segure no texto"; }
+    setTimeout(() => { $("copiar").textContent = "Copiar"; }, 2000);
+  });
+
+  // ─── quem jogou hoje (pares entrou/saiu do dia) ───
+  function renderHoje(nowMs) {
+    const hoje = diaSP(nowMs), online = new Set((d.servidor && d.servidor.online && d.servidor.jogadores) || []);
+    const evs = (d.eventos || []).filter(e => (e.tipo === "entrou" || e.tipo === "saiu") && diaSP(Date.parse(e.dta_evento)) === hoje)
+      .sort((a, b) => Date.parse(a.dta_evento) - Date.parse(b.dta_evento));
+    const tempo = {}, entrada = {};
+    for (const e of evs) {
+      const t = Date.parse(e.dta_evento);
+      if (e.tipo === "entrou") entrada[e.jogador] = t;
+      else if (entrada[e.jogador] != null) { tempo[e.jogador] = (tempo[e.jogador] || 0) + (t - entrada[e.jogador]); delete entrada[e.jogador]; }
+      tempo[e.jogador] = tempo[e.jogador] || 0;
+    }
+    for (const [n, t] of Object.entries(entrada)) if (online.has(n)) tempo[n] += nowMs - t;
+    const nomes = Object.keys(tempo);
+    $("hoje-card").hidden = !nomes.length;
+    $("hoje").replaceChildren(...nomes.sort((a, b) => tempo[b] - tempo[a]).map(n => {
+      const c = el("span", "j" + (online.has(n) ? "" : " off"), n);
+      c.append(el("small", null, duracao(tempo[n] / 60000)));
+      return c;
+    }));
+  }
+
+  // ─── chat ───
+  const FILTROS = [["tudo", "Tudo"], ["chat", "Chat"], ["comando", "Comandos"], ["morte", "Mortes"], ["entradas", "Entradas"]];
+  // Frases de morte mais comuns em portugues; o resto fica como o jogo escreveu.
+  const MORTES = [
+    [/^was slain by (.+)$/, "foi morto por $1"], [/^was killed by (.+)$/, "foi morto por $1"],
+    [/^was shot by (.+)$/, "levou uma flechada de $1"], [/^was blown up by (.+)$/, "foi explodido por $1"],
+    [/^blew up$/, "explodiu"], [/^burned to death$/, "morreu queimado"], [/^went up in flames.*$/, "pegou fogo"],
+    [/^was burned to a crisp.*$/, "virou churrasco"], [/^tried to swim in lava.*$/, "tentou nadar na lava"],
+    [/^drowned.*$/, "se afogou"], [/^fell from a high place.*$/, "caiu de um lugar alto"],
+    [/^hit the ground too hard.*$/, "caiu com força demais"], [/^fell out of the world.*$/, "caiu para fora do mundo"],
+    [/^starved to death.*$/, "morreu de fome"], [/^suffocated in a wall.*$/, "ficou preso na parede"],
+    [/^froze to death.*$/, "morreu congelado"], [/^was struck by lightning.*$/, "foi atingido por um raio"],
+    [/^withered away.*$/, "definhou (wither)"], [/^experienced kinetic energy.*$/, "bateu de cara voando"],
+    [/^died$/, "morreu"],
+  ];
+  const traduzirMorte = (t) => { for (const [re, pt] of MORTES) if (re.test(t)) return t.replace(re, pt); return t; };
+  function renderChat(nowMs) {
+    const abas = $("abas");
+    if (!abas.children.length) for (const [k, rot] of FILTROS) {
+      const b = el("button", null, rot);
+      b.type = "button"; b.dataset.f = k;
+      b.addEventListener("click", () => { filtro = k; renderChat(Date.now()); });
+      abas.append(b);
+    }
+    for (const b of abas.children) b.setAttribute("aria-pressed", String(b.dataset.f === filtro));
+    const ok = (e) => filtro === "tudo" || e.tipo === filtro || (filtro === "entradas" && ["entrou", "saiu", "afk"].includes(e.tipo));
+    const evs = (d.eventos || []).filter(ok).slice(0, 80);
+    const box = $("ev");
+    box.replaceChildren();
+    if (!evs.length) box.append(el("div", "vazio", filtro === "comando" ? "Nenhum comando ainda." : "Nada por aqui ainda."));
+    for (const e of evs) {
+      const linha = el("div", "e"), h = el("span", "h", quando(e.dta_evento, nowMs)), t = el("div", "t");
+      h.title = completo(e.dta_evento);
+      const quem = el("span", "quem", e.jogador);
+      if (e.tipo === "chat") t.append(quem, document.createTextNode(" " + e.texto));
+      else if (e.tipo === "comando") {
+        t.append(quem, document.createTextNode(" "), el("span", "cmd", e.texto));
+        // Efeito verificado pelo servidor (monitor_comandos.js): recusado/sem mudanca, ou mudou de verdade.
+        if (e.efeito === "sem_efeito") t.append(el("span", "efeito nada", "nada foi alterado"));
+        else if (e.efeito && e.efeito.startsWith("mudou:")) {
+          const v = e.efeito.slice(6);
+          const MODO = { survival: "sobrevivência", creative: "criativo", adventure: "aventura", spectator: "espectador" };
+          t.append(el("span", "efeito mudou", `✓ virou ${MODO[v] || v}`));
+        }
+      }
+      else if (e.tipo === "afk") { t.className = "t afk"; t.append(document.createTextNode("💤 "), quem, document.createTextNode(` foi desconectado por inatividade (${e.texto})`)); }
+      else if (e.tipo === "morte") { t.className = "t morte"; t.append(document.createTextNode("☠ "), quem, document.createTextNode(" " + traduzirMorte(e.texto))); }
+      else {
+        t.className = "t info";
+        t.append(quem, document.createTextNode({ entrou: " entrou no servidor", saiu: " saiu do servidor" }[e.tipo] || ` conquistou [${e.texto}]`));
+      }
+      linha.append(h, t);
+      box.append(linha);
+    }
+  }
+
+  // ─── custo ───
+  const SVGNS = "http://www.w3.org/2000/svg";
+  function renderCusto(nowMs) {
+    const c = d.custo;
+    if (!c) return;
+    $("custo-mes").textContent = reais(c.mes_brl);
+    $("custo-mes-sub").textContent = `este mês · ${c.horas_mes.toLocaleString("pt-BR")} h ligado`;
+    $("custo-facts").replaceChildren(
+      fact("Hoje", reais(c.hoje_brl)),
+      fact("Por hora ligado", reais(c.hora_brl), "máquina + IP"),
+      fact("Desligado", "~" + reais(0.15 * c.usd_brl), "por dia (disco)"),
+    );
+    const pct = c.credito_total_brl ? Math.min(100, (100 * c.credito_usado_brl) / c.credito_total_brl) : 0;
+    $("cred-uso").style.width = `${pct.toFixed(1)}%`;
+    $("cred-barra").setAttribute("aria-valuenow", pct.toFixed(0));
+    $("cred-barra").setAttribute("aria-label", `Créditos usados: ${pct.toFixed(0)}%`);
+    $("cred-texto").textContent = `sobram ${reais(c.credito_restante_brl)}`;
+    $("cred-usado").textContent = `usado ${reais(c.credito_usado_brl)} de ${reais(c.credito_total_brl)}`;
+    $("cred-fim").textContent = `acaba em ${c.dias_restantes} dias (${new Date(c.fim_teste).toLocaleDateString("pt-BR", { timeZone: TZ })})`;
+
+    // Barras de horas por dia: serie unica, topo arredondado, 2 px entre barras.
+    const dias = c.horas_por_dia || [], N = dias.length || 14, W = 300, H = 72, gap = 2, bw = (W - gap * (N - 1)) / N;
+    const max = Math.max(1, ...dias.map(x => x.horas));
+    const svg = $("graf-svg");
+    svg.replaceChildren();
+    const dica = $("grafico").querySelector(".dica") || $("grafico").appendChild(el("div", "dica"));
+    dica.hidden = true;
+    dias.forEach((x, i) => {
+      const xPos = i * (bw + gap), h = x.horas > 0 ? Math.max(3, (x.horas / max) * (H - 4)) : 3;
+      const r = 4, y = H - h, w = bw;
+      const p = document.createElementNS(SVGNS, "path");
+      // Barra com os cantos de cima arredondados e a base reta no eixo.
+      const rr = Math.min(r, w / 2, h);
+      p.setAttribute("d", `M${xPos},${H} V${y + rr} Q${xPos},${y} ${xPos + rr},${y} H${xPos + w - rr} Q${xPos + w},${y} ${xPos + w},${y + rr} V${H} Z`);
+      p.setAttribute("class", x.horas > 0 ? "b" : "vz");
+      p.style.fill = x.horas > 0 ? "var(--ok)" : "var(--cell-empty)";
+      svg.append(p);
+      const alvo = document.createElementNS(SVGNS, "rect");
+      alvo.setAttribute("x", xPos - gap / 2); alvo.setAttribute("y", 0);
+      alvo.setAttribute("width", w + gap); alvo.setAttribute("height", H);
+      alvo.setAttribute("class", "alvo");
+      const data = x.dia.split("-").reverse().slice(0, 2).join("/");
+      const texto = `${data}: ${x.horas ? x.horas.toLocaleString("pt-BR", { maximumFractionDigits: 1 }) + " h ligado" : "desligado"}`;
+      const t = document.createElementNS(SVGNS, "title"); t.textContent = texto; alvo.append(t);
+      const mostrar = () => { dica.hidden = false; dica.textContent = texto; dica.style.left = `${((xPos + w / 2) / W) * 100}%`; };
+      alvo.addEventListener("mouseenter", mostrar);
+      alvo.addEventListener("touchstart", mostrar, { passive: true });
+      alvo.addEventListener("mouseleave", () => { dica.hidden = true; });
+      svg.append(alvo);
+    });
+    svg.setAttribute("aria-label", `Horas ligado por dia nos últimos 14 dias; máximo ${max.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} h`);
+    $("graf-ini").textContent = dias[0] ? dias[0].dia.split("-").reverse().slice(0, 2).join("/") : "—";
+    $("graf-max").textContent = `máx ${max.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} h`;
+  }
+
+  // ─── ranking ───
+  const METRICAS = [
+    ["tempo_jogado_min", "Tempo", (v) => duracao(v)], ["mortes", "Mortes", (v) => String(v)],
+    ["mobs_mortos", "Mobs", (v) => String(v)], ["distancia_km", "Distância", (v) => `${Number(v).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} km`],
+    ["blocos_minerados", "Blocos", (v) => Number(v).toLocaleString("pt-BR")], ["conquistas", "Conquistas", (v) => String(v)],
+    ["jogadores_mortos", "PvP", (v) => `${v} abate${v === 1 ? "" : "s"}`],
+  ];
+  let metrica = "tempo_jogado_min";
+  function renderRanking(nowMs) {
+    const lista = d.jogadores || [];
+    $("rank-card").hidden = !lista.length;
+    if (!lista.length) return;
+    const abas = $("rank-abas");
+    if (!abas.children.length) for (const [k, rot] of METRICAS) {
+      const b = el("button", null, rot);
+      b.type = "button"; b.dataset.m = k;
+      b.addEventListener("click", () => { metrica = k; renderRanking(Date.now()); });
+      abas.append(b);
+    }
+    for (const b of abas.children) b.setAttribute("aria-pressed", String(b.dataset.m === metrica));
+    const [, , fmt] = METRICAS.find(m => m[0] === metrica);
+    const ordenada = [...lista].sort((a, b) => Number(b[metrica]) - Number(a[metrica]));
+    const max = Math.max(1, ...ordenada.map(j => Number(j[metrica]) || 0));
+    $("rank").replaceChildren(...ordenada.map((j, i) => {
+      const r = el("div", "r"), trilho = el("div", "trilho"), barra = el("span");
+      barra.style.width = `${(100 * (Number(j[metrica]) || 0)) / max}%`;
+      trilho.append(barra);
+      r.append(el("span", "pos", `${i + 1}º`), el("span", "nome", j.jogador), trilho, el("span", "val", fmt(j[metrica] ?? 0)));
+      return r;
+    }));
+    const atual = lista.map(j => Date.parse(j.dta_atualizacao)).sort().pop();
+    $("rank-sub").textContent = `atualizado ${ago(new Date(atual).toISOString(), nowMs)}`;
+  }
+
+  // ─── desempenho ───
+  function renderDesempenho(nowMs, estado) {
+    const s = d.servidor || {}, hist = d.desempenho || [];
+    const temDado = s.tps != null || hist.length;
+    $("perf-card").hidden = !temDado;
+    if (!temDado) return;
+    const online = estado === "ONLINE";
+    const tps = Number(s.tps);
+    const chip = $("perf-chip");
+    if (!online) { chip.className = "chip s-DORMINDO"; chip.textContent = "DESLIGADO"; }
+    else if (tps >= 19.5) { chip.className = "chip s-LAG_OK"; chip.textContent = "SEM LAG"; }
+    else if (tps >= 15) { chip.className = "chip s-LAG_LEVE"; chip.textContent = "LAG LEVE"; }
+    else { chip.className = "chip s-LAG_FORTE"; chip.textContent = "LAG FORTE"; }
+    $("perf-tps").textContent = s.tps != null ? tps.toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 }) : "—";
+    $("perf-tps-sub").textContent = online ? "TPS (20 = perfeito)" : "TPS da última vez ligado";
+    const gb = (mbv) => mbv == null ? "—" : `${(mbv / 1024).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} GB`;
+    $("perf-facts").replaceChildren(
+      fact("Tempo por tick", s.mspt != null ? `${Number(s.mspt).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} ms` : "—", "limite 50 ms"),
+      fact("CPU", s.cpu_pct != null ? `${Number(s.cpu_pct).toLocaleString("pt-BR", { maximumFractionDigits: 0 })}%` : "—", "da máquina"),
+      fact("Memória", `${gb(s.ram_usada_mb)} / ${gb(s.ram_total_mb)}`, s.java_ram_mb != null ? `Minecraft ${gb(s.java_ram_mb)}` : null),
+    );
+
+    // Barras de ms/tick em blocos de 10 min (36 nas 6 h); linha tracejada em 50 ms.
+    const N = 36, W = 300, H = 72, gap = 2, bw = (W - gap * (N - 1)) / N, bloco = 600000, inicio = nowMs - N * bloco;
+    const grupos = Array.from({ length: N }, () => []);
+    for (const p of hist) {
+      const i = Math.floor((Date.parse(p.dta) - inicio) / bloco);
+      if (i >= 0 && i < N) grupos[i].push(p);
+    }
+    const media = (arr, k) => { const v = arr.map(x => Number(x[k])).filter(x => !isNaN(x)); return v.length ? v.reduce((a, b) => a + b, 0) / v.length : null; };
+    const valores = grupos.map(g => media(g, "mspt"));
+    const max = Math.max(60, ...valores.filter(v => v != null));
+    const svg = $("perf-svg"), box = $("perf-grafico");
+    svg.replaceChildren();
+    const dica = box.querySelector(".dica") || box.appendChild(el("div", "dica"));
+    dica.hidden = true;
+    valores.forEach((v, i) => {
+      const x = i * (bw + gap), h = v != null ? Math.max(3, (v / max) * (H - 4)) : 3, y = H - h, rr = Math.min(4, bw / 2, h);
+      const p = document.createElementNS(SVGNS, "path");
+      p.setAttribute("d", `M${x},${H} V${y + rr} Q${x},${y} ${x + rr},${y} H${x + bw - rr} Q${x + bw},${y} ${x + bw},${y + rr} V${H} Z`);
+      p.style.fill = v != null ? "var(--ok)" : "var(--cell-empty)";
+      svg.append(p);
+      const alvo = document.createElementNS(SVGNS, "rect");
+      alvo.setAttribute("x", x - gap / 2); alvo.setAttribute("y", 0); alvo.setAttribute("width", bw + gap); alvo.setAttribute("height", H);
+      alvo.setAttribute("class", "alvo");
+      const g = grupos[i], de = horaSP(inicio + i * bloco), ate = horaSP(inicio + (i + 1) * bloco);
+      const texto = v == null ? `${de}–${ate}: desligado`
+        : `${de}–${ate}: ${v.toFixed(1)} ms/tick · TPS ${(media(g, "tps") ?? 0).toFixed(1)} · CPU ${Math.round(media(g, "cpu_pct") ?? 0)}% · ${Math.round(media(g, "jogadores") ?? 0)} jogando`;
+      const t = document.createElementNS(SVGNS, "title"); t.textContent = texto; alvo.append(t);
+      const mostrar = () => { dica.hidden = false; dica.textContent = texto; dica.style.left = `${Math.min(80, Math.max(20, ((x + bw / 2) / W) * 100))}%`; };
+      alvo.addEventListener("mouseenter", mostrar);
+      alvo.addEventListener("touchstart", mostrar, { passive: true });
+      alvo.addEventListener("mouseleave", () => { dica.hidden = true; });
+      svg.append(alvo);
+    });
+    const limite = document.createElementNS(SVGNS, "line"), yl = H - (50 / max) * (H - 4);
+    limite.setAttribute("x1", 0); limite.setAttribute("x2", W); limite.setAttribute("y1", yl); limite.setAttribute("y2", yl);
+    limite.setAttribute("class", "limite");
+    svg.append(limite);
+    const picos = valores.filter(v => v != null);
+    svg.setAttribute("aria-label", picos.length ? `Tempo por tick nas últimas 6 horas, pico de ${Math.max(...picos).toFixed(1)} ms` : "Sem medições nas últimas 6 horas");
+    $("perf-max").textContent = picos.length ? `pico ${Math.max(...picos).toFixed(0)} ms` : "sem medições";
+  }
+
+  // ─── backups ───
+  function renderBackups(nowMs) {
+    const bks = d.backups || [], ult = bks[0];
+    const chip = $("bk-chip");
+    if (!ult) { chip.className = "chip s-SEM_SINAL"; chip.textContent = "NENHUM"; }
+    else { chip.className = `chip ${ult.ok ? "s-OK" : "s-ERRO"}`; chip.textContent = ult.ok ? "OK" : "FALHOU"; }
+    const okTodos = bks.filter(b => b.ok);
+    $("bk-facts").replaceChildren(
+      fact("Último", ult ? quando(ult.dta, nowMs) : "—", ult ? ago(ult.dta, nowMs) : null, ult && completo(ult.dta)),
+      fact("Tamanho", ult ? mb(ult.bytes) : "—", ult && ult.duracao_s != null ? `em ${ult.duracao_s} s` : null),
+      fact("Guardados", String(okTodos.length), "nos últimos 12"),
+    );
+    const box = $("bk-lista");
+    box.replaceChildren();
+    for (const b of bks.slice(0, 6)) {
+      const l = el("div", "l"), t = el("div");
+      t.append(el("div", "t1", b.ok ? `Backup ${mb(b.bytes)}` : "Backup falhou"), el("div", "t2", b.ok ? b.arquivo : (b.erro || "erro")));
+      l.append(el("span", `dot ${b.ok ? "d-ok" : "d-err"}`), t, el("span", "h", quando(b.dta, nowMs)));
+      box.append(l);
+    }
+  }
+
+  // ─── registro: sessoes da VM, pedidos de ligar e backups ───
+  function renderRegistro(nowMs) {
+    const itens = [];
+    for (const s of d.sessoes || []) {
+      itens.push({ t: s.dta_ligou, dot: "d-run", t1: "Máquina ligou", t2: s.maquina || "" });
+      if (s.dta_desligou) {
+        const min = (Date.parse(s.dta_desligou) - Date.parse(s.dta_ligou)) / 60000;
+        itens.push({ t: s.dta_desligou, dot: "d-none", t1: "Desligou", t2: `${s.motivo || "—"} · ficou ligada ${duracao(min)}` });
+      }
+    }
+    for (const p of (d.pedidos || []).filter(p => p.acao === "ligar")) {
+      itens.push({ t: p.dta_pedido, dot: p.status === "erro" ? "d-err" : "d-ok", t1: `${p.nome || "Alguém"} pediu para ligar`, t2: p.mensagem || p.status });
+    }
+    for (const b of (d.backups || []).slice(0, 5)) {
+      itens.push({ t: b.dta, dot: b.ok ? "d-ok" : "d-err", t1: b.ok ? "Backup feito" : "Backup falhou", t2: b.ok ? mb(b.bytes) : (b.erro || "") });
+    }
+    itens.sort((a, b) => Date.parse(b.t) - Date.parse(a.t));
+    const box = $("reg");
+    box.replaceChildren();
+    if (!itens.length) box.append(el("div", "vazio", "Nada registrado ainda."));
+    for (const i of itens.slice(0, 15)) {
+      const l = el("div", "l"), t = el("div"), h = el("span", "h", quando(i.t, nowMs));
+      h.title = completo(i.t);
+      t.append(el("div", "t1", i.t1), el("div", "t2", i.t2));
+      l.append(el("span", `dot ${i.dot}`), t, h);
+      box.append(l);
+    }
+  }
+
+  // ─── carga ───
+  function agendar(ms) {
+    clearTimeout(timer);
+    timer = setTimeout(() => { if (document.visibilityState === "visible") carregar(); else agendar(ms); }, ms);
+  }
+
+  async function carregar() {
+    if (busy) return;
+    busy = true;
+    $("atualizar").disabled = true;
+    $("atualizar-ico").className = "spin"; $("atualizar-ico").textContent = "";
+    let estado = null;
+    try {
+      const r = await fetch("/api/estado", { cache: "no-store" });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      d = await r.json();
+      const nowMs = Date.now();
+      estado = renderStatus(nowMs);
+      renderHoje(nowMs); renderChat(nowMs); renderRanking(nowMs); renderDesempenho(nowMs, estado);
+      renderCusto(nowMs); renderBackups(nowMs); renderRegistro(nowMs);
+      $("sub").textContent = `Create Chronicles · atualizado ${horaSP(nowMs)}`;
+    } catch (e) {
+      $("sub").textContent = `não consegui atualizar (${e.message}); tentando de novo…`;
+    } finally {
+      busy = false;
+      $("atualizar").disabled = false;
+      $("atualizar-ico").className = ""; $("atualizar-ico").textContent = "↻";
+      // Mais rapido enquanto liga ou desliga.
+      agendar(estado === "LIGANDO" || estado === "DESLIGANDO" ? 10000 : 30000);
+    }
+  }
+
+  $("atualizar").addEventListener("click", carregar);
+  document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && d) carregar(); });
+  renderQuem();
+  carregar();
+})();
+</script>
+</body>
+</html>

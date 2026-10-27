@@ -1,0 +1,13 @@
+# Uma passada do monitor da VM (status, eventos, sessao, DuckDNS e a trava de
+# 15 min). Disparado pelo monitor-minecraft.timer. Roda como root: le o .env
+# (so root le), para o servico do Minecraft e desliga a VM.
+# Instalado em /etc/systemd/system/.
+[Unit]
+Description=Monitor do Minecraft (status para o hub e desligamento por inatividade)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /opt/monitor/automacoes/minecraft_gcp/vm/monitor_vm.py
+TimeoutStartSec=400

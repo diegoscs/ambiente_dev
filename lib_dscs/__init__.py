@@ -9,9 +9,10 @@
 # USO NO ROBO    : sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 #                  import lib_dscs as dl
 #
-#                  dl.status_inicio(IDCARGA)
+#                  dl.registrar_carga_supabase(IDCARGA, dl.STATUS_INICIO, ...)
 #                  ...
-#                  dl.status_sucesso(IDCARGA)
+#                  dl.registrar_carga_supabase(IDCARGA, dl.STATUS_SUCESSO, ...)
+#                  Esqueleto completo em automacoes\_modelo.
 # =============================================
 from __future__ import annotations
 
@@ -71,12 +72,21 @@ from .supabase import (
     TABELA_CONTROLE_SUPABASE,
     SAUDE_BOA,
     TABELA_HISTORICO_SUPABASE,
+    comandos_minecraft_abertos,
+    fechar_comando_minecraft,
+    gravar_eventos_minecraft,
+    gravar_status_minecraft,
     ler_saude_robos,
     modo_execucao,
     notificar_hub,
     ultima_notificacao,
+    ultimo_evento_minecraft,
     registrar_carga_supabase,
+    supabase_apagar,
+    supabase_atualizar,
     supabase_configurado,
+    supabase_inserir,
+    supabase_ler,
     trabalho_feito_no_dia,
     url_execucao_actions,
 )
@@ -138,6 +148,15 @@ __all__ = [
     "ler_saude_robos",
     "notificar_hub",
     "ultima_notificacao",
+    "gravar_status_minecraft",
+    "gravar_eventos_minecraft",
+    "ultimo_evento_minecraft",
+    "comandos_minecraft_abertos",
+    "fechar_comando_minecraft",
+    "supabase_ler",
+    "supabase_inserir",
+    "supabase_atualizar",
+    "supabase_apagar",
     # estado local
     "caminho_estado",
     "ler_estado",

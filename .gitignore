@@ -21,3 +21,8 @@ pipelines/
 
 # Configuracao pessoal do VS Code (commit + sync automatico)
 .vscode/
+
+# Server de Minecraft: mundo, mods, backups e a senha do RCON no LEIA-ME.
+# Repositorio publico - nada dele entra. O script do KubeJS que o monitor usa
+# tem copia versionada em automacoes/monitor_minecraft/kubejs/.
+automacoes/minecraft-server/

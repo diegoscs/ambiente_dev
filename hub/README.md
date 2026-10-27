@@ -6,6 +6,12 @@ Painel de celular com a saúde dos robôs, lido ao vivo do Supabase.
 
 ## O que mostra
 
+- **Servidor Minecraft**: on/off/sem sinal, jogadores online com os nicks e
+  o feed de chat, comandos, entradas e conquistas, de `minecraft_status` e
+  `minecraft_eventos` (gravados pelo
+  [monitor do PC](../automacoes/monitor_minecraft/README.md)).
+  Botão **Ligar/Desligar server**: grava o pedido em `minecraft_comandos`
+  (RLS, sem passar pela Vercel) e o monitor do PC executa em até 1 minuto.
 - **Status por robô**, vindo da `vw_saude_robos`: `OK`, `ERRO`, `ATRASADO`,
   `TRAVADO`, `RODANDO` ou `NUNCA RODOU`. Uma faixa no topo resume tudo.
 - **Calendário dos últimos 14 dias UTC** por robô: verde com execução `SUCCESS`,

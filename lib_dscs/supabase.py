@@ -22,8 +22,8 @@ TABELA_HISTORICO_SUPABASE = "historico_cargas"
 
 TIMEOUT_SEGUNDOS = 30
 
-# LOCAL -> Agendador do Windows, com Postgres local (dm).
-# CLOUD -> GitHub Actions: nao existe Postgres local, o Supabase e o unico registro.
+# LOCAL -> rodou no PC (na mao, ou robo que precisa de algo que so existe nele).
+# CLOUD -> GitHub Actions, o padrao dos robos. Vai para a coluna "ambiente".
 MODO_LOCAL = "LOCAL"
 MODO_CLOUD = "CLOUD"
 
@@ -246,3 +246,148 @@ def notificar_hub(nivel: str, titulo: str, detalhe: str | None = None, origem: s
     except Exception as e:  # noqa: BLE001 - notificacao nunca derruba quem chama
         log(f"[HUB] ⚠ falha ao notificar o hub: {e}")
         return False
+
+
+# ─── status do servidor de Minecraft ────────────────────────────────────────
+
+TABELA_MINECRAFT = "minecraft_status"
+
+
+def gravar_status_minecraft(online: bool, **campos: Any) -> None:
+    """Grava a linha unica de public.minecraft_status (upsert no id 1). Levanta se falhar.
+
+    Os horarios (dta_verificacao e dta_mudanca) sao carimbados por trigger no
+    banco: o relogio do PC nao entra na conta do "sem sinal" do hub.
+    """
+    status_http, payload = chamar_api_json(
+        _url(f"{TABELA_MINECRAFT}?on_conflict=id"),
+        "POST",
+        corpo={"id": 1, "online": online, **campos},
+        cabecalhos=_cabecalhos({"Prefer": "resolution=merge-duplicates,return=minimal"}),
+        timeout=TIMEOUT_SEGUNDOS,
+    )
+    _checar(status_http, payload, "upsert minecraft_status")
+
+
+TABELA_MINECRAFT_EVENTOS = "minecraft_eventos"
+LOTE_EVENTOS = 500
+
+
+def ultimo_evento_minecraft() -> datetime | None:
+    """dta_evento mais recente de public.minecraft_eventos, ou None. Levanta se falhar."""
+    status_http, payload = chamar_api_json(
+        _url(f"{TABELA_MINECRAFT_EVENTOS}?select=dta_evento&order=dta_evento.desc&limit=1"),
+        "GET",
+        cabecalhos=_cabecalhos(),
+        timeout=TIMEOUT_SEGUNDOS,
+    )
+    _checar(status_http, payload, "leitura minecraft_eventos")
+    return datetime.fromisoformat(payload[0]["dta_evento"]) if payload else None
+
+
+def gravar_eventos_minecraft(eventos: list[dict[str, Any]]) -> None:
+    """Insere eventos (dta_evento, tipo, jogador, texto), ignorando repetidos. Levanta se falhar.
+
+    A unique (dta_evento, tipo, jogador, texto) torna o reenvio inofensivo.
+    """
+    for i in range(0, len(eventos), LOTE_EVENTOS):
+        status_http, payload = chamar_api_json(
+            _url(f"{TABELA_MINECRAFT_EVENTOS}?on_conflict=dta_evento,tipo,jogador,texto"),
+            "POST",
+            corpo=eventos[i:i + LOTE_EVENTOS],
+            cabecalhos=_cabecalhos({"Prefer": "resolution=ignore-duplicates,return=minimal"}),
+            timeout=TIMEOUT_SEGUNDOS,
+        )
+        _checar(status_http, payload, "insert minecraft_eventos")
+
+
+TABELA_MINECRAFT_COMANDOS = "minecraft_comandos"
+
+
+def comandos_minecraft_abertos() -> list[dict[str, Any]]:
+    """Pedidos de ligar/desligar pendentes ou executando, mais antigo primeiro. Levanta se falhar.
+
+    "executando" velho e pedido que o monitor pegou e nao fechou (caiu no meio):
+    quem chama fecha como erro, senao o indice de um-aberto-por-vez trava a fila.
+    """
+    status_http, payload = chamar_api_json(
+        _url(f"{TABELA_MINECRAFT_COMANDOS}?select=id,acao,status,dta_pedido,dta_execucao"
+             f"&status=in.(pendente,executando)&order=dta_pedido"),
+        "GET",
+        cabecalhos=_cabecalhos(),
+        timeout=TIMEOUT_SEGUNDOS,
+    )
+    _checar(status_http, payload, "leitura minecraft_comandos")
+    return payload
+
+
+def fechar_comando_minecraft(id_comando: int, status: str, mensagem: str | None = None,
+                             se_status: str | None = None) -> bool:
+    """Atualiza o status de um pedido. Com `se_status`, so muda se ainda estiver nele.
+
+    Devolve False quando nenhuma linha mudou: e assim que o monitor "pega" um
+    pedido (pendente -> executando) sem executar duas vezes. Levanta se falhar.
+    """
+    filtro = f"id=eq.{id_comando}" + (f"&status=eq.{se_status}" if se_status else "")
+    status_http, payload = chamar_api_json(
+        _url(f"{TABELA_MINECRAFT_COMANDOS}?{filtro}"),
+        "PATCH",
+        corpo={"status": status, "mensagem": mensagem, "dta_execucao": _iso(datetime.now(timezone.utc))},
+        cabecalhos=_cabecalhos({"Prefer": "return=representation"}),
+        timeout=TIMEOUT_SEGUNDOS,
+    )
+    _checar(status_http, payload, "update minecraft_comandos")
+    return bool(payload)
+
+
+# ─── acesso generico (tabelas sem funcao propria) ───────────────────────────
+
+
+def supabase_ler(consulta: str) -> list[dict[str, Any]]:
+    """GET no PostgREST: consulta = "tabela?select=...&filtro". Levanta se falhar."""
+    status_http, payload = chamar_api_json(
+        _url(consulta), "GET", cabecalhos=_cabecalhos(), timeout=TIMEOUT_SEGUNDOS
+    )
+    _checar(status_http, payload, f"leitura {consulta.split('?')[0]}")
+    return payload
+
+
+def supabase_inserir(tabela: str, linhas: dict | list[dict], conflito: str | None = None,
+                     ignorar_repetidos: bool = False) -> None:
+    """Insere uma ou varias linhas. Com `conflito` (colunas da unique) vira upsert:
+    atualiza a linha existente, ou a deixa como esta se ignorar_repetidos. Levanta se falhar."""
+    prefer = ["return=minimal"]
+    if conflito:
+        prefer.append("resolution=" + ("ignore-duplicates" if ignorar_repetidos else "merge-duplicates"))
+    status_http, payload = chamar_api_json(
+        _url(tabela + (f"?on_conflict={conflito}" if conflito else "")),
+        "POST",
+        corpo=linhas,
+        cabecalhos=_cabecalhos({"Prefer": ",".join(prefer)}),
+        timeout=TIMEOUT_SEGUNDOS,
+    )
+    _checar(status_http, payload, f"insert {tabela}")
+
+
+def supabase_atualizar(tabela: str, filtro: str, campos: dict[str, Any]) -> list[dict[str, Any]]:
+    """PATCH nas linhas do filtro ("id=eq.3"). Devolve as linhas alteradas. Levanta se falhar."""
+    status_http, payload = chamar_api_json(
+        _url(f"{tabela}?{filtro}"),
+        "PATCH",
+        corpo=campos,
+        cabecalhos=_cabecalhos({"Prefer": "return=representation"}),
+        timeout=TIMEOUT_SEGUNDOS,
+    )
+    _checar(status_http, payload, f"update {tabela}")
+    return payload
+
+
+def supabase_apagar(tabela: str, filtro: str) -> None:
+    """DELETE nas linhas do filtro ("dta=lt.2026-01-01"). Filtro vazio e recusado. Levanta se falhar."""
+    if not filtro:
+        raise ValueError("supabase_apagar sem filtro apagaria a tabela inteira")
+    status_http, payload = chamar_api_json(
+        _url(f"{tabela}?{filtro}"), "DELETE",
+        cabecalhos=_cabecalhos({"Prefer": "return=minimal"}), timeout=TIMEOUT_SEGUNDOS,
+    )
+    _checar(status_http, payload, f"delete {tabela}")
