@@ -254,8 +254,8 @@ footer{font:12px var(--mono); color:var(--muted); line-height:1.6}
   const $ = (id) => document.getElementById(id);
   const TXT = { OK: "OK", ERRO: "ERRO", ATRASADO: "ATRASADO", TRAVADO: "TRAVADO", RODANDO: "RODANDO", NUNCA_RODOU: "NUNCA RODOU" };
   let busy = false, timer = null, last = null, criando = false;
-  // Servidor Minecraft: o monitor do PC grava a cada minuto. Sem gravacao ha
-  // mais que isso, o PC esta desligado ou sem internet: nao da para saber do server.
+  // Servidor Minecraft: o monitor da VM grava a cada minuto. VM ligada e sem
+  // gravacao ha mais que isso, o monitor parou: nao da para saber do server.
   const MC_SEM_SINAL_MIN = 5, MC_EVENTOS = 80;
   let mc = null, mcFiltro = "tudo", mcPoll = null;
   // Depois de ligar, o server leva 1 ou 2 min para abrir a porta; depois de
@@ -512,7 +512,7 @@ footer{font:12px var(--mono); color:var(--muted); line-height:1.6}
   const MC_TXT = { ONLINE: "ONLINE", OFFLINE: "OFFLINE", SEM_SINAL: "SEM SINAL", LIGANDO: "LIGANDO…", DESLIGANDO: "DESLIGANDO…", DORMINDO: "DESLIGADO" };
   const MC_ACAO = { ligar: "ligar", desligar: "desligar" };
 
-  // Pedido de ligar/desligar: o hub so grava; o monitor do PC executa em ate 1 min.
+  // Pedido de ligar/desligar: o hub so grava; o monitor da VM executa em ate 1 min.
   async function pedirMc(acao) {
     const s = mc && mc.status;
     let pergunta = acao === "ligar" ? "Ligar o server?" : "Desligar o server?";
@@ -527,7 +527,7 @@ footer{font:12px var(--mono); color:var(--muted); line-height:1.6}
     const { error } = await sb.from("minecraft_comandos").insert({ acao });
     if (error) {
       btn.disabled = false;
-      $("mc-pedido").textContent = error.code === "23505" ? "Já tem um pedido aguardando o PC." : `Não consegui pedir: ${error.message}`;
+      $("mc-pedido").textContent = error.code === "23505" ? "Já tem um pedido aguardando a VM." : `Não consegui pedir: ${error.message}`;
       return;
     }
     carregar();
@@ -580,27 +580,27 @@ footer{font:12px var(--mono); color:var(--muted); line-height:1.6}
     const aviso = $("mc-aviso");
     aviso.hidden = estado === "ONLINE";
     aviso.textContent = {
-      SEM_SINAL: "O PC do server não manda sinal: desligado, sem internet ou o monitor parou. Não dá para saber se o server está no ar.",
-      OFFLINE: "O PC está ligado, mas o server não responde (desligado ou ainda subindo; o modpack leva alguns minutos).",
+      SEM_SINAL: "A VM está ligada, mas o monitor não manda sinal há mais de 5 minutos. Não dá para saber se o server está no ar.",
+      OFFLINE: "A VM está ligada, mas o server não responde (ainda subindo: o modpack leva alguns minutos).",
       LIGANDO: "Iniciado pelo hub. O modpack leva 1 ou 2 minutos para abrir; esta tela atualiza sozinha.",
       DESLIGANDO: "Desligando pelo hub: aviso no chat, mundo salvo e stop.",
-      DORMINDO: "A máquina na nuvem se desligou para economizar (15 min sem ninguém ou pedido). Para ligar, use o hub do servidor.",
+      DORMINDO: "A máquina na nuvem se desligou para economizar (ninguém jogando ou pedido de desligar). Para ligar, use o hub do servidor.",
     }[estado] || "";
 
     // Botao de ligar/desligar e o ultimo pedido
     const btn = $("mc-btn"), txtPedido = $("mc-pedido");
     const acao = base === "ONLINE" ? "desligar" : "ligar";
-    // O servidor saiu do PC: ligar agora e pelo hub do servidor (link acima).
+    // Ligar e pelo hub do servidor (link acima): a VM desligada nao le a fila.
     btn.hidden = true;
     btn.dataset.acao = acao;
     btn.textContent = acao === "ligar" ? "▶ Ligar server" : "■ Desligar server";
     btn.className = acao === "desligar" ? "perigo" : "";
     btn.disabled = base === "SEM_SINAL" || pAberto || !!transicao;
     let txt = "";
-    if (base === "SEM_SINAL") txt = "Com o PC sem sinal, o hub não consegue ligar nem desligar.";
+    if (base === "SEM_SINAL") txt = "Com a VM sem sinal, o hub não consegue ligar nem desligar.";
     else if (pAberto) txt = p.status === "pendente"
-      ? `Pedido de ${MC_ACAO[p.acao]} enviado ${quando(p.dta_pedido, nowMs)}; o PC pega em até 1 minuto…`
-      : `O PC está executando: ${MC_ACAO[p.acao]}…`;
+      ? `Pedido de ${MC_ACAO[p.acao]} enviado ${quando(p.dta_pedido, nowMs)}; a VM pega em até 1 minuto…`
+      : `A VM está executando: ${MC_ACAO[p.acao]}…`;
     // "feito" ja aparece no proprio estado (LIGANDO/ONLINE...); so erro e ignorado precisam de texto.
     else if (p && pMin < 30 && p.mensagem && (p.status === "erro" || p.status === "ignorado")) txt =`${quando(p.dta_execucao || p.dta_pedido, nowMs)} · ${p.mensagem}`;
     txtPedido.textContent = txt;

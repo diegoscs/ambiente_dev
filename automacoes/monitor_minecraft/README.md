@@ -4,9 +4,14 @@ Leva para o [hub](../../hub/README.md) o estado do server de Minecraft da galera
 (`automacoes/minecraft-server`, fora do repositório): se está no ar, quem está
 jogando, o chat e os comandos.
 
+> **Desde 19/10/2026 o server roda numa VM do Google**, e quem chama este
+> código a cada minuto é o [monitor da VM](../minecraft_gcp/vm/monitor_vm.py)
+> (ping, leitura do log e RCON). O que segue descreve a versão do PC, com o
+> Agendador do Windows. Ela fica como referência, porque a lógica é a mesma.
+
 ## O que faz
 
-A cada minuto, pelo Agendador do Windows:
+A cada minuto (no PC, pelo Agendador do Windows; hoje, pelo timer da VM):
 
 1. **Status**: pergunta ao server em `127.0.0.1:25565` pelo mesmo ping da lista
    de servidores do jogo (Server List Ping). Volta on/off, `online/max`, os nicks,
@@ -123,10 +128,17 @@ powershell -File automacoes\monitor_minecraft\instalar_tarefa.ps1   # (re)cria a
 ```
 
 > **Servidor migrado para o Google Cloud em 19/10/2026, 19:00.** As tarefas do Agendador
-> deste monitor foram desativadas (não apagadas). O código segue em uso: o
+> deste monitor foram desativadas e, em 27/10/2026, apagadas. O código segue em uso: o
 > [monitor da VM](../minecraft_gcp/vm/monitor_vm.py) importa este arquivo para o ping,
 > a leitura do log e o RCON (`MINECRAFT_DIR` aponta a pasta). Ver
 > [automacoes/minecraft_gcp](../minecraft_gcp/README.md).
+
+## Estado em 27/10/2026
+
+- As 2 tarefas do Agendador (`Monitor Minecraft (hub)` e `Minecraft Server (hub)`)
+  apagadas do PC. Para voltar a rodar o server no PC, o `instalar_tarefa.ps1`
+  recria todas.
+- Textos do card do server no hub falam da VM, não mais do PC.
 
 ## Estado em 19/10/2026
 
