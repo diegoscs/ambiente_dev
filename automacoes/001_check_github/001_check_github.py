@@ -26,12 +26,14 @@ from datetime import datetime, timezone
 import lib_dscs as dl
 
 # ─── configuracao ────────────────────────────────────────────────────────────
-# DEBUG=True   -> NADA e gravado em dbo.controle_cargas e nenhum commit e feito.
+# DEBUG=True   -> nada e registrado no Supabase e nenhum commit e feito.
 # --dry-run    -> igual ao DEBUG, sem precisar editar o arquivo.
-# --force      -> ignora o sorteio de folga e o travamento diario.
+# --force      -> ignora o travamento diario.
 # --setup      -> cria o repositorio no GitHub, se ainda nao existir.
 # --status     -> mostra a configuracao e o estado atual, sem commitar.
-# MODO_EXECUCAO=CLOUD (env) -> GitHub Actions: trava e registro no Supabase.
+#
+# Roda no GitHub Actions (MODO_EXECUCAO=CLOUD). Trava e registro ficam no
+# Supabase: a maquina do Actions nasce vazia, nada local serve de memoria.
 #
 # --setup e --status nao registram status na tabela de controle: nao sao a carga
 # diaria, sao manutencao. Marcar SUCCESS neles mentiria no monitoramento.
@@ -41,14 +43,14 @@ FORCE = "--force" in sys.argv
 SETUP = "--setup" in sys.argv
 STATUS = "--status" in sys.argv
 
-IDCARGA = 1  # ★ mesmo numero da pasta e do id_carga em dbo.controle_cargas
+IDCARGA = 1  # ★ mesmo numero da pasta e do id_carga em public.controle_cargas
 NOME_ROBO = "check_github"
 
 BASE = Path(__file__).resolve().parent
 
 # ─── GitHub ──────────────────────────────────────────────────────────────────
-# Token no .env da raiz (D:\ambiente_dev\.env), classico com scope "repo" ou
-# fine-grained com "Contents: Read and write". https://github.com/settings/tokens
+# Token no secret GH_PAT (no PC, GITHUB_TOKEN no .env da raiz), classico com
+# scope "repo" ou fine-grained com "Contents: Read and write".
 API = "https://api.github.com"
 CABECALHOS = {
     "Accept": "application/vnd.github+json",
@@ -61,13 +63,11 @@ GITHUB_BRANCH = "main"                     # precisa ser o branch padrao para co
 ARQUIVO_REMOTO = "registro/atividades.md"  # arquivo alterado a cada commit
 REPO_PRIVADO = False                       # True exige "Private contributions" no perfil
 
-CACHE_REMOTO = BASE / "temp" / "atividades.md"  # copia do que foi enviado
-
 # ─── comportamento ───────────────────────────────────────────────────────────
-# Quem decide EM QUE DIA o robo roda e o Agendador do Windows - o Python so
+# Quem decide EM QUE DIA o robo roda e o cron do workflow - o Python so
 # executa quando e chamado. Por isso aqui nao ha sorteio de folga nem regra de
 # fim de semana: chamou, commita. A unica excecao e a trava diaria, que impede
-# dois lotes no mesmo dia se a tarefa disparar duas vezes.
+# dois lotes no mesmo dia (cron atrasado + "Rodar agora" no hub, por exemplo).
 MIN_COMMITS = 4               # minimo de commits no dia
 MAX_COMMITS = 8               # maximo de commits no dia
 PAUSA_ENTRE_COMMITS = (2, 6)  # segundos, sorteado no intervalo
@@ -91,13 +91,6 @@ OWNER = ""   # descoberto pelo token em resolver_owner()
 # mesmo quando a execucao quebra no meio: sem isso um lote parcial seria
 # registrado como 0 e a proxima execucao faria outro lote inteiro no dia.
 COMMITS_ENVIADOS = 0
-
-# LOCAL -> Agendador do Windows: trava em temp\estado.json + dbo.controle_cargas.
-# CLOUD -> GitHub Actions: a maquina nasce vazia a cada execucao, entao a trava
-#          e o registro ficam no Supabase (public.historico_cargas).
-# Nos dois modos, com o Supabase configurado, a carga e registrada la tambem:
-# e o que deixa PC e nuvem rodarem em paralelo sem dobrar os commits do dia.
-MODO = dl.modo_execucao()
 
 
 # ============================================================
@@ -126,9 +119,9 @@ def validar_configuracao() -> None:
     # GITHUB_TOKEN no .env do PC.
     TOKEN = dl.ler_env().get("GH_PAT") or dl.obter_variavel("GITHUB_TOKEN")
 
-    if MODO == dl.MODO_CLOUD and not dl.supabase_configurado():
+    if not dl.supabase_configurado():
         raise ValueError(
-            "Modo CLOUD sem SUPABASE_URL/SUPABASE_KEY: sem o Supabase nao ha trava "
+            "Faltam SUPABASE_URL/SUPABASE_KEY: sem o Supabase nao ha trava "
             "diaria nem registro da carga."
         )
 
@@ -228,8 +221,8 @@ def dia_github() -> datetime:
     Usar hora local na trava quebra nos dois sentidos:
 
       * 24/09/2026 as 22:06 (Sao Paulo) = 25/09 01:06 UTC. Os 8 commits
-        cairam inteiros no quadrado do dia 25. O robo gravou SUCCESS, o
-        estado.json marcou 24/09 como processado, nao houve log de erro -
+        cairam inteiros no quadrado do dia 25. O robo gravou SUCCESS, a
+        trava marcou 24/09 como processado, nao houve log de erro -
         e 24/09 ficou BRANCO no calendario. Silencio identico ao do sucesso,
         que e a mesma armadilha dos 7 dias em branco de setembro.
 
@@ -243,28 +236,15 @@ def dia_github() -> datetime:
 
 
 def commits_ja_feitos_hoje() -> int:
-    """Trava diaria. Soma o que o Supabase e o estado local sabem do dia UTC.
+    """Trava diaria: commits ja registrados no dia UTC (public.historico_cargas).
 
-    Com o Supabase configurado ele e a fonte principal: e o unico lugar que o
-    PC e o GitHub Actions enxergam juntos. O estado.json continua valendo no PC.
+    Sem resposta do Supabase nao da para saber se o dia ja foi feito, entao o
+    erro sobe e nada e commitado: o seguro e nao dobrar o lote.
     """
-    feitos = 0
-
-    if MODO == dl.MODO_LOCAL and dl.ja_executou_hoje(BASE, dia_github()):
-        feitos = max(feitos, int(dl.ler_estado(BASE).get("commits", 0)) or 1)
-
-    if dl.supabase_configurado():
-        # Sem resposta do Supabase nao da para saber se o dia ja foi feito. Na
-        # nuvem ele e a unica trava, entao o erro sobe e nada e commitado; no
-        # PC o estado.json ainda protege, e a execucao segue.
-        try:
-            feitos = max(feitos, dl.trabalho_feito_no_dia(IDCARGA, dia_github()))
-        except Exception as e:  # noqa: BLE001
-            if MODO == dl.MODO_CLOUD:
-                raise RuntimeError(f"Trava diaria indisponivel no Supabase: {e}") from e
-            dl.log(f"[ESTADO] ⚠ Supabase indisponivel para a trava, seguindo com o estado local: {e}")
-
-    return feitos
+    try:
+        return dl.trabalho_feito_no_dia(IDCARGA, dia_github())
+    except Exception as e:  # noqa: BLE001
+        raise RuntimeError(f"Trava diaria indisponivel no Supabase: {e}") from e
 
 
 def processar() -> tuple[int, str]:
@@ -273,9 +253,8 @@ def processar() -> tuple[int, str]:
 
     dia = f"{dia_github():%Y-%m-%d}"
 
-    # Travamento diario: o Agendador pode disparar de novo (retry da tarefa,
-    # maquina que ligou tarde), o PC e a nuvem podem rodar no mesmo dia, e o
-    # robo nao pode dobrar os commits.
+    # Travamento diario: o cron pode atrasar e coincidir com um "Rodar agora"
+    # do hub, e o robo nao pode dobrar os commits.
     ja_feitos = commits_ja_feitos_hoje()
     if ja_feitos and not FORCE:
         # Mensagem do hub: curta e legivel (o detalhe tecnico fica no log)
@@ -332,10 +311,6 @@ def processar() -> tuple[int, str]:
         dl.log(f"[DRY RUN] {feitos} commit(s) simulado(s) — nada enviado ao GitHub")
         return 0, f"dry-run: {feitos} commit(s) simulado(s)"
 
-    CACHE_REMOTO.parent.mkdir(parents=True, exist_ok=True)
-    CACHE_REMOTO.write_text(conteudo, encoding="utf-8")
-    dl.marcar_execucao(BASE, dia_github(), commits=feitos, ultimo_sha=sha)
-
     resumo = f"✅ {feitos} {'commit feito' if feitos == 1 else 'commits feitos'} no {GITHUB_REPO}"
     dl.log(f"[ROBO{IDCARGA:03d}] {resumo} (ultimo {sha[:7]}) -> {ARQUIVO_REMOTO}")
     return feitos, resumo
@@ -343,13 +318,11 @@ def processar() -> tuple[int, str]:
 
 def mostrar_status() -> None:
     resolver_owner()
-    estado = dl.ler_estado(BASE)
 
     dl.log("-" * 70)
     dl.log(f"Repositorio existe  : {'sim' if repositorio_existe() else 'NAO (rode com --setup)'}")
-    dl.log(f"Ultima execucao     : {estado.get('ultima_execucao', 'nunca')} (dia UTC)")
-    dl.log(f"Commits no dia      : {estado.get('commits', 0)}")
-    dl.log(f"Ultimo sha          : {estado.get('ultimo_sha', '-')}")
+    dl.log(f"Dia (UTC)           : {dia_github():%Y-%m-%d}")
+    dl.log(f"Commits no dia      : {commits_ja_feitos_hoje()} (historico no Supabase)")
     dl.log("-" * 70)
 
 
@@ -360,40 +333,27 @@ def main() -> None:
     dl.configurar_logger(IDCARGA, NOME_ROBO, BASE)
 
     execucao = "DEBUG" if DEBUG else ("DRY RUN" if DRY_RUN else "PRODUCAO")
+    modo = dl.modo_execucao()
     dta_ini = datetime.now(timezone.utc)
 
-    if MODO == dl.MODO_LOCAL:
-        try:
-            banco = f"{dl.descrever_conexao()} | {dl.TABELA_CONTROLE}"
-        except Exception as e:  # noqa: BLE001 - so contexto de log
-            banco = f"<nao configurado> ({e})"
-    else:
-        banco = "nenhum local - carga gravada direto no Supabase"
-
     dl.logar_contexto(execucao, extras={
-        "Modo de execucao": MODO,
-        "Arquivo .env": str(dl.ENV_FILE),
+        "Modo de execucao": modo,
         "Repositorio destino": f"{GITHUB_REPO} ({GITHUB_BRANCH})",
         "Arquivo remoto": ARQUIVO_REMOTO,
-        "Commits por dia": f"{MIN_COMMITS} a {MAX_COMMITS} (quem define o dia e o agendamento)",
-        "Banco de controle": f"{banco} (id_carga {IDCARGA})",
+        "Commits por dia": f"{MIN_COMMITS} a {MAX_COMMITS} (quem define o dia e o cron)",
+        "Controle de cargas": f"Supabase public.{dl.TABELA_CONTROLE_SUPABASE} (id_carga {IDCARGA})",
         "Supabase": "configurado" if dl.supabase_configurado() else "AUSENTE",
         "DEBUG / DRY_RUN": f"{DEBUG} / {DRY_RUN}",
     })
 
     # Manutencao (--status/--setup) nao passa pela tabela de controle: nao e a
     # carga diaria, e marcar SUCCESS nela mentiria no monitoramento.
-    registrar_controle = not (DEBUG or DRY_RUN or STATUS or SETUP)
-    registrar_local = registrar_controle and MODO == dl.MODO_LOCAL
-    registrar_supabase = registrar_controle and dl.supabase_configurado()
+    registrar = not (DEBUG or DRY_RUN or STATUS or SETUP)
 
     try:
         validar_configuracao()
 
-        if registrar_local:
-            dl.status_inicio(IDCARGA)
-            dl.log(f"[CONTROLE] id_carga {IDCARGA} marcado como '{dl.STATUS_INICIO}'")
-        if registrar_supabase:
+        if registrar:
             dl.registrar_carga_supabase(IDCARGA, dl.STATUS_INICIO, dta_ini, fechar=False)
 
         commits, resumo = 0, ""
@@ -405,10 +365,7 @@ def main() -> None:
         else:
             commits, resumo = processar()
 
-        if registrar_local:
-            dl.status_sucesso(IDCARGA)
-            dl.log(f"[CONTROLE] id_carga {IDCARGA} marcado como '{dl.STATUS_SUCESSO}'")
-        if registrar_supabase:
+        if registrar:
             dl.registrar_carga_supabase(
                 IDCARGA, dl.STATUS_SUCESSO, dta_ini, fechar=True,
                 mensagem=resumo, qtd_itens=commits,
@@ -421,22 +378,13 @@ def main() -> None:
         dl.log(f"[ROBO{IDCARGA:03d}] ❌ erro final: {e}")
         dl.logar_traceback("erro final")
 
-        if registrar_local:
-            # O status_erro nao pode derrubar o traceback original: se o banco
-            # tambem estiver fora, o log tem que continuar mostrando o erro real.
-            try:
-                dl.status_erro(IDCARGA)
-                dl.log(f"[CONTROLE] id_carga {IDCARGA} marcado como '{dl.STATUS_ERRO}'")
-            except Exception as erro_controle:  # noqa: BLE001
-                dl.log(f"[CONTROLE] ⚠ falha ao registrar o erro na tabela: {erro_controle}")
-        if registrar_supabase:
-            # registrar_carga_supabase nunca levanta: o erro original segue intacto.
+        if registrar:
+            # registrar_carga_supabase e alertar_erro_robo nunca levantam:
+            # o erro original do robo continua sendo o que aparece.
             dl.registrar_carga_supabase(
                 IDCARGA, dl.STATUS_ERRO, dta_ini, fechar=True,
                 mensagem=f"⚠️ {e}"[:500], qtd_itens=COMMITS_ENVIADOS,
             )
-
-        if registrar_controle:
             dl.alertar_erro_robo(IDCARGA, NOME_ROBO, str(e))
 
         dl.log(f"[ROBO{IDCARGA:03d}] ❌ RESULTADO FINAL: ERRO")

@@ -68,7 +68,11 @@ Supabase foi pausado em 21/09 mesmo com o robô 002 "funcionando".
 ### Fase 3 · tirar o PC do caminho
 - [x] Uma semana em paralelo (PC + nuvem), conferindo o hub. PC e nuvem usam a mesma trava, então não há commit dobrado
 - [x] Desativar a tarefa `ambiente_dev - Robos` no Agendador (desativar, não apagar)
-- [x] `verificar_robos.ps1` substituído pelo hub e pelo vigia (continua na pasta, só enxerga o modo `LOCAL`)
+- [x] `verificar_robos.ps1` substituído pelo hub e pelo vigia
+- [x] **02/10/2026**: a tarefa foi encontrada **ativa** (o item acima não tinha
+  pegado) e foi removida. Saíram também os `.bat`, os scripts da tarefa, o
+  `verificar_robos.ps1`, o `cadastro_carga.sql` do Postgres local e o modo
+  `LOCAL` do código do 001 e do 002
 
 ### Fase 4 · alerta de "não rodou"
 - [x] `vw_saude_robos` com `ATRASADO` (mais de 26 h sem execução fechada)

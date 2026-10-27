@@ -36,10 +36,8 @@ from ping import executar_pings
 # --dry-run   -> igual ao DEBUG, sem editar o arquivo.
 # --status    -> mostra a configuracao e sai, sem pingar nada.
 #
-# MODO_EXECUCAO (env):
-#   LOCAL -> Agendador do Windows: dbo.controle_cargas (Postgres dm) + Supabase.
-#   CLOUD -> GitHub Actions: sem Postgres local, so o Supabase.
-# Nos dois o registro oficial e o Supabase (controle_cargas + historico_cargas).
+# Roda no GitHub Actions (MODO_EXECUCAO=CLOUD). O registro e o Supabase
+# (controle_cargas + historico_cargas).
 DEBUG = False
 DRY_RUN = "--dry-run" in sys.argv
 STATUS = "--status" in sys.argv
@@ -53,13 +51,6 @@ def mostrar_status(modo: str) -> None:
     dl.log(f"[STATUS] supabase     : {url_supabase()}")
     dl.log(f"[STATUS] telegram     : {'configurado' if dl.telegram_configurado() else 'AUSENTE'}")
 
-    if modo == dl.MODO_LOCAL:
-        carga = dl.obter_carga(IDCARGA)
-        if carga is None:
-            dl.log(f"[STATUS] ⚠ id_carga {IDCARGA} nao cadastrado - rode o cadastro_carga.sql")
-            return
-        dl.log(f"[STATUS] ultima exec : {carga['status']} em {carga['dta_fim']} (tabela local)")
-
 
 def main() -> None:
     dl.configurar_logger(IDCARGA, NOME_ROBO, BASE)
@@ -70,30 +61,21 @@ def main() -> None:
     dl.logar_contexto(
         "DRY-RUN" if (DEBUG or DRY_RUN) else modo,
         extras={
-            "Arquivo .env": str(dl.ENV_FILE),
             "Modo de execucao": modo,
             "Destino Supabase": dl.ler_env().get("SUPABASE_URL") or "(nao definido)",
-            "Banco de controle": (
-                f"{dl.descrever_conexao()} | {dl.TABELA_CONTROLE} + Supabase (id_carga {IDCARGA})"
-                if modo == dl.MODO_LOCAL
-                else f"Supabase public.{dl.TABELA_CONTROLE_SUPABASE} (id_carga {IDCARGA})"
-            ),
+            "Controle de cargas": f"Supabase public.{dl.TABELA_CONTROLE_SUPABASE} (id_carga {IDCARGA})",
             "DEBUG / DRY_RUN": f"{DEBUG} / {DRY_RUN}",
         },
     )
 
     # --status e manutencao, nao a carga: marcar SUCCESS nele mentiria no
     # monitoramento. Mesma regra do robo 001.
-    registrar_controle = not (DEBUG or DRY_RUN or STATUS)
-    registrar_local = registrar_controle and modo == dl.MODO_LOCAL
+    registrar = not (DEBUG or DRY_RUN or STATUS)
 
     try:
         validar_configuracao(modo)
 
-        if registrar_local:
-            dl.status_inicio(IDCARGA)
-            dl.log(f"[CONTROLE] id_carga {IDCARGA} marcado como '{dl.STATUS_INICIO}'")
-        if registrar_controle:
+        if registrar:
             dl.registrar_carga_supabase(IDCARGA, dl.STATUS_INICIO, dta_ini, fechar=False)
 
         resultados = []
@@ -102,10 +84,7 @@ def main() -> None:
         else:
             resultados = executar_pings()
 
-        if registrar_local:
-            dl.status_sucesso(IDCARGA)
-            dl.log(f"[CONTROLE] id_carga {IDCARGA} marcado como '{dl.STATUS_SUCESSO}'")
-        if registrar_controle:
+        if registrar:
             # Mensagem do hub: curta e legivel ("banco 1,1 s · API 0,2 s")
             nomes = {"postgres": "banco", "rest": "API"}
             tempos = " · ".join(
@@ -124,15 +103,7 @@ def main() -> None:
         dl.log(f"[ROBO{IDCARGA:03d}] ❌ erro final: {e}")
         dl.logar_traceback("erro final")
 
-        if registrar_local:
-            # O status_erro nao pode derrubar o traceback original: se o banco
-            # tambem estiver fora, o log tem que continuar mostrando o erro real.
-            try:
-                dl.status_erro(IDCARGA)
-                dl.log(f"[CONTROLE] id_carga {IDCARGA} marcado como '{dl.STATUS_ERRO}'")
-            except Exception as erro_controle:  # noqa: BLE001
-                dl.log(f"[CONTROLE] ⚠ falha ao registrar o erro na tabela: {erro_controle}")
-        if registrar_controle:
+        if registrar:
             # Com o Supabase fora do ar este registro tambem falha - e so vira
             # log. Quem pega esse caso e o ATRASADO da vw_saude_robos.
             dl.registrar_carga_supabase(

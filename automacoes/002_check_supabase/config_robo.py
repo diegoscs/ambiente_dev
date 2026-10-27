@@ -13,8 +13,6 @@ import lib_dscs as dl
 IDCARGA = 2
 NOME_ROBO = "check_supabase"
 
-# O modo de execucao (LOCAL/CLOUD) vem da lib: dl.modo_execucao().
-
 # ─── Supabase ────────────────────────────────────────────────────────────────
 # SUPABASE_URL      https://<ref>.supabase.co
 # SUPABASE_KEY      service_role (precisa escrever na tabela de controle; a anon

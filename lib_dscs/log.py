@@ -44,8 +44,8 @@ def configurar_logger(
     """Prepara o log do robo.
 
     Nada e gravado em disco aqui: as linhas vao para memoria e so descem para
-    `temp\\` se o robo chamar salvar_log_erro(). O console continua ligado para
-    quem roda na mao com python.exe (pelo .bat, com pythonw, a saida vai para NUL).
+    `temp\\` se o robo chamar salvar_log_erro(). O console continua ligado: e o
+    log do run no Actions e a tela de quem roda na mao.
     """
     global _id_carga, _nome_robo, _temp
 

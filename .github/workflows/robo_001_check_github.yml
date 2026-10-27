@@ -2,8 +2,7 @@
 # Robo 001 - commits diarios no repo daily-log (modo CLOUD).
 #
 # A trava "um lote por dia" fica no Supabase (public.historico_cargas): a
-# maquina do Actions nasce vazia a cada execucao, entao o temp\estado.json do
-# PC nao serve aqui. O mesmo registro impede que PC e nuvem dobrem o dia.
+# maquina do Actions nasce vazia a cada execucao, nada local serve de memoria.
 # =============================================
 name: robo_001_check_github
 

@@ -5,10 +5,9 @@ Faz **commits reais** em um repositório próprio no GitHub, via API REST
 Como são commits no branch padrão de um repo do próprio usuário, eles alimentam
 o **calendário de contribuições** do perfil.
 
-> **Desde 26/09/2026 roda no GitHub Actions**, todo dia às 03:17 UTC
-> ([workflow](../../.github/workflows/robo_001_check_github.yml)), com trava e
-> registro no Supabase. Ver [Na nuvem](#na-nuvem-github-actions) e
-> [docs/migracao_nuvem.md](../../docs/migracao_nuvem.md).
+Roda no **GitHub Actions**, todo dia às 03:17 UTC
+([workflow](../../.github/workflows/robo_001_check_github.yml)), com trava e
+registro no Supabase (`id_carga = 1`).
 
 > ⚠️ A atividade é sintética. O calendário fica verde de verdade, mas os commits
 > não representam trabalho — não use o gráfico como evidência de entrega.
@@ -17,27 +16,34 @@ o **calendário de contribuições** do perfil.
 
 ## Fluxo
 
-1. Lê o `GITHUB_TOKEN` do `.env` da **raiz do ambiente** (`D:\ambiente_dev\.env`).
-2. Descobre o dono do token (`GET /user`) quando `GITHUB_OWNER` está vazio.
-3. Confere `temp\estado.json`: se o dia já foi processado, **encerra sem commitar**.
+1. Valida a configuração: token (`GH_PAT`, ou `GITHUB_TOKEN` no `.env` do PC) e
+   `SUPABASE_URL`/`SUPABASE_KEY`.
+2. Descobre o dono do token (`GET /user`).
+3. **Trava do dia**: `dl.trabalho_feito_no_dia(1, dia_utc)` soma o `qtd_itens`
+   do dia UTC em `public.historico_cargas`. Maior que zero → **encerra sem
+   commitar** e registra a execução com `qtd_itens = 0`.
 4. Sorteia quantos commits fazer (4 a 8). **Não decide se o dia é de commit** —
    se foi chamado, commita.
 5. Lê o arquivo remoto para pegar o `sha` atual.
 6. Para cada commit: acrescenta uma linha, `PUT` na Contents API, pausa de 2 a 6s.
-7. Grava `temp\estado.json` e a cópia local do arquivo em `temp\atividades.md`.
+7. Registra `SUCCESS` com o número de commits em `qtd_itens`.
+
+```
+[ESTADO] dia 2026-09-26 (UTC) ja processado (5 commit(s)) - nada a fazer
+```
 
 ## Origem / Destino
 
 | | |
 |---|---|
 | API | `https://api.github.com` (Contents API) |
-| Token | `GITHUB_TOKEN` em `D:\ambiente_dev\.env` |
+| Token | secret `GH_PAT` no Actions; `GITHUB_TOKEN` no `.env` da raiz, no PC |
 | Repositório | `<owner>/daily-log`, branch `main` |
 | Arquivo | `registro/atividades.md` — uma linha acrescentada por commit |
 
 O token precisa ser **clássico com scope `repo`** ou **fine-grained com
-`Contents: Read and write`** no repositório de destino. Gere em
-<https://github.com/settings/tokens>.
+`Contents: Read and write`** no repositório de destino. O GitHub recusa secret
+com prefixo `GITHUB_`, por isso `GH_PAT` (o robô lê ele antes do `GITHUB_TOKEN`).
 
 ### Por que o `sha` é lido antes de cada commit
 
@@ -53,57 +59,16 @@ devolvido por cada commit no commit seguinte, sem reler o arquivo a cada volta.
 - Repositório **privado** só aparece com *Private contributions* habilitado no
   perfil. Por isso `REPO_PRIVADO = False` é o padrão.
 
-## Na nuvem (GitHub Actions)
+## Trava diária
 
-`MODO_EXECUCAO=CLOUD`. A máquina do Actions nasce vazia a cada execução, então
-o `temp\estado.json` não serve de trava. A trava passa a ser o Supabase:
-`dl.trabalho_feito_no_dia(1, dia_utc)` soma o `qtd_itens` das execuções
-`SUCCESS` do dia UTC em `public.historico_cargas`. Se a soma for maior que zero,
-o robô sai sem commitar e registra a execução com `qtd_itens = 0`, que não conta
-como o lote do dia.
-
-```
-[ESTADO] dia 2026-09-26 (UTC) ja processado (5 commit(s)) - nada a fazer
-```
-
-- **PC e nuvem enxergam a mesma trava.** No `LOCAL`, com o Supabase
-  configurado, o robô também registra lá e soma as duas fontes (`estado.json` e
-  histórico). Rodar nos dois lugares no mesmo dia não dobra os commits.
-- **Sem Supabase, a nuvem não commita.** Se a leitura da trava falhar no modo
-  `CLOUD`, a execução termina em `ERROR`. Sem saber se o dia já foi feito, o
-  seguro é não fazer de novo. No PC o `estado.json` ainda protege, e a
-  execução segue com aviso no log.
-- **Token:** `GH_PAT` (secret do repositório) na nuvem e `GITHUB_TOKEN` no
-  `.env` do PC. O GitHub recusa secrets com prefixo `GITHUB_`.
-- **Horário:** 03:17 UTC, cedo no dia UTC. O atraso da fila do GitHub nunca
-  empurra o lote para o quadrado seguinte.
-- **Falha:** `ERROR` + histórico no Supabase, alerta no Telegram (se os secrets
-  existirem), e-mail do GitHub e o `erro_*.txt` como artifact `log-erro-001`.
-
-Validado em 26/09/2026: o run
-[36241476925](https://github.com/diegoscs/ambiente_dev/actions/runs/36241476925)
-leu os 5 commits já feitos no dia pelo PC e saiu pela trava. O primeiro lote de
-commits feito pela nuvem é o de 27/09.
-
-## Estado e travamento diário (PC)
-
-`temp\estado.json` guarda o último dia processado, quantos commits saíram, o
-motivo e o último `sha` **do arquivo** (o blob da Contents API, não o sha do
-commit — é esse que a API pede para a próxima atualização):
-
-```json
-{
-  "ultima_execucao": "2026-09-04",
-  "commits": 2,
-  "motivo": "dia de commit",
-  "ultimo_sha": "a1b2c3d..."
-}
-```
-
-**O Task Scheduler pode disparar a tarefa mais de uma vez no mesmo dia**
-(retry da tarefa, máquina que ligou tarde, execução manual). Sem esse arquivo o
-robô dobraria os commits do dia. Com ele, a segunda execução sai no ato.
-`--force` é a única coisa que ignora a trava.
+- **É o Supabase.** A máquina do Actions nasce vazia a cada execução; arquivo
+  local não lembra de nada.
+- **Sem Supabase, não commita.** Se a leitura da trava falhar, a execução
+  termina em `ERROR`. Sem saber se o dia já foi feito, o seguro é não dobrar.
+- **Lote parcial conta.** Um lote que quebra no meio registra os commits que
+  chegaram ao GitHub (`qtd_itens` no `ERROR`), e a trava soma também execuções
+  com erro — a próxima não faz outro lote inteiro.
+- `--force` é a única coisa que ignora a trava.
 
 ### A trava usa o dia **UTC**, não o de São Paulo
 
@@ -123,120 +88,81 @@ Em 24/09 a tarefa atrasou e rodou 22:06 local — **01:06 UTC do dia 25**:
 ```
 
 Os oito commits caíram inteiros no quadrado do dia 25, e **24/09 ficou branco**.
-Nada acusou: `SUCCESS` na `dbo.controle_cargas`, `estado.json` marcando 24/09
-como processado, nenhum log de erro. É a mesma armadilha dos 7 dias em branco de
-setembro — o robô jura que deu certo e o gráfico discorda. Pior: no dia seguinte
-a trava barrava a execução ("24/09 já processado") justamente quando ela encheria
-o quadrado vazio.
+Nada acusou: `SUCCESS` gravado, a trava marcando 24/09 como processado, nenhum
+log de erro. O robô jura que deu certo e o gráfico discorda. Pior: no dia
+seguinte a trava barrava a execução justamente quando ela encheria o quadrado
+vazio.
 
 A correção é a função `dia_github()`, que devolve `datetime.now(timezone.utc)` e
-alimenta a trava, o `marcar_execucao` e a linha gravada no arquivo remoto. A
-`ja_executou_hoje` da `lib_dscs` já aceitava o parâmetro `hoje`, então **a lib não
-mudou**: o padrão dela continua sendo hora local, que é o certo para um robô cujo
-"dia" é o daqui. Aqui o dia é o da GitHub.
+alimenta a trava e a linha gravada no arquivo remoto. "Uma execução por dia"
+passa a significar "uma execução por quadradinho". O cron às 03:17 UTC fica
+longe da virada: o atraso da fila do GitHub nunca empurra o lote para o dia
+seguinte.
 
-Com isso, "uma execução por dia" passa a significar "uma execução por
-quadradinho". O gatilho de logon ajuda no mesmo sentido: logon de manhã cai no
-meio do dia UTC, longe da virada.
-
-> Na migração o `estado.json` foi de `2026-09-24` para `2026-09-25` — o dia UTC
-> em que aqueles commits de fato caíram. Sem isso o robô faria um segundo lote
-> no mesmo quadrado.
-
-### Quem decide o dia é o Agendador
+### Quem decide o dia é o cron
 
 O robô **não tem regra de calendário**: nada de sorteio de folga, nada de "pular
 fim de semana". Se ele foi chamado, ele commita. Quando rodar é responsabilidade
-exclusiva da tarefa do Windows — um lugar só para mexer, em vez de dois que
-podem discordar entre si.
+exclusiva do agendamento — um lugar só para mexer.
 
 Até 08/09/2026 existia um `PROBABILIDADE_FOLGA = 0.20` que sorteava dias de
 folga para o gráfico não ficar uniforme demais. Foi removido a pedido: o efeito
 prático era quadrado branco no meio da semana sem motivo aparente (foi o que
-aconteceu em 08/09, com sorteio 0.09). Junto saiu o `PULAR_FIM_DE_SEMANA`, que
-duplicava em código a decisão que já está no gatilho da tarefa.
+aconteceu em 08/09, com sorteio 0.09). Junto saiu o `PULAR_FIM_DE_SEMANA`.
 
 ## Controle de cargas
 
-O registro oficial é o Supabase (`public.controle_cargas` + `public.historico_cargas`,
-**`id_carga = 1`**), com o número de commits em `qtd_itens` e um resumo em
-`mensagem`. No modo `LOCAL` o robô também atualiza `dbo.controle_cargas`
-(Postgres `dm`), via `lib_dscs`:
+`public.controle_cargas` + `public.historico_cargas`, **`id_carga = 1`**, pela
+`lib_dscs` (`dl.registrar_carga_supabase`):
 
-| Momento | Status gravado |
+| Momento | Registro |
 |---|---|
-| Antes de processar | `RUNNING`, `dta_ini=now()`, `dta_fim=NULL` |
-| Fim sem erro | `SUCCESS`, `dta_fim=now()` |
-| Exceção | `ERROR`, `dta_fim=now()` |
+| Antes de processar | `RUNNING` |
+| Fim sem erro | `SUCCESS`, `qtd_itens` = commits, `mensagem` = `"6 commit(s) em diegoscs/daily-log (ultimo abc1234)"` |
+| Exceção | `ERROR`, `qtd_itens` = commits já enviados, `mensagem` = erro |
 
-**Não registram status:** `--setup`, `--status`, `--dry-run` e `DEBUG=True`. Os
-dois primeiros são manutenção, não a carga diária — marcar `SUCCESS` neles
-mentiria no monitoramento.
+**Não registram status:** `--setup`, `--status`, `--dry-run` e `DEBUG=True`. Não
+são a carga diária — marcar `SUCCESS` neles mentiria no monitoramento.
 
-O `status_erro` roda dentro de um `try` próprio: se o Postgres estiver fora do ar
-junto, o log continua mostrando o erro real do robô em vez de ser substituído
-pelo erro de conexão. Nesse caso a linha fica em `RUNNING` com `dta_fim` nulo —
-que é justamente o sinal de "morreu no meio".
-
-A tabela local **não tem coluna de mensagem**; a do Supabase tem, e guarda o
-resumo da execução ou o erro.
+**Falha:** `ERROR` + histórico no Supabase, alerta no Telegram (se os secrets
+existirem), e-mail do GitHub e o `erro_*.txt` como artifact `log-erro-001`.
 
 ## Execução
 
 ```powershell
-# dev — mostra o que faria, sem tocar no GitHub
-C:\Users\ferna\AppData\Local\Python\bin\python.exe .\001_check_github.py --dry-run
+$py = "C:\Users\ferna\AppData\Local\Python\bin\python.exe"
+
+# mostra o que faria, sem tocar no GitHub nem registrar
+& $py automacoes\001_check_github\001_check_github.py --dry-run
+
+# configuracao e commits do dia, sem commitar
+& $py automacoes\001_check_github\001_check_github.py --status
 
 # cria o repositorio (uma vez so)
-C:\Users\ferna\AppData\Local\Python\bin\python.exe .\001_check_github.py --setup
-
-# execucao normal
-C:\Users\ferna\AppData\Local\Python\bin\python.exe .\001_check_github.py
+& $py automacoes\001_check_github\001_check_github.py --setup
 ```
 
-Pelo `.bat` (é o que o Agendador chama). Ele usa `pythonw.exe` e manda stdout
-para `NUL`. **Para rodar na mão e ver a saída na tela, chame `python.exe`
-direto**, como nos exemplos acima.
+Disparo real: pelo botão *Rodar agora* do hub ou `workflow_dispatch` no GitHub.
+Rodar de verdade no PC também funciona (registra `ambiente = LOCAL`) e respeita a
+mesma trava.
 
 ### Log: só em caso de erro
 
-Não há pasta `logs\`. As linhas ficam **em memória** durante a execução e só
-viram arquivo se a execução falhar:
-
-```
-temp\erro_001_check_github_20260905_005043.txt
-```
-
-Um arquivo por falha, com carimbo de hora — duas falhas no mesmo dia não se
-sobrescrevem. Ele contém o log inteiro daquela execução, do cabeçalho de contexto
-até o traceback. **Execução bem-sucedida não deixa rastro em disco.**
-
-O caminho do arquivo também é impresso no `stderr` quando o robô quebra (visível
-ao rodar na mão; pelo `.bat` vai para `NUL`, então o arquivo em `temp\` é a única
-via).
-
-> O `.bat` usa `cd /d` (e não só `cd`, como o 205): a pasta está no `D:`, e sem o
-> `/d` o `cmd` troca de diretório mas não de unidade.
->
-> O Python é a instalação de usuário (`C:\Users\ferna\AppData\Local\Python\bin\`),
-> Python 3.14.3 — **decisão fechada**, não há plano de migrar para uma instalação
-> padrão em `C:\Automacao\Python\`, como a da VM do trabalho.
->
-> **A chamada do `pythonw.exe` tem que ser a última linha do `.bat`.** Qualquer
-> comando depois dela — um `REM` inclusive — zera o `ERRORLEVEL`, e o Agendador
-> passa a marcar como sucesso uma execução que terminou em erro. Isso chegou a
-> acontecer aqui durante os testes.
+As linhas ficam **em memória** durante a execução e só viram arquivo se ela
+falhar: `temp\erro_001_check_github_<AAAAMMDD_HHMMSS>.txt`, com o log inteiro e o
+traceback. No Actions esse arquivo sobe como artifact do run. **Execução
+bem-sucedida não deixa rastro em disco.**
 
 ### Flags
 
 | | Efeito |
 |---|---|
-| `DEBUG = False` | **valor atual.** Commita e grava o estado do dia. |
-| `DEBUG = True` | não commita e não grava estado — só loga o que faria. |
+| `DEBUG = False` | **valor atual.** Commita e registra. |
+| `DEBUG = True` | não commita e não registra — só loga o que faria. |
 | `--dry-run` | igual ao `DEBUG = True`, sem editar o arquivo. |
 | `--force` | ignora o travamento diário (permite um segundo lote no mesmo dia). |
 | `--setup` | cria o repositório no GitHub, se ainda não existir. Não commita. |
-| `--status` | mostra configuração e estado atual. Não commita. |
+| `--status` | mostra configuração e commits do dia. Não commita. |
 
 ### Parâmetros de comportamento
 
@@ -247,34 +173,15 @@ via).
 | `TENTATIVAS_API` | 3 | tentativas por etapa de rede |
 | `SEGUNDOS_ENTRE_TENTATIVAS` | 30 | espera entre as tentativas |
 
-## Agendamento
-
-**Principal: GitHub Actions**, todo dia às 03:17 UTC (ver
-[Na nuvem](#na-nuvem-github-actions)). O que segue descreve o Agendador do
-Windows, que roda em paralelo até a migração fechar.
-
-O robô **não tem tarefa própria** no Agendador desde 25/09/2026. Quem o chama é a tarefa
-única [`ambiente_dev - Robos`](../README.md), disparada **a cada logon** com 3
-minutos de atraso, através do [`iniciar_robos.bat`](../iniciar_robos.bat).
-
-Antes era uma tarefa diária às 20:40. A troca foi pedida para amarrar a execução
-ao uso real da máquina em vez de um horário fixo: se o PC está ligado, o robô
-rodou; se não está, nenhum horário salvaria mesmo.
-
-Horário nunca importou muito aqui — o commit conta no dia em que é feito. O que
-importa é rodar **uma vez por dia**, e é a trava do `estado.json` que garante
-isso: você loga cinco vezes no dia, o robô commita na primeira e sai no ato nas
-outras quatro. Se o dia for perdido (máquina desligada o dia inteiro), ele
-**não** repõe retroativamente (ver Pendências).
-
 ## Validações que abortam a execução
 
-- `GITHUB_TOKEN` ausente no `.env` da raiz.
+- Token ausente (`GH_PAT`/`GITHUB_TOKEN`) ou `SUPABASE_URL`/`SUPABASE_KEY` ausentes.
 - Token inválido ou sem permissão (`HTTP 401` em `GET /user`).
 - `MIN_COMMITS`/`MAX_COMMITS` fora da faixa válida.
+- Trava do dia ilegível no Supabase.
 - Repositório de destino inexistente — a mensagem manda rodar com `--setup`.
 
-Erros `5xx` e falha de rede passam pelo `_executar_com_retry` (3 tentativas,
+Erros `5xx` e falha de rede passam pelo `dl.executar_com_retry` (3 tentativas,
 30s entre elas). Erros `4xx` **não** são repetidos: token, permissão e nome de
 repositório não melhoram com insistência.
 
@@ -282,133 +189,60 @@ repositório não melhoram com insistência.
 
 ### Por que API REST e não `git commit` + `git push`
 
-O push exigiria credencial disponível para a conta que roda a tarefa agendada —
-Credential Manager, chave SSH ou PAT embutido na URL do remote —, além de um
-clone local para manter sincronizado. Com a Contents API é uma requisição HTTP
-com o token no header: sem clone, sem credencial de push, sem repositório local
-para dessincronizar. A máquina também não tem o `gh` instalado, por isso o
-`--setup` cria o repositório pela própria API.
+Com a Contents API é uma requisição HTTP com o token no header: sem clone, sem
+credencial de push, sem repositório local para dessincronizar. O `--setup` cria
+o repositório pela própria API.
 
-### Por que tudo fica em `temp\`
+### `lib_dscs`
 
-`temp\` guarda o `estado.json` (a trava do dia), o `atividades.md` (cópia do que
-foi enviado, para conferir sem abrir o GitHub) e os logs de erro. Apagar a pasta
-inteira só faz o robô perder a trava do dia — e o pior caso é uma rodada extra de
-commits.
+`sys.path.insert` da pasta que contém o pacote e `import lib_dscs as dl`.
+`IDCARGA` é ao mesmo tempo o número da pasta e o `id_carga` na tabela de
+controle. Log, retry, `.env`, registro e trava vêm todos da
+[`lib_dscs`](../../lib_dscs/README.md) — o robô só tem a lógica do GitHub.
 
-Log de execução bem-sucedida não é gravado por decisão sua: em robô que roda todo
-dia sem falhar, o arquivo diário só acumula lixo. Quem responde "rodou e como
-terminou" é a `dbo.controle_cargas`; o arquivo de erro em `temp\` responde "por
-quê", e só existe quando é preciso.
+## Histórico
 
-### `lib_dscs` no lugar da `marche_lib`
+### Diagnóstico: 7 dias em branco (09/09 a 15/09/2026)
 
-Mesma mecânica do 205: `sys.path.insert` da pasta que contém o pacote, e
-`import lib_dscs as dl`. `IDROBO` é ao mesmo tempo o número da pasta e o
-`id_carga` na tabela de controle — como o `IDCARGA` lá.
+Na época o robô rodava pelo Agendador do Windows. Ele **não falhou — nunca foi
+chamado**: a tarefa tinha `LogonType = Interactive` (só roda com o usuário
+logado) e `StartWhenAvailable = False` (execução perdida é descartada).
 
-A `lib_dscs` fica em `D:\ambiente_dev\lib_dscs` e tem README próprio.
+Nenhum registro do próprio robô acusou o problema: a tabela de controle marcava
+`SUCCESS` (verdade, da última execução, de 08/09 — o status não envelhece
+sozinho), não havia log de erro (não houve erro). **Robô que não roda é
+silencioso.** Daí a `vw_saude_robos` medir **atraso** (`atraso_max_horas`) e o
+vigia diário transformar isso em aviso.
 
-## Diagnóstico: 7 dias em branco (09/09 a 15/09/2026)
+### Linha do tempo
 
-O robô **não falhou — ele nunca foi chamado**. Duas configurações da tarefa:
-
-| Evento | Data | Mensagem |
-|---|---|---|
-| **332** | 13/09 12:38 | *"o usuário `PcDiego\ferna` não estava conectado quando as condições de inicialização foram atendidas"* |
-| **153** | 15/09 18:41 | *"não iniciou porque perdeu a agenda. Convém usar a opção de iniciar a tarefa quando disponível"* |
-
-Causas: `LogonType = Interactive` (só roda com o usuário logado) e
-`StartWhenAvailable = False` (execução perdida é descartada, não recuperada).
-
-### A lição: robô que não roda é silencioso
-
-Nenhum dos registros do próprio robô acusou o problema, e isso é esperado:
-
-- `dbo.controle_cargas` marcava `SUCCESS` — **verdade**, era o resultado da
-  última execução, de 08/09. O status não envelhece sozinho.
-- `temp\` não tinha log de erro — **correto**, não houve erro.
-- `estado.json` apontava `ultima_execucao: 2026-09-08`.
-
-O sinal de "parou de rodar" não está em nada que o robô escreve, e sim no
-**`dta_fim` velho** na tabela e no log de eventos do Windows. Para monitorar
-isso, a consulta é por atraso, não por status:
-
-```sql
-select id_carga, nome_carga, status, dta_fim,
-       now() - dta_fim as tempo_desde_a_ultima_execucao
-  from dbo.controle_cargas
- where flg_ativo is true
-   and (dta_fim is null or dta_fim < now() - interval '2 days');
-```
+- **05/09/2026** — primeira versão. `--setup` criou `diegoscs/daily-log`;
+  atribuição confirmada (`author.login = diegoscs`). Infra extraída para a
+  `lib_dscs` (519 → 380 linhas).
+- **08/09/2026** — saem `PROBABILIDADE_FOLGA` e `PULAR_FIM_DE_SEMANA`; 4 a 8
+  commits por dia.
+- **21/09/2026** — tarefa do Agendador corrigida (`S4U`, `StartWhenAvailable`).
+- **25/09/2026** — trava passa a usar o dia UTC; tarefa única no logon.
+- **26/09/2026** — migra para o GitHub Actions, trava e registro no Supabase.
+  Run [36241476925](https://github.com/diegoscs/ambiente_dev/actions/runs/36241476925)
+  leu os 5 commits do dia feitos pelo PC e saiu pela trava. Primeiro lote pela
+  nuvem em 27/09.
+- **02/10/2026** — modo `LOCAL` removido: sem `.bat`, sem `temp\estado.json`,
+  sem `dbo.controle_cargas` e sem a cópia `temp\atividades.md`. A trava é só o
+  Supabase.
 
 ## Pendências
 
 - [ ] Não há reposição retroativa: se um dia inteiro passar sem execução,
-      aquele dia fica em branco no calendário. Com o Actions isso ficou raro
-      (não depende mais do PC ligado), mas o cron pode falhar. Backfill exigiria a Git Data API
-      (criar commit com `author.date` no passado), que é bem mais código.
-
-### Resolvido
-
-- **Trava passou a usar o dia UTC** — 25/09/2026. Fecha o buraco que deixou
-  24/09 branco no calendário apesar do `SUCCESS`. Ver "A trava usa o dia UTC".
-
-- **Tarefa do Agendador corrigida** — conferido em 21/09/2026:
-  `LogonType = S4U` e `StartWhenAvailable = True`, que é o que fecha os 7
-  dias em branco de 09–15/09. A execução de 20/09 às 20:40 voltou `0x0`,
-  com 6 commits e `SUCCESS` na `dbo.controle_cargas`.
-
-- Tarefa `001 - Check_GitHub` cadastrada no Agendador em 05/09/2026: seg–sex às
-  20:40 (`DaysOfWeek 62`, batendo com o `dias_semana={1,2,3,4,5}` da tabela),
-  usuário `ferna`, "Iniciar em" preenchido. Última execução retornou `0`, o que
-  confirma a propagação do exit code pelo `.bat`.
-
-- Execução completa validada em **05/09/2026 00:21**: `--setup` criou
-  `diegoscs/daily-log`, o `--force` gerou 1 commit (`docs: registra progresso
-  diario`) e o `registro/atividades.md` foi criado no primeiro commit.
-- **Atribuição confirmada** — `author.login = diegoscs` e e-mail
-  `91844526+diegoscs@users.noreply.github.com`. É o que faz o commit contar no
-  calendário; a API assina com a conta do token, sem depender do `user.email`
-  do git local.
-- Travamento diário testado: a segunda execução no mesmo dia saiu em
-  `[ESTADO] dia 2026-09-05 ja processado (1 commit(s)) — nada a fazer`.
-- `.bat` validado como ponto de entrada do Agendador (exit 0 no caminho de
-  sucesso, exit 1 quando o robô termina em erro).
-- Integração com `dbo.controle_cargas` validada em 05/09/2026: ciclo
-  `RUNNING → SUCCESS` na execução normal e `RUNNING → ERROR` forçando um token
-  inválido. `id_carga` inexistente estoura `ValueError` como esperado.
-- Os valores de status são `RUNNING`/`SUCCESS`/`ERROR`, exigidos pela check
-  constraint `ck_status` da tabela — a primeira versão da lib usava
-  `Inicio`/`Sucesso`/`Erro` e era rejeitada pelo banco.
-- Refatoração de 05/09/2026: log, retry, trava diária, leitura do `.env` e o
-  cliente HTTP saíram do robô para a `lib_dscs`. O arquivo caiu de **519 para
-  380 linhas** (219 de código, o resto comentário e espaçamento) e a duplicação
-  do leitor de `.env` — que existia no robô e na lib — foi eliminada.
-  O que sobrou é lógica da Contents API e a configuração.
-- Em 08/09/2026 saíram o `PROBABILIDADE_FOLGA` e o `PULAR_FIM_DE_SEMANA`, e com
-  eles a função `decidir_execucao`: quem define o dia passou a ser só o
-  Agendador. Commits por dia subiram de 1–3 para 4–8. O arquivo foi de 380 para
-  348 linhas.
-- Log passou a ser gravado só em caso de erro, em `temp\`. Validado nos dois
-  caminhos: falha gera `erro_001_check_github_<carimbo>.txt` com o log completo
-  e o traceback; execução bem-sucedida não cria arquivo.
+      aquele dia fica em branco no calendário. O vigia avisa (`ATRASADO`), mas
+      backfill exigiria a Git Data API (commit com `author.date` no passado).
 
 ## Arquivos
 
 ```
 001_check_github\
 ├─ 001_check_github.py     o robô
-├─ 001_check_github.bat    caminhos da máquina local
 └─ README.md
 ```
 
-A pasta guarda só esses três. `temp\` é **criada pelo próprio robô** e contém
-`estado.json` e `atividades.md` (sobrescritos a cada execução) e, quando há
-falha, `erro_001_check_github_<AAAAMMDD_HHMMSS>.txt`.
-
-A infra (log, retry, trava diária, `.env`, controle de cargas) vem toda da
-[`lib_dscs`](../../lib_dscs/README.md) — o robô só tem a lógica do GitHub.
-
-O token fica fora da pasta, no `.env` da raiz do ambiente
-(`D:\ambiente_dev\.env`), junto com as demais variáveis do ambiente.
+`temp\` só aparece quando há falha, com o `erro_001_check_github_*.txt`.

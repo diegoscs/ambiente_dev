@@ -20,20 +20,12 @@ que é a pasta que contém o pacote — é o `lib_dscs` que entra no `import`, n
 caminho. Mesma mecânica do `sys.path.insert(... / "Config")` + `import marche_lib`
 do 205.
 
-No `main()`:
+No `main()`, o registro no Supabase com `dl.registrar_carga_supabase` — o miolo
+completo está em [Esqueleto de um robô novo](#esqueleto-de-um-robô-novo).
 
-```python
-if not DEBUG:
-    dl.status_inicio(IDCARGA)
-
-processar()
-
-if not DEBUG:
-    dl.status_sucesso(IDCARGA)
-```
-
-E no `except`, `dl.status_erro(IDCARGA)` — dentro de um `try` próprio, para o
-banco fora do ar não engolir o traceback original.
+> Postgres local (`banco.py`, `controle_cargas.py`) e trava em arquivo
+> (`estado.py`) existem só para robô em modo `LOCAL`, que o padrão reserva a
+> quem precisa de algo do PC. **Desde 02/10/2026 nenhum robô usa.**
 
 ## API
 
@@ -61,8 +53,8 @@ nenhum em disco — só o `except` do robô chama `salvar_log_erro()`. Um arquiv
 falha, com carimbo de hora no nome, então duas falhas no mesmo dia não se
 sobrescrevem.
 
-O console continua ligado, para quem roda na mão com `python.exe`. Pelo `.bat`
-(que usa `pythonw.exe` e manda a saída para `NUL`) isso não custa nada.
+O console continua ligado: é o que aparece no log do run no Actions e na tela de
+quem roda na mão.
 
 ### API (`api.py`)
 
@@ -96,7 +88,10 @@ Use só onde a falha é transitória — rede, SFTP, API fora do ar. Credencial,
 permissão e layout errado não melhoram com insistência: ali o certo é estourar
 na primeira.
 
-### Estado local (`estado.py`)
+### Estado local (`estado.py`) — só modo `LOCAL`
+
+Na nuvem a trava é `trabalho_feito_no_dia` (Supabase): a máquina do Actions
+nasce vazia e o arquivo não lembra de nada.
 
 | Função | O que faz |
 |---|---|
@@ -130,7 +125,7 @@ não uma linha nova, pelo mesmo motivo do `controle_cargas.py`.
 
 A chave precisa ser a `service_role`: as tabelas têm RLS ligada e sem policy.
 
-### Banco (`banco.py`)
+### Banco (`banco.py`) — só modo `LOCAL`
 
 | Função | O que faz |
 |---|---|
@@ -141,7 +136,7 @@ A chave precisa ser a `service_role`: as tabelas têm RLS ligada e sem policy.
 | `executar_comando(sql, params)` | INSERT/UPDATE/DELETE → nº de linhas |
 | `testar_conexao()` | versão + banco + usuário; use para validar o `.env` |
 
-### Controle de cargas (`controle_cargas.py`)
+### Controle de cargas local (`controle_cargas.py`) — só modo `LOCAL`
 
 | Função | Efeito em `dbo.controle_cargas` |
 |---|---|
@@ -244,8 +239,8 @@ robô precisa mudar.
 ## Colunas que a lib não usa
 
 `tempo_min`, `dias_semana`, `flg_ativo`, `origem` e `script` são **documentação
-por decisão sua** — quem decide se e quando o robô roda é o Agendador do Windows
-e o código. Se um dia quiser inverter isso (o banco mandando), o gancho é ler
+por decisão sua** — quem decide se e quando o robô roda é o cron do workflow e o
+código. Se um dia quiser inverter isso (o banco mandando), o gancho é ler
 `obter_carga(id)` no começo do `main()` e encerrar se `flg_ativo` for falso ou o
 dia da semana não estiver em `dias_semana`.
 
@@ -293,7 +288,7 @@ except Exception as e:
 ```
 
 Os `status_inicio`/`status_sucesso`/`status_erro` do Postgres local (`dm`) só
-existem para o modo `LOCAL` dos robôs antigos; robô novo não usa.
+servem a robô em modo `LOCAL`; nenhum robô atual usa.
 
 O `try/except` fica **explícito em cada robô**, por decisão sua — a alternativa
 era um `with dl.execucao(...)` que escondesse isso. Mais linhas, porém o fluxo
@@ -303,5 +298,5 @@ inteiro fica visível no arquivo do robô, como no 205.
 
 ```powershell
 cd D:\ambiente_dev
-& "C:\Users\ferna\AppData\Local\Python\bin\python.exe" -c "import lib_dscs as dl; print(dl.testar_conexao())"
+& "C:\Users\ferna\AppData\Local\Python\bin\python.exe" -c "import lib_dscs as dl; print(dl.ler_saude_robos())"
 ```
