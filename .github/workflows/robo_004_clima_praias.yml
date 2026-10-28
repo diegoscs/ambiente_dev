@@ -1,0 +1,60 @@
+# =============================================
+# Robo 004 - ranking das praias de Ubatuba por chance de sol (Open-Meteo),
+# de amanha ate a proxima terca. Regras em automacoes/PADRAO_ROBOS.md.
+# =============================================
+name: robo_004_clima_praias
+
+on:
+  # Todo dia, 05:00 de Sao Paulo, disparado pelo pg_cron do Supabase
+  # (migration 20261028134551_cadastro_robo_004). Hora cheia e antes do vigia (09:00).
+  # Nada de schedule aqui: o do GitHub atrasa 2 a 7 h.
+  workflow_dispatch:
+
+# Duas execucoes simultaneas gravariam na mesma linha de controle.
+concurrency:
+  group: robo-004
+  cancel-in-progress: false
+
+jobs:
+  executar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    env:
+      MODO_EXECUCAO: CLOUD
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+      TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      # Open-Meteo e gratuita e sem chave: nenhum segredo proprio.
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Instalar dependencias
+        run: pip install -r requirements.txt
+
+      - name: Executar o robo
+        run: python automacoes/004_clima_praias/004_clima_praias.py
+
+      # O ranking do dia fica anexado ao run (abre no celular depois de baixar).
+      - name: Guardar o ranking.html
+        uses: actions/upload-artifact@v4
+        with:
+          name: ranking-praias
+          path: automacoes/004_clima_praias/saida/ranking.html
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Guardar o log do erro
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: log-erro-004
+          path: automacoes/004_clima_praias/temp/erro_*.txt
+          if-no-files-found: ignore

@@ -1,0 +1,23 @@
+{
+  "cidade": "Ubatuba",
+  "uf": "SP",
+  "fonte_coordenadas": "OpenStreetMap (Nominatim), centro do poligono natural=beach de cada praia, conferido em 28/10/2026",
+  "mapa": {"lat_min": -23.65, "lat_max": -23.25, "lon_min": -45.30, "lon_max": -44.70, "passo": 0.05},
+  "praias": [
+    {"nome": "Picinguaba",         "regiao": "norte",  "latitude": -23.37700, "longitude": -44.83832},
+    {"nome": "Almada",             "regiao": "norte",  "latitude": -23.36075, "longitude": -44.88857},
+    {"nome": "Puruba",             "regiao": "norte",  "latitude": -23.35419, "longitude": -44.93317},
+    {"nome": "Itamambuca",         "regiao": "norte",  "latitude": -23.40115, "longitude": -45.00130},
+    {"nome": "Vermelha do Norte",  "regiao": "norte",  "latitude": -23.41766, "longitude": -45.03722},
+    {"nome": "Praia Grande",       "regiao": "centro", "latitude": -23.47268, "longitude": -45.06685},
+    {"nome": "Toninhas",           "regiao": "centro", "latitude": -23.48696, "longitude": -45.07420},
+    {"nome": "Tenório",            "regiao": "centro", "latitude": -23.46530, "longitude": -45.05798},
+    {"nome": "Vermelha do Centro", "regiao": "centro", "latitude": -23.46387, "longitude": -45.04957},
+    {"nome": "Itaguá",             "regiao": "centro", "latitude": -23.45169, "longitude": -45.06417},
+    {"nome": "Lázaro",             "regiao": "sul",    "latitude": -23.50411, "longitude": -45.13494},
+    {"nome": "Domingas Dias",      "regiao": "sul",    "latitude": -23.49787, "longitude": -45.14448},
+    {"nome": "Enseada",            "regiao": "sul",    "latitude": -23.49377, "longitude": -45.08640},
+    {"nome": "Lagoinha",           "regiao": "sul",    "latitude": -23.52347, "longitude": -45.21036},
+    {"nome": "Maranduba",          "regiao": "sul",    "latitude": -23.54028, "longitude": -45.22894}
+  ]
+}

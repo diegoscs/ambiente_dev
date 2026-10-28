@@ -12,3 +12,6 @@ psycopg[binary]==3.3.5
 # Fuso horario (zoneinfo) no Windows, que nao traz a base de fusos do sistema.
 # Usado pelo vigia para mostrar horarios de Sao Paulo nas notificacoes.
 tzdata==2025.2
+
+# Tabelas no terminal do robo 004 (ranking das praias).
+rich==15.0.0
