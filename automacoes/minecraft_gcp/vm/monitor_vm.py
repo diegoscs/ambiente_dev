@@ -2,7 +2,9 @@
 # =============================================
 # AUTOR          : Diego Candido
 # DATA CRIACAO   : 19/10/2026
-# DESCRICAO      : Monitor do servidor de Minecraft DENTRO da VM do Google.
+# DESCRICAO      : Monitor do servidor de Minecraft DENTRO da VM do Google
+#                  (Create na VM "minecraft", Pixelmon na VM "pixelmon";
+#                  MINECRAFT_SERVIDOR no .env diz qual).
 #                  A cada minuto (monitor-minecraft.timer, root):
 #                    - sessao da VM no Supabase (base do custo do hub)
 #                    - DuckDNS com o IP novo (o IP muda a cada boot)
@@ -44,6 +46,14 @@ import extras_vm as extras
 BASE = Path(__file__).resolve().parent
 PASTA_SERVER = Path(os.environ["MINECRAFT_DIR"])
 
+# Mesmo codigo nas duas VMs; o .env de cada uma diz qual servidor ela e
+# (publicar_vm.ps1 -Servidor). Sem a chave, e a VM do Create.
+SERVIDOR = dl.ler_env().get("MINECRAFT_SERVIDOR", "create")
+# DuckDNS: so o Create tem dominio (o do Pixelmon aparece pelo IP no hub).
+DUCKDNS_DOMINIO = {"create": "servercasaonlymine"}.get(SERVIDOR)
+# Backups dos dois no mesmo balde; o prefixo separa (world_* = Create).
+PREFIXO_BACKUP = {"create": "world"}.get(SERVIDOR, f"{SERVIDOR}_world")
+
 # Sem ninguem online por quanto tempo ate desligar:
 DESLIGAR_APOS_MIN = int(os.environ.get("MINECRAFT_IDLE_MIN", "5"))         # depois que alguem ja jogou
 PRIMEIRA_ENTRADA_MIN = int(os.environ.get("MINECRAFT_PRIMEIRA_MIN", "15"))  # da VM ligar ate o 1o entrar
@@ -51,7 +61,6 @@ PRIMEIRA_ENTRADA_MIN = int(os.environ.get("MINECRAFT_PRIMEIRA_MIN", "15"))  # da
 # desligaria com a galera ainda na tela de carregamento)
 NAO_SUBIU_MIN = 20          # VM ligada ha isso e servidor fora do ar = desliga tambem
 
-DUCKDNS_DOMINIO = "servercasaonlymine"
 DUCKDNS_A_CADA_MIN = 30
 
 ESTADO = Path("/var/lib/monitor_minecraft/estado.json")  # boot_id e ultima atividade
@@ -83,9 +92,9 @@ def iso(dta: datetime) -> str:
 
 
 def atualizar_ranking() -> None:
-    linhas = extras.estatisticas_jogadores()
+    linhas = [{**j, "servidor": SERVIDOR} for j in extras.estatisticas_jogadores()]
     if linhas:
-        dl.supabase_inserir("minecraft_jogadores", linhas, conflito="jogador")
+        dl.supabase_inserir("minecraft_jogadores", linhas, conflito="servidor,jogador")
 
 
 def metadata(caminho: str) -> str:
@@ -118,7 +127,7 @@ def gravar_estado(estado: dict) -> None:
 def abrir_sessao(boot_id: str, dta_boot: datetime) -> None:
     # Sessao anterior sem dta_desligou = a VM caiu sem passar pelo desligar_vm
     # (o Google parou, travou, alguem desligou pelo console). Fecha no ultimo sinal.
-    for s in dl.supabase_ler(f"minecraft_sessoes?select=id,dta_ligou,dta_ultimo_sinal"
+    for s in dl.supabase_ler(f"minecraft_sessoes?select=id,dta_ligou,dta_ultimo_sinal&servidor=eq.{SERVIDOR}"
                              f"&dta_desligou=is.null&boot_id=neq.{boot_id}"):
         dl.supabase_atualizar("minecraft_sessoes", f"id=eq.{s['id']}", {
             "dta_desligou": s["dta_ultimo_sinal"] or s["dta_ligou"],
@@ -126,7 +135,7 @@ def abrir_sessao(boot_id: str, dta_boot: datetime) -> None:
         })
     maquina = metadata("instance/machine-type").rsplit("/", 1)[-1]
     dl.supabase_inserir("minecraft_sessoes", {
-        "boot_id": boot_id, "maquina": maquina,
+        "boot_id": boot_id, "maquina": maquina, "servidor": SERVIDOR,
         "dta_ligou": iso(dta_boot), "dta_ultimo_sinal": iso(agora()),
     }, conflito="boot_id", ignorar_repetidos=True)
     dl.log(f"[VM] sessao aberta: {boot_id} ({maquina})")
@@ -137,7 +146,7 @@ def abrir_sessao(boot_id: str, dta_boot: datetime) -> None:
 
 def atualizar_duckdns(estado: dict, forcar: bool) -> None:
     token = dl.ler_env().get("DUCKDNS_TOKEN")
-    if not token:
+    if not token or not DUCKDNS_DOMINIO:
         return
     if not forcar and time.time() - estado.get("duckdns", 0) < DUCKDNS_A_CADA_MIN * 60:
         return
@@ -157,7 +166,7 @@ def atualizar_duckdns(estado: dict, forcar: bool) -> None:
 def pedido_de_desligar() -> str | None:
     """Fecha os pedidos abertos. Devolve o motivo se alguem pediu para desligar."""
     motivo = None
-    for p in dl.comandos_minecraft_abertos():
+    for p in dl.comandos_minecraft_abertos(SERVIDOR):
         if p["status"] != "pendente":
             continue
         if p["acao"] == "ligar":
@@ -172,7 +181,7 @@ def pedido_de_desligar() -> str | None:
 
 def desligar_vm(motivo: str, online: bool, linha: dict, boot_id: str) -> None:
     dl.log(f"[VM] desligando: {motivo}")
-    dl.gravar_status_minecraft(online, **{**linha, "estado_vm": "desligando"})
+    dl.gravar_status_minecraft(online, SERVIDOR, **{**linha, "estado_vm": "desligando"})
     # Para o servidor com calma: "stop", mundo salvo e o backup do ExecStopPost.
     subprocess.run(["systemctl", "stop", "minecraft"], timeout=300)
     try:
@@ -181,7 +190,7 @@ def desligar_vm(motivo: str, online: bool, linha: dict, boot_id: str) -> None:
         dl.log_erro(f"[VM] ranking no desligamento: {e}")
     dl.supabase_atualizar("minecraft_sessoes", f"boot_id=eq.{boot_id}",
                           {"dta_desligou": iso(agora()), "dta_ultimo_sinal": iso(agora()), "motivo": motivo})
-    dl.gravar_status_minecraft(False, **{**linha, "jogadores_online": 0, "jogadores": [],
+    dl.gravar_status_minecraft(False, SERVIDOR, **{**linha, "jogadores_online": 0, "jogadores": [],
                                          "estado_vm": "desligada", "erro": motivo})
     subprocess.run(["shutdown", "-h", "now"])
 
@@ -203,8 +212,8 @@ def enviar_cloud_storage(arquivo: Path) -> str:
 def fazer_backup() -> None:
     dl.configurar_logger(0, "backup_vm", BASE)
     inicio = time.time()
-    arquivo = BACKUPS_LOCAIS / f"world_{agora():%Y-%m-%d_%H-%M}_utc.tar.gz"
-    linha = {"arquivo": arquivo.name}
+    arquivo = BACKUPS_LOCAIS / f"{PREFIXO_BACKUP}_{agora():%Y-%m-%d_%H-%M}_utc.tar.gz"
+    linha = {"arquivo": arquivo.name, "servidor": SERVIDOR}
     try:
         BACKUPS_LOCAIS.mkdir(parents=True, exist_ok=True)
         itens = [i for i in ITENS_BACKUP if (PASTA_SERVER / i).exists()]
@@ -212,7 +221,7 @@ def fazer_backup() -> None:
                        check=True, capture_output=True, timeout=240)
         linha["bytes"] = arquivo.stat().st_size
         linha["destino"] = dl.executar_com_retry("upload do backup", lambda: enviar_cloud_storage(arquivo), 3, 5)
-        for antigo in sorted(BACKUPS_LOCAIS.glob("world_*.tar.gz"))[:-MANTER_LOCAIS]:
+        for antigo in sorted(BACKUPS_LOCAIS.glob(f"{PREFIXO_BACKUP}_*.tar.gz"))[:-MANTER_LOCAIS]:
             antigo.unlink(missing_ok=True)
         dl.supabase_inserir("minecraft_backups", {**linha, "ok": True,
                                                   "duracao_s": round(time.time() - inicio, 1)})
@@ -273,22 +282,23 @@ def verificar_vm() -> None:
     linha |= {"estado_vm": "ligada", "dta_ultima_atividade": iso(ultima), "ip": ip,
               "desliga_apos_min": limite_min, "afk": afk}
 
-    dl.executar_com_retry("status no Supabase", lambda: dl.gravar_status_minecraft(online, **linha), 2, 5)
+    dl.executar_com_retry("status no Supabase", lambda: dl.gravar_status_minecraft(online, SERVIDOR, **linha), 2, 5)
     dl.supabase_atualizar("minecraft_sessoes", f"boot_id=eq.{boot_id}", {"dta_ultimo_sinal": iso(agora())})
-    eventos = mm.coletar_eventos(dl.ultimo_evento_minecraft())
+    eventos = mm.coletar_eventos(dl.ultimo_evento_minecraft(SERVIDOR))
     if eventos:
-        dl.gravar_eventos_minecraft(eventos)
+        dl.gravar_eventos_minecraft(eventos, SERVIDOR)
 
     if online and linha.get("tps") is not None:
         dl.supabase_inserir("minecraft_desempenho", {
             **{k: linha.get(k) for k in ("tps", "mspt", "cpu_pct", "ram_usada_mb", "java_ram_mb")},
-            "jogadores": linha["jogadores_online"],
+            "jogadores": linha["jogadores_online"], "servidor": SERVIDOR,
         })
     if time.time() - estado.get("ranking", 0) >= RANKING_A_CADA_S:
         atualizar_ranking()
         estado["ranking"] = time.time()
     if time.time() - estado.get("limpeza", 0) >= LIMPEZA_A_CADA_S:
-        dl.supabase_apagar("minecraft_desempenho", f"dta=lt.{iso(agora() - timedelta(days=DESEMPENHO_DIAS))}")
+        dl.supabase_apagar("minecraft_desempenho", f"servidor=eq.{SERVIDOR}"
+                                                   f"&dta=lt.{iso(agora() - timedelta(days=DESEMPENHO_DIAS))}")
         estado["limpeza"] = time.time()
     gravar_estado(estado)
 

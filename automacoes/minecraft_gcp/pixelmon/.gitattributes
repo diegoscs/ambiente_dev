@@ -1,0 +1,3 @@
+# Arquivos que rodam no Linux da VM: quebra de linha LF sempre
+# (o autocrlf do Windows transformaria em CRLF e o bash nao roda).
+* text eol=lf

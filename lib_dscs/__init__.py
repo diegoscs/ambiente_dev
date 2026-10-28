@@ -68,7 +68,9 @@ from .supabase import (
 
 # 2.0.0 (27/10/2026): sai o modo LOCAL (Postgres dm, dbo.controle_cargas e a
 # trava em temp\estado.json). Os STATUS_* passam a morar no supabase.py.
-__version__ = "2.0.0"
+# 2.1.0 (28/10/2026): funcoes do Minecraft recebem `servidor` (create ou
+# pixelmon), com "create" como padrao.
+__version__ = "2.1.0"
 
 __all__ = [
     # config

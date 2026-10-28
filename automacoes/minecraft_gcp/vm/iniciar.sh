@@ -5,10 +5,13 @@
 # minecraft.service. O backup sai quando o servidor para (ExecStopPost do
 # servico), com o mundo ja salvo, e vai para o Cloud Storage.
 cd /opt/minecraft/server || exit 1
+# A versao do NeoForge muda por servidor (Create 21.1.229, Pixelmon 21.1.248):
+# vale a que estiver instalada (a mais nova, se houver mais de uma).
+ARGS=$(ls -d libraries/net/neoforged/neoforge/*/unix_args.txt | sort -V | tail -1)
 
 while true; do
   echo "[$(date '+%F %T')] Iniciando servidor..."
-  java @user_jvm_args.txt @libraries/net/neoforged/neoforge/21.1.229/unix_args.txt nogui
+  java @user_jvm_args.txt "@$ARGS" nogui
   codigo=$?
 
   if [ "$codigo" -eq 0 ]; then

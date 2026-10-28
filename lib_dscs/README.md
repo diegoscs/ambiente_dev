@@ -23,6 +23,9 @@ do 205.
 No `main()`, o registro no Supabase com `dl.registrar_carga_supabase` — o miolo
 completo está em [Esqueleto de um robô novo](#esqueleto-de-um-robô-novo).
 
+> **2.1.0 (28/10/2026):** as funções `*_minecraft` recebem `servidor`
+> (`create`, o padrão, ou `pixelmon`): são dois servidores nas tabelas `minecraft_*`.
+
 > **2.0.0 (27/10/2026):** saíram `banco.py`, `controle_cargas.py` e `estado.py`
 > (Postgres local `dm`, `dbo.controle_cargas` e a trava em `temp\estado.json`).
 > Desde 02/10/2026 nenhum robô usava. As constantes `STATUS_*` passaram para o

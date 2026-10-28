@@ -5,6 +5,15 @@ Página pública, para celular, do servidor de Minecraft da galera.
 **https://server-galera.vercel.app** · sem login · instalável no iPhone
 (Safari → Compartilhar → Adicionar à Tela de Início)
 
+## Dois servidores (desde 28/10/2026)
+
+Abas no topo: **Create** (padrão, VM `minecraft`) e **Pixelmon** (VM
+`pixelmon`). Cada aba tem o próprio status, endereço, botão Ligar, chat,
+ranking, desempenho, backups e registro (`?servidor=` nas funções; coluna
+`servidor` nas tabelas). O link `/?s=pixelmon` abre direto no Pixelmon, e a
+página lembra a última aba. A barra de créditos soma as duas VMs (o crédito
+do Google é um só). Servidores e VMs: `SERVIDORES` em `api/_comum.js`.
+
 ## O que mostra
 
 - **Status**: ONLINE, LIGANDO, DESLIGANDO, DESLIGADO, FORA DO AR ou SEM SINAL,

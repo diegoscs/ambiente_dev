@@ -4,12 +4,21 @@
 // Credenciais so aqui, nas variaveis da Vercel (nunca na pagina):
 //   SUPABASE_URL, SUPABASE_SERVICE_KEY  leitura/escrita das tabelas minecraft_*
 //   GCP_SA_KEY  JSON da conta hub-minecraft: o papel minecraftHub so permite
-//               consultar e ligar a VM "minecraft" (nada de desligar/apagar)
+//               consultar e ligar as VMs "minecraft" e "pixelmon" (nada de
+//               desligar/apagar)
 const crypto = require("crypto");
 
 const PROJETO = "serverminecasaonly";
 const ZONA = "southamerica-east1-b";
-const INSTANCIA = `https://compute.googleapis.com/compute/v1/projects/${PROJETO}/zones/${ZONA}/instances/minecraft`;
+// Os dois servidores: mesma pagina, mesmas tabelas (coluna servidor), uma VM cada.
+// create e o padrao (o servidor de sempre).
+const SERVIDORES = {
+  create: { vm: "minecraft", dominio: "servercasaonlymine.duckdns.org", disco_gb: 30, desde: "2026-10-19T00:00:00-03:00" },
+  pixelmon: { vm: "pixelmon", dominio: null, disco_gb: 20, desde: "2026-10-28T18:00:00-03:00" },
+};
+const servidorDe = (valor) => (Object.hasOwn(SERVIDORES, valor) ? valor : "create");
+const instancia = (servidor) =>
+  `https://compute.googleapis.com/compute/v1/projects/${PROJETO}/zones/${ZONA}/instances/${SERVIDORES[servidor].vm}`;
 
 async function supa(caminho, opcoes = {}) {
   const chave = process.env.SUPABASE_SERVICE_KEY;
@@ -49,11 +58,11 @@ async function tokenGoogle() {
 }
 
 // GET = estado da VM; POST "/start" = liga.
-async function vm(metodo = "GET", sufixo = "") {
-  const r = await fetch(INSTANCIA + sufixo, { method: metodo, headers: { Authorization: `Bearer ${await tokenGoogle()}` } });
+async function vm(servidor, metodo = "GET", sufixo = "") {
+  const r = await fetch(instancia(servidor) + sufixo, { method: metodo, headers: { Authorization: `Bearer ${await tokenGoogle()}` } });
   const j = await r.json().catch(() => ({}));
   if (!r.ok) throw new Error(`Google ${metodo} HTTP ${r.status}: ${(j.error && j.error.message) || "sem detalhe"}`);
   return j;
 }
 
-module.exports = { supa, vm };
+module.exports = { supa, vm, SERVIDORES, servidorDe };

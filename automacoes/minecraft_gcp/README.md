@@ -1,5 +1,10 @@
 # Minecraft no Google Cloud
 
+> **Dois servidores desde 28/10/2026:** o Create (VM `minecraft`, o padrão) e
+> o **Pixelmon** (VM `pixelmon`), com o mesmo código e o mesmo hub. Ver
+> [Servidor Pixelmon](#servidor-pixelmon) no fim. O resto deste README
+> descreve o Create; no Pixelmon vale igual, salvo o que está lá.
+
 O servidor da galera (Create Chronicles: The Endventure, NeoForge 1.21.1) roda
 numa VM do Google em São Paulo, liga pelo
 [hub do servidor](../../hub_minecraft/README.md) e **desliga sozinho 5 minutos depois
@@ -154,3 +159,47 @@ Atualizar o monitor depois de mexer no código:
   (`/msg`, `/tell`, `/r`...) aparece só como "mensagem privada para Fulano".
 - **Pendente:** quem se registrou nesse intervalo troca a senha
   (`/changepassword antiga nova`).
+
+## Servidor Pixelmon
+
+VM `pixelmon` (mesma zona, **n2d-standard-2**: 2 vCPU, 8 GB, disco SSD 20 GB,
+trava contra exclusão, tag `minecraft` para a porta 25565). Mesma conta
+`minecraft-vm` e mesmo balde de backup (arquivos `pixelmon_world_*`). A conta
+`hub-minecraft` tem o papel `minecraftHub` também nesta VM.
+
+| O quê | Como |
+|---|---|
+| Versões | **Pixelmon 9.4.1 + NeoForge 21.1.248**, iguais ao "The Pixelmon Modpack 9.4.1" do TLauncher (jar conferido pelo SHA-1) |
+| Mods no servidor | Pixelmon, Tom's Simple Storage 2.4.2, Waystones (+ Balm), Explorer's/Nature's Compass, Terralith, Tectonic (+ Lithostitched), Incendium, Structory e Structory Towers, JourneyMap, Login System 2.2 |
+| Só no jogador | JEI, Essential, FancyMenu, Konkrete, Melody (o pack já traz) |
+| Montagem | [`pixelmon/preparar_vm.sh`](pixelmon/preparar_vm.sh), rodado uma vez: Java 21, NeoForge, mods, `server.properties`, whitelist e ops com UUID offline |
+| Monitor | O mesmo `vm/`, com `MINECRAFT_SERVIDOR=pixelmon` no `.env`: `publicar_vm.ps1 -Servidor pixelmon` |
+| Console | `console_pixelmon.bat` |
+| Java | `-Xms4G -Xmx6G` (8 GB de máquina) |
+
+Diferenças do Create:
+
+- **Sem KubeJS** (seria mais um mod para todo mundo instalar): o kick de AFK
+  é o do próprio Minecraft (`player-idle-timeout=10`, sem aviso antes), e o
+  feed não tem comandos de jogador nem "💤 AFK".
+- **Sem DuckDNS:** o hub mostra o IP de agora, com botão de copiar.
+- Login System com o painel web **desligado** (`enableWebPanel=false`; vinha
+  ligado com a senha `admin123`). Senhas separadas das do Create.
+- `allow-flight=true` (montaria voadora do Pixelmon), `view-distance=8`,
+  `simulation-distance=6` (2 vCPU), dificuldade normal.
+
+No banco, toda tabela `minecraft_*` tem a coluna `servidor` (`create` ou
+`pixelmon`), da migration
+[`20261028211500_minecraft_dois_servidores.sql`](../../supabase/migrations/20261028211500_minecraft_dois_servidores.sql)
+(aplicada pelo SQL Editor em 28/10: o MCP do Supabase recusava).
+`minecraft_status.id` ficou sem uso (a chave é `servidor`).
+
+### Estado em 28/10/2026
+
+- VM criada, servidor testado (abre em ~90 s), monitor instalado, sessão e
+  status gravando como `pixelmon`.
+- O `iniciar.sh` passou a achar a versão do NeoForge sozinho (Create segue
+  21.1.229).
+- Créditos: o Create gastava ~R$ 15/dia; sobravam R$ 1.637 para 81 dias. O
+  Pixelmon custa R$ 0,83/h ligado: dá para jogar, mas de olho na barra de
+  créditos do hub (soma as duas VMs).

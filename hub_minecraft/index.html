@@ -121,6 +121,12 @@ footer{font:12px var(--mono); color:var(--muted); line-height:1.6}
 .d-ok{background:var(--ok)} .d-err{background:var(--err)} .d-run{background:var(--run)} .d-none{background:var(--none)} .d-late{background:var(--late)}
 
 /* chat */
+/* troca de servidor: Create (padrao) / Pixelmon */
+.servs{display:grid; grid-template-columns:1fr 1fr; gap:6px; background:var(--card); border:1px solid var(--line); border-radius:14px; padding:6px}
+.servs button{border:0; border-radius:10px; background:transparent; justify-content:center; flex-direction:column; gap:1px; padding:9px 8px; font-size:14px}
+.servs button small{font:11px var(--mono); color:var(--muted); font-weight:400}
+.servs button[aria-pressed="true"]{background:var(--soft); box-shadow:inset 0 0 0 1px var(--line)}
+.servs button .on{color:var(--ok)}
 .abas{display:inline-flex; gap:4px; flex-wrap:wrap}
 .abas button{font:600 10.5px var(--mono); padding:4px 10px; letter-spacing:.04em; text-transform:uppercase; color:var(--muted)}
 .abas button[aria-pressed="true"]{background:var(--ink); color:var(--bg); border-color:var(--ink)}
@@ -171,6 +177,9 @@ code{font:13px var(--mono); background:var(--soft); padding:1px 6px; border-radi
     </div>
     <button id="atualizar" type="button" aria-label="Atualizar agora"><span id="atualizar-ico">↻</span> Atualizar</button>
   </header>
+
+  <!-- qual servidor: cada um tem a sua maquina, o seu mundo e o seu botao de ligar -->
+  <nav class="servs" id="servs" aria-label="Escolher servidor"></nav>
 
   <!-- status -->
   <section class="card hero" aria-labelledby="st-titulo">
@@ -235,7 +244,7 @@ code{font:13px var(--mono); background:var(--soft); padding:1px 6px; border-radi
     <div class="hero-num"><span class="n" id="custo-mes">—</span><span class="u" id="custo-mes-sub">este mês</span></div>
     <div class="facts" id="custo-facts"></div>
     <div class="medidor">
-      <div class="linha"><span class="k">Créditos do teste grátis</span><span id="cred-texto">—</span></div>
+      <div class="linha"><span class="k">Créditos do teste grátis (os dois servidores)</span><span id="cred-texto">—</span></div>
       <div class="barra" role="meter" aria-valuemin="0" aria-valuemax="100" id="cred-barra"><span id="cred-uso" style="width:0"></span></div>
       <div class="linha"><span id="cred-usado">—</span><span id="cred-fim">—</span></div>
     </div>
@@ -262,8 +271,18 @@ code{font:13px var(--mono); background:var(--soft); padding:1px 6px; border-radi
   </section>
 
   <details class="card">
-    <summary>Como entrar no servidor</summary>
-    <ol class="passos">
+    <summary id="entrar-titulo">Como entrar no servidor</summary>
+    <ol class="passos" data-srv="pixelmon" hidden>
+      <li><b>TLauncher</b> → aba <b>Pacotes de mod</b> → instale <b>The Pixelmon Modpack</b>, versão <b>9.4.1</b> (tem que ser essa: o servidor é 9.4.1).</li>
+      <li>Engrenagem do TLauncher → <b>Memória: 6144 MB</b> ou mais.</li>
+      <li><b>Mod extra (obrigatório):</b> baixe o <a href="https://modrinth.com/mod/toms-storage/version/WQAMoIMC" target="_blank" rel="noopener">Tom's Simple Storage 1.21-2.4.2</a> (botão Download) e coloque o arquivo <code>toms_storage-1.21-2.4.2.jar</code> na pasta <code>%APPDATA%\.minecraft\versions\The Pixelmon Modpack 9.4.1\mods</code> (cole o caminho na barra do Explorador de Arquivos). É o mesmo arquivo do Create. Sem ele o servidor não deixa entrar.</li>
+      <li><b>Multijogador → Adicionar servidor</b> → cole o endereço do topo desta página (aba Pixelmon). <b>O IP muda cada vez que o servidor liga:</b> copie de novo aqui e edite o servidor no jogo.</li>
+      <li>Servidor desligado? Aperte <b>Ligar o servidor</b> aqui e espere uns 3 minutos (o Pixelmon demora um pouco mais para subir).</li>
+      <li><b>Primeira vez:</b> a tela fica escura. Abra o chat (<code>T</code>) e crie sua senha: <code>/register senha senha</code>. Você tem 60 segundos. É uma senha nova, separada da do Create.</li>
+      <li><b>Das próximas vezes:</b> <code>/login senha</code>.</li>
+      <li>Use <b>exatamente</b> o nick da whitelist (maiúsculas contam). Esqueceu a senha? Peça ao Diego.</li>
+    </ol>
+    <ol class="passos" data-srv="create">
       <li><b>TLauncher</b> → aba <b>Pacotes de mod</b> → instale <b>Create Chronicles: The Endventure</b> (o mesmo de sempre).</li>
       <li>Engrenagem do TLauncher → <b>Memória: 6144 MB</b> ou mais.</li>
       <li><b>Mod extra (obrigatório):</b> baixe o <a href="https://modrinth.com/mod/toms-storage/version/WQAMoIMC" target="_blank" rel="noopener">Tom's Simple Storage 1.21-2.4.2</a> (botão Download) e coloque o arquivo <code>toms_storage-1.21-2.4.2.jar</code> na pasta <code>%APPDATA%\.minecraft\versions\Create Chronicles The End Create Chronicles- The En\mods</code> (cole o caminho na barra do Explorador de Arquivos). Sem ele o servidor não deixa entrar.</li>
@@ -274,7 +293,8 @@ code{font:13px var(--mono); background:var(--soft); padding:1px 6px; border-radi
       <li>Use <b>exatamente</b> o nick da whitelist (maiúsculas contam). Esqueceu a senha? Peça ao Diego.</li>
       <li>Não precisa mais da Radmin VPN.</li>
     </ol>
-    <div class="nota">Para economizar, o servidor desliga sozinho 5 minutos depois que o último sair. Depois de ligar, vocês têm 15 minutos para o primeiro entrar. Quem ficar 10 minutos parado (sem mexer a câmera, falar ou mexer em blocos) é desconectado, com aviso aos 8 minutos.</div>
+    <div class="nota" data-srv="create">Para economizar, o servidor desliga sozinho 5 minutos depois que o último sair. Depois de ligar, vocês têm 15 minutos para o primeiro entrar. Quem ficar 10 minutos parado (sem mexer a câmera, falar ou mexer em blocos) é desconectado, com aviso aos 8 minutos.</div>
+    <div class="nota" data-srv="pixelmon" hidden>Para economizar, o servidor desliga sozinho 5 minutos depois que o último sair. Depois de ligar, vocês têm 15 minutos para o primeiro entrar. Quem ficar 10 minutos sem fazer nada é desconectado pelo próprio Minecraft (sem aviso antes).</div>
   </details>
 
   <footer>Instale no celular: no iPhone, Safari → Compartilhar → <b>Adicionar à Tela de Início</b>. Atualiza sozinho a cada 30 s com a página aberta. Horários de São Paulo.</footer>
@@ -285,8 +305,13 @@ code{font:13px var(--mono); background:var(--soft); padding:1px 6px; border-radi
   const DESLIGA_APOS_MIN = 5;   // depois que alguem jogou (antes do 1o entrar: 15, vem do monitor)
   const GALERA = ["digoscs", "Marllonx12", "Xxkadu03xX", "darak2610", "watinha", "socasoca"];
   const TZ = "America/Sao_Paulo";
+  // Os dois servidores (mesmos nomes do api/_comum.js). create e o padrao.
+  const SERVS = {
+    create: { aba: "Create", nota: "padrão", nome: "Create Chronicles: The Endventure", curto: "Create Chronicles" },
+    pixelmon: { aba: "Pixelmon", nota: "Pokémon", nome: "Pixelmon (The Pixelmon Modpack 9.4.1)", curto: "Pixelmon" },
+  };
   const $ = (id) => document.getElementById(id);
-  let d = null, filtro = "tudo", busy = false, timer = null;
+  let d = null, filtro = "tudo", busy = false, timer = null, pedido = 0;
 
   // ─── utilitarios (todo texto vindo do jogo entra como textContent) ───
   function el(tag, cls, text) {
@@ -297,6 +322,9 @@ code{font:13px var(--mono); background:var(--soft); padding:1px 6px; border-radi
   }
   const lerLocal = (k) => { try { return localStorage.getItem(k); } catch { return null; } };
   const gravarLocal = (k, v) => { try { localStorage.setItem(k, v); } catch {} };
+  // Servidor escolhido: ?s=pixelmon no link (para mandar no grupo), senao o ultimo usado.
+  const doLink = new URLSearchParams(location.search).get("s");
+  let srv = SERVS[doLink] ? doLink : SERVS[lerLocal("mc_servidor")] ? lerLocal("mc_servidor") : "create";
   const diaSP = (ms) => new Date(ms).toLocaleDateString("en-CA", { timeZone: TZ });
   const horaSP = (ms) => new Date(ms).toLocaleTimeString("pt-BR", { timeZone: TZ, hour: "2-digit", minute: "2-digit" });
   const SEMANA = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"];
@@ -473,7 +501,7 @@ code{font:13px var(--mono); background:var(--soft); padding:1px 6px; border-radi
     atualizarBotaoLigar();
     aviso.textContent = "pedindo ao Google…";
     try {
-      const r = await fetch("/api/ligar", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ nome }) });
+      const r = await fetch("/api/ligar", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ nome, servidor: srv }) });
       const j = await r.json().catch(() => ({}));
       aviso.textContent = r.ok ? j.mensagem : (j.erro || `falhou (HTTP ${r.status})`);
       if (r.ok) agendar(10000);
@@ -579,7 +607,7 @@ code{font:13px var(--mono); background:var(--soft); padding:1px 6px; border-radi
     $("custo-facts").replaceChildren(
       fact("Hoje", reais(c.hoje_brl)),
       fact("Por hora ligado", reais(c.hora_brl), "máquina + IP"),
-      fact("Desligado", "~" + reais(0.15 * c.usd_brl), "por dia (disco)"),
+      fact("Desligado", "~" + reais(c.disco_dia_brl), "por dia (disco)"),
     );
     const pct = c.credito_total_brl ? Math.min(100, (100 * c.credito_usado_brl) / c.credito_total_brl) : 0;
     $("cred-uso").style.width = `${pct.toFixed(1)}%`;
@@ -779,24 +807,72 @@ code{font:13px var(--mono); background:var(--soft); padding:1px 6px; border-radi
     timer = setTimeout(() => { if (document.visibilityState === "visible") carregar(); else agendar(ms); }, ms);
   }
 
+  // ─── abas dos servidores ───
+  function renderServs() {
+    const nav = $("servs");
+    nav.replaceChildren();
+    for (const [k, s] of Object.entries(SERVS)) {
+      const b = el("button", null), resumo = d && (d.servidores || []).find(x => x.servidor === k);
+      b.type = "button";
+      b.setAttribute("aria-pressed", String(k === srv));
+      b.append(el("span", null, s.aba));
+      const fresco = resumo && resumo.dta_verificacao && Date.now() - Date.parse(resumo.dta_verificacao) < 3 * 60000;
+      const small = el("small", null, s.nota);
+      if (fresco && resumo.online) {
+        small.textContent = `● online · ${resumo.jogadores_online} jogando`;
+        small.className = "on";
+      }
+      b.append(small);
+      b.addEventListener("click", () => trocarServidor(k));
+      nav.append(b);
+    }
+  }
+  function aplicarServidor() {
+    const s = SERVS[srv];
+    $("st-titulo").textContent = `Servidor ${s.aba}`;
+    $("entrar-titulo").textContent = `Como entrar no ${s.aba}`;
+    document.title = srv === "create" ? "Server da Galera" : `Server da Galera · ${s.aba}`;
+    for (const x of document.querySelectorAll("[data-srv]")) x.hidden = x.dataset.srv !== srv;
+    renderServs();
+  }
+  function trocarServidor(k) {
+    if (k === srv) return;
+    srv = k;
+    gravarLocal("mc_servidor", k);
+    history.replaceState(null, "", k === "create" ? location.pathname : `?s=${k}`);
+    d = null; filtro = "tudo"; ligando = false;
+    $("st-chip").className = "chip s-SEM_SINAL"; $("st-chip").textContent = "…";
+    $("st-sub").textContent = "carregando…"; $("end-valor").textContent = "—"; $("ligar-aviso").textContent = "";
+    $("ev").replaceChildren(el("div", "vazio", "Carregando…"));
+    aplicarServidor();
+    atualizarBotaoLigar();
+    busy = false;   // a resposta do outro servidor, se chegar, e descartada (pedido)
+    carregar();
+  }
+
   async function carregar() {
     if (busy) return;
     busy = true;
+    const meu = ++pedido, deQual = srv;
     $("atualizar").disabled = true;
     $("atualizar-ico").className = "spin"; $("atualizar-ico").textContent = "";
     let estado = null;
     try {
-      const r = await fetch("/api/estado", { cache: "no-store" });
+      const r = await fetch(`/api/estado?servidor=${deQual}`, { cache: "no-store" });
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
-      d = await r.json();
+      const j = await r.json();
+      if (meu !== pedido) return;   // trocou de aba no meio: vale a resposta mais nova
+      d = j;
       const nowMs = Date.now();
       estado = renderStatus(nowMs);
       renderHoje(nowMs); renderChat(nowMs); renderRanking(nowMs); renderDesempenho(nowMs, estado);
-      renderCusto(nowMs); renderBackups(nowMs); renderRegistro(nowMs);
-      $("sub").textContent = `Create Chronicles · atualizado ${horaSP(nowMs)}`;
+      renderCusto(nowMs); renderBackups(nowMs); renderRegistro(nowMs); renderServs();
+      $("sub").textContent = `${SERVS[deQual].curto} · atualizado ${horaSP(nowMs)}`;
     } catch (e) {
+      if (meu !== pedido) return;
       $("sub").textContent = `não consegui atualizar (${e.message}); tentando de novo…`;
     } finally {
+      if (meu !== pedido) return;
       busy = false;
       $("atualizar").disabled = false;
       $("atualizar-ico").className = ""; $("atualizar-ico").textContent = "↻";
@@ -807,6 +883,7 @@ code{font:13px var(--mono); background:var(--soft); padding:1px 6px; border-radi
 
   $("atualizar").addEventListener("click", carregar);
   document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && d) carregar(); });
+  aplicarServidor();
   renderQuem();
   carregar();
 })();

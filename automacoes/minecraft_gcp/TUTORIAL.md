@@ -62,7 +62,43 @@ Leva uns **2 minutos** até dar para entrar.
 
 ---
 
+## Parte 1b: servidor Pixelmon (desde 28/10/2026)
+
+É um servidor separado: outro mundo, outra máquina, outro botão Ligar (aba
+**Pixelmon** no hub, ou o link `https://server-galera.vercel.app/?s=pixelmon`).
+
+### Uma vez só
+
+1. **TLauncher → Pacotes de mod → The Pixelmon Modpack, versão 9.4.1.**
+   Tem que ser a 9.4.1: o servidor é 9.4.1 e o jogo recusa versão diferente.
+   O pack já traz tudo (Pixelmon, Waystones, bússolas, mapa, biomas). Os mods
+   só de tela (JEI, Essential, menu) ficam só no seu PC; tudo bem.
+2. **RAM:** 6144 MB ou mais (engrenagem do TLauncher).
+3. **Único mod extra: Tom's Simple Storage 1.21-2.4.2**, o mesmo arquivo do
+   Create (https://modrinth.com/mod/toms-storage/version/WQAMoIMC). Coloque o
+   `toms_storage-1.21-2.4.2.jar` em
+   `%APPDATA%\.minecraft\versions\The Pixelmon Modpack 9.4.1\mods`.
+   Sem ele, o servidor recusa a entrada.
+4. **Multijogador → Adicionar servidor:** nome `Pixelmon da galera`, endereço
+   = o IP da aba Pixelmon do hub (botão Copiar). **O IP muda cada vez que liga:**
+   se não conectar, copie de novo e edite o servidor.
+
+### Ao entrar
+
+Igual ao Create: `/register senha senha` na primeira vez (senha nova, não é
+a do Create), depois `/login senha`. Desliga sozinho 5 min depois que o último
+sai (15 min logo depois de ligar). Quem fica 10 min parado é desconectado
+pelo próprio Minecraft, **sem aviso antes**. Leva ~3 min para dar para entrar
+depois de apertar Ligar.
+
+---
+
 ## Parte 2: administrar pelo Google Cloud (Diego)
+
+Console do Pixelmon pelo PC: `automacoes\minecraft_gcp\console_pixelmon.bat`
+(pelo site: linha **`pixelmon`** em Instâncias de VM → SSH, mesmos comandos).
+A whitelist dele já tem os seis nicks; nick novo precisa do UUID offline
+(mesma armadilha do Create).
 
 Tudo fica no projeto **`serverminecasaonly`**, em
 https://console.cloud.google.com (conta `ds023203@gmail.com`).

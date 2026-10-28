@@ -1,14 +1,17 @@
 # Envia o monitor para a VM e instala (ou atualiza). A VM precisa estar ligada.
-#   powershell -File automacoes\minecraft_gcp\publicar_vm.ps1
+#   powershell -File automacoes\minecraft_gcp\publicar_vm.ps1                      (Create, VM minecraft)
+#   powershell -File automacoes\minecraft_gcp\publicar_vm.ps1 -Servidor pixelmon   (VM pixelmon)
 # Leva: lib_dscs, monitor_minecraft.py, a pasta vm\ e um .env so com o que a
-# VM usa (Supabase e DuckDNS). O .env fica em /opt/monitor/.env, legivel so
-# pelo root.
+# VM usa (Supabase, DuckDNS e MINECRAFT_SERVIDOR). O .env fica em
+# /opt/monitor/.env, legivel so pelo root.
 # Sem $ErrorActionPreference = "Stop": no PowerShell 5.1 qualquer linha que o
 # gcloud escreve no stderr (ele escreve muitas, normais) viraria erro fatal.
 # O que vale e o codigo de saida de cada comando.
+param([ValidateSet("create", "pixelmon")] [string]$Servidor = "create")
 $raiz  = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
 $gcloud = "$env:LOCALAPPDATA\Google\Cloud SDK\google-cloud-sdk\bin\gcloud.cmd"
-$alvo   = @("minecraft", "--zone=southamerica-east1-b", "--project=serverminecasaonly")
+$vm     = @{ create = "minecraft"; pixelmon = "pixelmon" }[$Servidor]
+$alvo   = @($vm, "--zone=southamerica-east1-b", "--project=serverminecasaonly")
 $ssh    = @("--tunnel-through-iap", "--quiet", "--strict-host-key-checking=no")
 $tmp    = Join-Path $env:TEMP "publicar_vm"
 
@@ -21,6 +24,7 @@ try {
     Get-Content (Join-Path $raiz ".env") |
         Where-Object { $_ -match '^(SUPABASE_URL|SUPABASE_KEY|DUCKDNS_TOKEN)=' } |
         Set-Content "$tmp\monitor.env" -Encoding ascii
+    Add-Content "$tmp\monitor.env" "MINECRAFT_SERVIDOR=$Servidor" -Encoding ascii
 
     & $gcloud compute scp "$tmp\monitor.tar.gz" "$tmp\monitor.env" `
         (Join-Path $raiz "automacoes\minecraft_gcp\vm\instalar_monitor.sh") "$($alvo[0]):/tmp/" @($alvo[1..2]) @ssh 2>&1 |

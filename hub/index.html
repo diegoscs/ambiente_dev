@@ -429,10 +429,11 @@ footer{font:12px var(--mono); color:var(--muted); line-height:1.6}
           .order("dta_add", { ascending: false }).limit(8),
         sb.from("vw_metricas_robos").select("*"),
         sb.from("vw_execucoes_diarias").select("*").gte("dia", desde30),
-        sb.from("minecraft_status").select("*").maybeSingle(),
-        sb.from("minecraft_eventos").select("dta_evento,tipo,jogador,texto")
+        // So o Create (o servidor padrao); o Pixelmon fica no hub do servidor.
+        sb.from("minecraft_status").select("*").eq("servidor", "create").maybeSingle(),
+        sb.from("minecraft_eventos").select("dta_evento,tipo,jogador,texto").eq("servidor", "create")
           .order("dta_evento", { ascending: false }).limit(MC_EVENTOS),
-        sb.from("minecraft_comandos").select("acao,status,mensagem,dta_pedido,dta_execucao")
+        sb.from("minecraft_comandos").select("acao,status,mensagem,dta_pedido,dta_execucao").eq("servidor", "create")
           .order("dta_pedido", { ascending: false }).limit(1).maybeSingle(),
       ]);
       if (saude.error) throw saude.error;

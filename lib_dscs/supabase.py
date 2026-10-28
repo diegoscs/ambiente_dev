@@ -258,16 +258,18 @@ def notificar_hub(nivel: str, titulo: str, detalhe: str | None = None, origem: s
 TABELA_MINECRAFT = "minecraft_status"
 
 
-def gravar_status_minecraft(online: bool, **campos: Any) -> None:
-    """Grava a linha unica de public.minecraft_status (upsert no id 1). Levanta se falhar.
+def gravar_status_minecraft(online: bool, servidor: str = "create", **campos: Any) -> None:
+    """Grava a linha do servidor em public.minecraft_status (upsert). Levanta se falhar.
+
+    `servidor`: create (VM minecraft) ou pixelmon (VM pixelmon), uma linha cada.
 
     Os horarios (dta_verificacao e dta_mudanca) sao carimbados por trigger no
     banco: o relogio do PC nao entra na conta do "sem sinal" do hub.
     """
     status_http, payload = chamar_api_json(
-        _url(f"{TABELA_MINECRAFT}?on_conflict=id"),
+        _url(f"{TABELA_MINECRAFT}?on_conflict=servidor"),
         "POST",
-        corpo={"id": 1, "online": online, **campos},
+        corpo={"servidor": servidor, "online": online, **campos},
         cabecalhos=_cabecalhos({"Prefer": "resolution=merge-duplicates,return=minimal"}),
         timeout=TIMEOUT_SEGUNDOS,
     )
@@ -278,10 +280,11 @@ TABELA_MINECRAFT_EVENTOS = "minecraft_eventos"
 LOTE_EVENTOS = 500
 
 
-def ultimo_evento_minecraft() -> datetime | None:
-    """dta_evento mais recente de public.minecraft_eventos, ou None. Levanta se falhar."""
+def ultimo_evento_minecraft(servidor: str = "create") -> datetime | None:
+    """dta_evento mais recente do servidor em public.minecraft_eventos, ou None. Levanta se falhar."""
     status_http, payload = chamar_api_json(
-        _url(f"{TABELA_MINECRAFT_EVENTOS}?select=dta_evento&order=dta_evento.desc&limit=1"),
+        _url(f"{TABELA_MINECRAFT_EVENTOS}?select=dta_evento&servidor=eq.{servidor}"
+             f"&order=dta_evento.desc&limit=1"),
         "GET",
         cabecalhos=_cabecalhos(),
         timeout=TIMEOUT_SEGUNDOS,
@@ -290,14 +293,15 @@ def ultimo_evento_minecraft() -> datetime | None:
     return datetime.fromisoformat(payload[0]["dta_evento"]) if payload else None
 
 
-def gravar_eventos_minecraft(eventos: list[dict[str, Any]]) -> None:
+def gravar_eventos_minecraft(eventos: list[dict[str, Any]], servidor: str = "create") -> None:
     """Insere eventos (dta_evento, tipo, jogador, texto), ignorando repetidos. Levanta se falhar.
 
-    A unique (dta_evento, tipo, jogador, texto) torna o reenvio inofensivo.
+    A unique (servidor, dta_evento, tipo, jogador, texto) torna o reenvio inofensivo.
     """
+    eventos = [{**e, "servidor": servidor} for e in eventos]
     for i in range(0, len(eventos), LOTE_EVENTOS):
         status_http, payload = chamar_api_json(
-            _url(f"{TABELA_MINECRAFT_EVENTOS}?on_conflict=dta_evento,tipo,jogador,texto"),
+            _url(f"{TABELA_MINECRAFT_EVENTOS}?on_conflict=servidor,dta_evento,tipo,jogador,texto"),
             "POST",
             corpo=eventos[i:i + LOTE_EVENTOS],
             cabecalhos=_cabecalhos({"Prefer": "resolution=ignore-duplicates,return=minimal"}),
@@ -309,15 +313,15 @@ def gravar_eventos_minecraft(eventos: list[dict[str, Any]]) -> None:
 TABELA_MINECRAFT_COMANDOS = "minecraft_comandos"
 
 
-def comandos_minecraft_abertos() -> list[dict[str, Any]]:
-    """Pedidos de ligar/desligar pendentes ou executando, mais antigo primeiro. Levanta se falhar.
+def comandos_minecraft_abertos(servidor: str = "create") -> list[dict[str, Any]]:
+    """Pedidos de ligar/desligar do servidor pendentes ou executando, mais antigo primeiro. Levanta se falhar.
 
     "executando" velho e pedido que o monitor pegou e nao fechou (caiu no meio):
     quem chama fecha como erro, senao o indice de um-aberto-por-vez trava a fila.
     """
     status_http, payload = chamar_api_json(
         _url(f"{TABELA_MINECRAFT_COMANDOS}?select=id,acao,status,dta_pedido,dta_execucao"
-             f"&status=in.(pendente,executando)&order=dta_pedido"),
+             f"&servidor=eq.{servidor}&status=in.(pendente,executando)&order=dta_pedido"),
         "GET",
         cabecalhos=_cabecalhos(),
         timeout=TIMEOUT_SEGUNDOS,
