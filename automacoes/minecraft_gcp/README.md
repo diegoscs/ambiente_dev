@@ -162,7 +162,7 @@ Atualizar o monitor depois de mexer no código:
 
 ## Servidor Pixelmon
 
-VM `pixelmon` (mesma zona, **n2d-standard-2**: 2 vCPU, 8 GB, disco SSD 20 GB,
+VM `pixelmon` (mesma zona, **n2d-standard-4**: 4 vCPU, 16 GB, disco SSD 20 GB,
 trava contra exclusão, tag `minecraft` para a porta 25565). Mesma conta
 `minecraft-vm` e mesmo balde de backup (arquivos `pixelmon_world_*`). A conta
 `hub-minecraft` tem o papel `minecraftHub` também nesta VM.
@@ -175,7 +175,7 @@ trava contra exclusão, tag `minecraft` para a porta 25565). Mesma conta
 | Montagem | [`pixelmon/preparar_vm.sh`](pixelmon/preparar_vm.sh), rodado uma vez: Java 21, NeoForge, mods, `server.properties`, whitelist e ops com UUID offline |
 | Monitor | O mesmo `vm/`, com `MINECRAFT_SERVIDOR=pixelmon` no `.env`: `publicar_vm.ps1 -Servidor pixelmon` |
 | Console | `console_pixelmon.bat` |
-| Java | `-Xms4G -Xmx6G` (8 GB de máquina) |
+| Java | `-Xms6G -Xmx10G` (16 GB de máquina) |
 
 Diferenças do Create:
 
@@ -203,3 +203,12 @@ No banco, toda tabela `minecraft_*` tem a coluna `servidor` (`create` ou
 - Créditos: o Create gastava ~R$ 15/dia; sobravam R$ 1.637 para 81 dias. O
   Pixelmon custa R$ 0,83/h ligado: dá para jogar, mas de olho na barra de
   créditos do hub (soma as duas VMs).
+
+### Estado em 29/10/2026
+
+- Galera reclamou de lag com 2 jogando: TPS 20, ms/tick até 25 e Java em
+  4,7 de 6 GB, mas CPU em 70-78% nos 2 vCPU (geração de terreno do Terralith,
+  Tectonic e estruturas). Trocada para **n2d-standard-4** (4 vCPU, 16 GB) e
+  Java `-Xms6G -Xmx10G`, igual ao Create. Custo ligado: ~R$ 1,60/h (era ~R$ 0,83).
+- Próxima opção se continuar travando ao explorar: pré-gerar o mapa com o
+  Chunky (só no servidor).
