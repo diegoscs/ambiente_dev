@@ -36,9 +36,10 @@ module.exports = async (req, res) => {
   const desde = new Date(Date.now() - 86400000).toISOString();
   let recentes;
   try {
-    recentes = await supa(`minecraft_comandos?select=dta_pedido&servidor=eq.${servidor}&acao=eq.ligar&dta_pedido=gte.${desde}&order=dta_pedido.desc`);
+    recentes = await supa(`minecraft_comandos?select=dta_pedido,status&servidor=eq.${servidor}&acao=eq.ligar&dta_pedido=gte.${desde}&order=dta_pedido.desc`);
   } catch { return res.status(502).json({ erro: "Banco não respondeu. Tente de novo." }); }
-  if (recentes.length >= MAX_POR_DIA) {
+  // Tentativa que o Google recusou nao gasta o limite do dia (so o intervalo).
+  if (recentes.filter((p) => p.status !== "erro").length >= MAX_POR_DIA) {
     return res.status(429).json({ erro: `Limite de ${MAX_POR_DIA} ligadas em 24 h atingido. Fale com o Diego.` });
   }
   if (recentes[0] && Date.now() - Date.parse(recentes[0].dta_pedido) < INTERVALO_MIN_MS) {
@@ -46,11 +47,25 @@ module.exports = async (req, res) => {
   }
 
   const registro = { acao: "ligar", nome, servidor, dta_execucao: new Date().toISOString() };
+  const falhou = async (mensagem) => {
+    await supa("minecraft_comandos", { method: "POST", body: JSON.stringify({ ...registro, status: "erro", mensagem: mensagem.slice(0, 300) }) }).catch(() => {});
+    return res.status(502).json({ erro: mensagem });
+  };
   try {
     await vm(servidor, "POST", "/start");
   } catch (e) {
-    await supa("minecraft_comandos", { method: "POST", body: JSON.stringify({ ...registro, status: "erro", mensagem: e.message.slice(0, 300) }) }).catch(() => {});
-    return res.status(502).json({ erro: `O Google recusou ligar: ${e.message}` });
+    return falhou(`O Google recusou ligar: ${e.message}`);
+  }
+  // O Google aceita o pedido e so depois descobre se tem maquina livre na zona
+  // (ZONE_RESOURCE_POOL_EXHAUSTED, 31/10/2026). Se a VM nao sair de TERMINATED,
+  // nao ligou.
+  for (let espera = 0; espera < 20000; espera += 2500) {
+    await new Promise((ok) => setTimeout(ok, 2500));
+    try { inst = await vm(servidor); } catch { continue; }
+    if (inst.status !== "TERMINATED") break;
+  }
+  if (inst.status === "TERMINATED") {
+    return falhou("O Google está sem máquina livre em São Paulo agora (acontece às vezes). Tente de novo daqui a alguns minutos; se continuar, avise o Diego.");
   }
   await supa("minecraft_comandos", { method: "POST", body: JSON.stringify({ ...registro, status: "feito", mensagem: "VM ligada pelo hub do servidor." }) }).catch(() => {});
   return res.status(200).json({ ok: true, mensagem: "Ligando! Em uns 2 minutos dá para entrar. Se ninguém entrar em 15 minutos, ele desliga de novo." });

@@ -162,7 +162,7 @@ Atualizar o monitor depois de mexer no código:
 
 ## Servidor Pixelmon
 
-VM `pixelmon` (mesma zona, **n2d-standard-4**: 4 vCPU, 16 GB, disco SSD 20 GB,
+VM `pixelmon` (mesma zona, **e2-standard-4**: 4 vCPU, 16 GB, disco SSD 20 GB,
 trava contra exclusão, tag `minecraft` para a porta 25565). Mesma conta
 `minecraft-vm` e mesmo balde de backup (arquivos `pixelmon_world_*`). A conta
 `hub-minecraft` tem o papel `minecraftHub` também nesta VM.
@@ -212,3 +212,16 @@ No banco, toda tabela `minecraft_*` tem a coluna `servidor` (`create` ou
   Java `-Xms6G -Xmx10G`, igual ao Create. Custo ligado: ~R$ 1,60/h (era ~R$ 0,83).
 - Próxima opção se continuar travando ao explorar: pré-gerar o mapa com o
   Chunky (só no servidor).
+
+### Estado em 31/10/2026
+
+- O botão Ligar falhou 3 vezes (15:39-15:45) com `ZONE_RESOURCE_POOL_EXHAUSTED`:
+  o Google ficou sem n2d-standard-4 livre na zona. O hub mostrava "feito"
+  porque o Google aceita o pedido e só depois recusa. Pixelmon trocado para
+  **e2-standard-4** (mesmos 4 vCPU e 16 GB, ~R$ 1,29/h) e ligou na hora.
+  O `api/ligar.js` agora espera a VM sair de TERMINATED (até 20 s) e mostra o erro.
+- Sessões com motivo "servidor fora do ar" (30/10 02:42 e 18:49, 31/10 05:14)
+  não eram quedas: o monitor rodava de novo durante o desligamento normal
+  (backup leva mais de 1 min) e regravava o motivo. Agora ele não roda com o
+  sistema desligando. Publicado no Pixelmon; o Create recebe no próximo
+  `publicar_vm.ps1` (VM desligada hoje).

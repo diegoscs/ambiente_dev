@@ -318,6 +318,11 @@ def main() -> None:
     if "--backup" in sys.argv:
         fazer_backup()
         return
+    # Desligando (o backup leva mais de 1 min): o timer ainda dispara e veria o
+    # servidor parado, regravando o motivo como "servidor fora do ar".
+    sistema = subprocess.run(["systemctl", "is-system-running"], capture_output=True, text=True).stdout.strip()
+    if sistema == "stopping":
+        return
     dl.configurar_logger(0, "monitor_vm", BASE)
     try:
         verificar_vm()

@@ -36,7 +36,7 @@ fi
 [ -f mods/loginsystem-2.2.jar ] || baixar "$LOGIN_URL" mods/loginsystem-2.2.jar $LOGIN_SHA1
 tar -xf /tmp/mods_pixelmon.tar -C mods && rm -f /tmp/mods_pixelmon.tar
 
-# n2d-standard-4 (16 GB): 10 GB para o Java, o resto para o sistema.
+# 16 GB de maquina (e2-standard-4): 10 GB para o Java, o resto para o sistema.
 cat > user_jvm_args.txt <<'EOF'
 -Xms6G
 -Xmx10G
