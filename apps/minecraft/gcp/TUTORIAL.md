@@ -20,9 +20,9 @@ São Paulo. Não precisa mais de Radmin VPN.
    Mesma versão para todo mundo: o servidor tem a 2.4.2 desde 20/10/2026.
 3. **Multijogador → Adicionar servidor:**
    - Nome: `Server da galera`
-   - Endereço: **`servercasaonlymine.duckdns.org`**
-     (enquanto o DuckDNS não estiver ligado, use o IP que o Diego passar no
-     grupo; o IP muda cada vez que a máquina liga)
+   - Endereço: o que aparece no hub do servidor (um nome fixo do DuckDNS;
+     enquanto ele não estiver ligado, use o IP que o Diego passar no grupo,
+     que muda cada vez que a máquina liga)
 4. **Pode desligar a Radmin VPN:** não precisa mais.
 
 ### Primeira vez que entrar
@@ -101,7 +101,7 @@ A whitelist dele já tem os seis nicks; nick novo precisa do UUID offline
 (mesma armadilha do Create).
 
 Tudo fica no projeto **`serverminecasaonly`**, em
-https://console.cloud.google.com (conta `ds023203@gmail.com`).
+https://console.cloud.google.com (conta Google pessoal do Diego).
 
 ### Ligar e desligar a máquina pelo site
 

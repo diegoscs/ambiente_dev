@@ -147,7 +147,7 @@ Atualizar o monitor depois de mexer no código:
 ## Incidente em 19/10/2026: senhas no hub público
 
 - **O que houve:** entre ~19:20 e ~19:24, os `/register senha senha` de
-  `digoscs` e `Marllonx12` apareceram no feed de comandos do hub público. O
+  dois jogadores apareceram no feed de comandos do hub público. O
   script do KubeJS registrava **todo** comando de jogador, e o monitor
   publicava.
 - **Correção:** eventos apagados do Supabase; senhas mascaradas com `*` nos
@@ -235,8 +235,8 @@ No banco, toda tabela `minecraft_*` tem a coluna `servidor` (`create` ou
 
 - Galera reclamou de travadas com 3 jogando. As amostras de 1 min mostravam
   TPS 20 e ms/tick abaixo de 20, mas o log tinha 12 "Can't keep up" de 2 a 8 s
-  (21:29 a 23:43, horário de SP), todos quando Marllonx12 (Noivern) ou
-  Xxkadu03xX (Corviknight) voavam rápido para terreno novo (632 e 85 "moved
+  (21:29 a 23:43, horário de SP), todos quando dois jogadores (de Noivern e
+  de Corviknight) voavam rápido para terreno novo (632 e 85 "moved
   too quickly"), ou entravam longe do spawn. É a geração de terreno do
   Terralith e do Tectonic; RAM e disco estavam folgados.
 - Trocado de e2-standard-4 para **t2d-standard-4** (a do Create: 1 vCPU = 1

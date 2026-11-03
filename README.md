@@ -33,7 +33,7 @@ robô falhou, mas também se ele **deixou de rodar**.
 
 | Robô | O que faz | Quando roda (São Paulo) |
 |---|---|---|
-| [**003 · Sync Open Finance**](.github/workflows/robo_003_sync_openfinance.yml) | sync do [financas-app](https://github.com/diegoscs/financas-app) (Pluggy → Supabase OpenFinance), registrado no hub | 06:00 e 15:00 |
+| [**003 · Sync Open Finance**](.github/workflows/robo_003_sync_openfinance.yml) | sync do financas-app, meu app de finanças pessoais em repositório privado (Pluggy → Supabase OpenFinance), registrado no hub | 06:00 e 15:00 |
 | [**001 · Check GitHub**](automacoes/001_check_github/README.md) | registro diário num repositório próprio pela Contents API, com trava de uma execução por dia | 07:00 |
 | [**002 · Check Supabase**](automacoes/002_check_supabase/README.md) | keepalive do projeto Supabase: consulta real por Postgres e por REST, para o plano free não pausar | 08:00 |
 | [**Vigia**](automacoes/vigia_robos.py) | lê a saúde de todos os robôs, deixa uma notificação no hub e falha o run se algum estiver atrasado ou com erro | 09:00 (+ reserva à tarde) |
