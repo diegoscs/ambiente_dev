@@ -74,11 +74,18 @@ Leva uns **2 minutos** até dar para entrar.
    O pack já traz tudo (Pixelmon, Waystones, bússolas, mapa, biomas). Os mods
    só de tela (JEI, Essential, menu) ficam só no seu PC; tudo bem.
 2. **RAM:** 6144 MB ou mais (engrenagem do TLauncher).
-3. **Único mod extra: Tom's Simple Storage 1.21-2.4.2**, o mesmo arquivo do
-   Create (https://modrinth.com/mod/toms-storage/version/WQAMoIMC). Coloque o
-   `toms_storage-1.21-2.4.2.jar` em
+3. **Três mods extras**, todos na pasta
    `%APPDATA%\.minecraft\versions\The Pixelmon Modpack 9.4.1\mods`.
-   Sem ele, o servidor recusa a entrada.
+   Sem eles, o servidor recusa a entrada:
+   - Tom's Simple Storage 1.21-2.4.2, o mesmo arquivo do Create
+     (https://modrinth.com/mod/toms-storage/version/WQAMoIMC):
+     `toms_storage-1.21-2.4.2.jar`
+   - Prefab 1.0.9, construções prontas, desde 03/11/2026
+     (https://modrinth.com/mod/prefab/version/1SASoUIC):
+     `prefab-neoforge-1.0.9.jar`
+   - Cloth Config 15.0.140, exigido pelo Prefab
+     (https://modrinth.com/mod/cloth-config/version/izKINKFg):
+     `cloth-config-15.0.140-neoforge.jar`
 4. **Multijogador → Adicionar servidor:** nome `Pixelmon da galera`, endereço
    = o IP da aba Pixelmon do hub (botão Copiar). **O IP muda cada vez que liga:**
    se não conectar, copie de novo e edite o servidor.

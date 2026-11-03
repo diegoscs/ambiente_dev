@@ -12,6 +12,14 @@ PIXELMON_URL="https://mediafilez.forgecdn.net/files/8894/160/Pixelmon-1.21.1-9.4
 PIXELMON_SHA1=21ee5b13cfb5e387069dfc9d9f3772125471a820
 LOGIN_URL="https://cdn.modrinth.com/data/S4Tu3Hn2/versions/dgFHnrmv/loginsystem-2.2.jar"
 LOGIN_SHA1=959c4fbe8825561065595985f78513c85540d66e
+# Desde 03/11/2026, do Modrinth. Prefab (construcoes prontas) e o Cloth Config
+# que ele exige vao tambem no jogo de cada um; o WorldEdit e so do servidor.
+PREFAB_URL="https://cdn.modrinth.com/data/pTJ1ZloG/versions/1SASoUIC/prefab-neoforge-1.0.9.jar"
+PREFAB_SHA1=47bd5c937aa3903dea8dcca8dfb590e6f1580528
+CLOTH_URL="https://cdn.modrinth.com/data/9s6osm5g/versions/izKINKFg/cloth-config-15.0.140-neoforge.jar"
+CLOTH_SHA1=c3e5733ba4503b102589a026000fd5ce0212f6f2
+WORLDEDIT_URL="https://cdn.modrinth.com/data/1u6JkXh5/versions/WTAFvuRx/worldedit-mod-7.3.8.jar"
+WORLDEDIT_SHA1=924fe181a29bd66be6783f6d589968ab0ee02250
 GALERA="digoscs Marllonx12 Xxkadu03xX darak2610 watinha socasoca"
 SRV=/opt/minecraft/server
 
@@ -34,6 +42,10 @@ if [ ! -f "libraries/net/neoforged/neoforge/$NEOFORGE/unix_args.txt" ]; then
 fi
 [ -f mods/Pixelmon-1.21.1-9.4.1-universal.jar ] || baixar "$PIXELMON_URL" mods/Pixelmon-1.21.1-9.4.1-universal.jar $PIXELMON_SHA1
 [ -f mods/loginsystem-2.2.jar ] || baixar "$LOGIN_URL" mods/loginsystem-2.2.jar $LOGIN_SHA1
+for mod in PREFAB CLOTH WORLDEDIT; do
+  url="${mod}_URL"; sha1="${mod}_SHA1"; jar="mods/$(basename "${!url}")"
+  [ -f "$jar" ] || baixar "${!url}" "$jar" "${!sha1}"
+done
 tar -xf /tmp/mods_pixelmon.tar -C mods && rm -f /tmp/mods_pixelmon.tar
 
 # 16 GB de maquina (e2-standard-4): 10 GB para o Java, o resto para o sistema.
