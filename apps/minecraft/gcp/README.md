@@ -188,6 +188,10 @@ Diferenças do Create:
 - `allow-flight=true` (montaria voadora do Pixelmon), `view-distance=8`,
   `simulation-distance=6` (2 vCPU), dificuldade normal.
 - `keepInventory` ligado desde 03/11/2026 (gamerule, fica gravado no mundo).
+- **Sem fome** desde 03/11/2026: datapack [`pixelmon/datapacks/sem_fome`](pixelmon/datapacks/sem_fome)
+  em `world/datapacks/` dá Saturação de 3 s, sem partículas, a todos a cada
+  segundo. Só no servidor. Instalar de novo: copiar a pasta e rodar `reload`
+  (com Pixelmon, o `reload` congela o jogo ~15 s).
 
 No banco, toda tabela `minecraft_*` tem a coluna `servidor` (`create` ou
 `pixelmon`), da migration
