@@ -170,7 +170,8 @@ trava contra exclusão, tag `minecraft` para a porta 25565). Mesma conta
 | O quê | Como |
 |---|---|
 | Versões | **Pixelmon 9.4.1 + NeoForge 21.1.248**, iguais ao "The Pixelmon Modpack 9.4.1" do TLauncher (jar conferido pelo SHA-1) |
-| Mods no servidor | Pixelmon, Tom's Simple Storage 2.4.2, Waystones (+ Balm), Explorer's/Nature's Compass, Terralith, Tectonic (+ Lithostitched), Incendium, Structory e Structory Towers, JourneyMap, Login System 2.2 |
+| Mods no servidor | Pixelmon, Tom's Simple Storage 2.4.2, Waystones (+ Balm), Explorer's/Nature's Compass, Terralith, Tectonic (+ Lithostitched), Incendium, Structory e Structory Towers, JourneyMap, Login System 2.2, WorldEdit 7.3.8 (só no servidor) |
+| No servidor e no jogador, fora do pack | Prefab 1.0.9 + Cloth Config 15.0.140 (desde 03/11/2026): cada um põe os dois `.jar` na pasta `mods` do TLauncher |
 | Só no jogador | JEI, Essential, FancyMenu, Konkrete, Melody (o pack já traz) |
 | Montagem | [`pixelmon/preparar_vm.sh`](pixelmon/preparar_vm.sh), rodado uma vez: Java 21, NeoForge, mods, `server.properties`, whitelist e ops com UUID offline |
 | Monitor | O mesmo `vm/`, com `MINECRAFT_SERVIDOR=pixelmon` no `.env`: `publicar_vm.ps1 -Servidor pixelmon` |
@@ -192,6 +193,15 @@ Diferenças do Create:
   em `world/datapacks/` dá Saturação de 3 s, sem partículas, a todos a cada
   segundo. Só no servidor. Instalar de novo: copiar a pasta e rodar `reload`
   (com Pixelmon, o `reload` congela o jogo ~15 s).
+- **Construções prontas** desde 03/11/2026:
+  - [Prefab](https://modrinth.com/mod/prefab) (servidor e jogador): itens
+    feitos com receita (casa inicial, armazém, fazendas, torre...) que, usados,
+    colocam a construção inteira com prévia antes de confirmar. Sem o Prefab e
+    o Cloth Config no jogo, o jogador não entra (versão de mods diferente).
+  - [WorldEdit](https://modrinth.com/plugin/worldedit) (só servidor, só op, não
+    gasta blocos): `.schem` em `config/worldedit/schematics/`, depois
+    `//schem load nome` e `//paste -a` (`-a` pula o ar); `//undo` desfaz.
+    `//wand` dá o machado de seleção.
 
 No banco, toda tabela `minecraft_*` tem a coluna `servidor` (`create` ou
 `pixelmon`), da migration
