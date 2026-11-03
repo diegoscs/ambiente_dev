@@ -187,6 +187,7 @@ Diferenças do Create:
   ligado com a senha `admin123`). Senhas separadas das do Create.
 - `allow-flight=true` (montaria voadora do Pixelmon), `view-distance=8`,
   `simulation-distance=6` (2 vCPU), dificuldade normal.
+- `keepInventory` ligado desde 03/11/2026 (gamerule, fica gravado no mundo).
 
 No banco, toda tabela `minecraft_*` tem a coluna `servidor` (`create` ou
 `pixelmon`), da migration
