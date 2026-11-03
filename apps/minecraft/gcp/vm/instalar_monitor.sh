@@ -1,6 +1,6 @@
 #!/bin/bash
 # Instala/atualiza o monitor na VM. Roda com sudo, depois de enviar:
-#   /tmp/monitor.tar.gz  lib_dscs + monitor_minecraft + minecraft_gcp/vm (estrutura do repo)
+#   /tmp/monitor.tar.gz  lib_dscs + apps/minecraft/monitor + apps/minecraft/gcp/vm (estrutura do repo)
 #   /tmp/monitor.env     (opcional) SUPABASE_URL, SUPABASE_KEY, DUCKDNS_TOKEN
 # Quem envia e o publicar_vm.ps1 do PC.
 set -e
@@ -20,7 +20,7 @@ chown -R root:root /opt/monitor
 chmod 700 /opt/monitor
 rm -f /tmp/monitor.tar.gz
 
-VM=/opt/monitor/automacoes/minecraft_gcp/vm
+VM=/opt/monitor/apps/minecraft/gcp/vm
 install -m 755 -o minecraft -g minecraft "$VM/iniciar.sh" /opt/minecraft/iniciar.sh
 install -m 644 "$VM/minecraft.service" /etc/systemd/system/minecraft.service
 install -m 644 "$VM/monitor-minecraft.service" /etc/systemd/system/monitor-minecraft.service
@@ -30,6 +30,8 @@ install -d /etc/needrestart/conf.d
 install -m 644 "$VM/needrestart-minecraft.conf" /etc/needrestart/conf.d/minecraft.conf
 systemctl daemon-reload
 systemctl enable --now monitor-minecraft.timer
+# Estrutura antiga do repo (ate 02/11/2026); os servicos ja apontam para apps/.
+rm -rf /opt/monitor/automacoes
 
 echo "--- instalado"
 ls -la /opt/monitor/.env | awk '{print $1, $3, $NF}'

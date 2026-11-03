@@ -1,11 +1,11 @@
 # Monitor Minecraft
 
 Leva para o [hub](../../hub/README.md) o estado do server de Minecraft da galera
-(`automacoes/minecraft-server`, fora do repositório): se está no ar, quem está
+(`apps/minecraft/local`, fora do repositório): se está no ar, quem está
 jogando, o chat e os comandos.
 
 > **Desde 19/10/2026 o server roda numa VM do Google**, e quem chama este
-> código a cada minuto é o [monitor da VM](../minecraft_gcp/vm/monitor_vm.py)
+> código a cada minuto é o [monitor da VM](../gcp/vm/monitor_vm.py)
 > (ping, leitura do log e RCON). O que segue descreve a versão do PC, com o
 > Agendador do Windows. Ela fica como referência, porque a lógica é a mesma.
 
@@ -117,21 +117,21 @@ o horário em UTC. O monitor lê essas linhas como `comando`.
 |---|---|
 | `SUPABASE_URL`, `SUPABASE_KEY` (service_role) | `.env` da raiz, os mesmos dos robôs |
 | Tarefa "Monitor Minecraft (hub)" | [`instalar_tarefa.ps1`](instalar_tarefa.ps1): a cada minuto e no logon, também na bateria |
-| Tabelas | [`20261019150000_minecraft_status_e_eventos.sql`](../../supabase/migrations/20261019150000_minecraft_status_e_eventos.sql), [`20261019180000_minecraft_comandos.sql`](../../supabase/migrations/20261019180000_minecraft_comandos.sql) |
+| Tabelas | [`20261019150000_minecraft_status_e_eventos.sql`](../../../supabase/migrations/20261019150000_minecraft_status_e_eventos.sql), [`20261019180000_minecraft_comandos.sql`](../../../supabase/migrations/20261019180000_minecraft_comandos.sql) |
 | Tarefa "Minecraft Server (hub)" | também no `instalar_tarefa.ps1`: sob demanda, sem gatilho |
 
 ```powershell
 $py = "C:\Users\ferna\AppData\Local\Python\bin\python.exe"
-& $py automacoes\monitor_minecraft\monitor_minecraft.py --dry-run   # mostra, nao grava
-& $py automacoes\monitor_minecraft\monitor_minecraft.py             # grava no Supabase
-powershell -File automacoes\monitor_minecraft\instalar_tarefa.ps1   # (re)cria a tarefa
+& $py apps\minecraft\monitor\monitor_minecraft.py --dry-run   # mostra, nao grava
+& $py apps\minecraft\monitor\monitor_minecraft.py             # grava no Supabase
+powershell -File apps\minecraft\monitor\instalar_tarefa.ps1   # (re)cria a tarefa
 ```
 
 > **Servidor migrado para o Google Cloud em 19/10/2026, 19:00.** As tarefas do Agendador
 > deste monitor foram desativadas e, em 27/10/2026, apagadas. O código segue em uso: o
-> [monitor da VM](../minecraft_gcp/vm/monitor_vm.py) importa este arquivo para o ping,
+> [monitor da VM](../gcp/vm/monitor_vm.py) importa este arquivo para o ping,
 > a leitura do log e o RCON (`MINECRAFT_DIR` aponta a pasta). Ver
-> [automacoes/minecraft_gcp](../minecraft_gcp/README.md).
+> [apps/minecraft/gcp](../gcp/README.md).
 
 ## Estado em 27/10/2026
 

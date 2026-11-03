@@ -21,7 +21,7 @@ $config = New-ScheduledTaskSettingsSet `
     -MultipleInstances IgnoreNew -ExecutionTimeLimit (New-TimeSpan -Minutes 2)
 
 Register-ScheduledTask -TaskName $nome -Action $acao -Trigger $agora, $logon -Settings $config `
-    -Description "Status e chat do server de Minecraft para o hub (D:\ambiente_dev\automacoes\monitor_minecraft)" `
+    -Description "Status e chat do server de Minecraft para o hub (D:\ambiente_dev\apps\minecraft\monitor)" `
     -Force | Out-Null
 
 # ─── tarefa sob demanda do server (botao "Ligar" do hub) ───
@@ -31,7 +31,7 @@ Register-ScheduledTask -TaskName $nome -Action $acao -Trigger $agora, $logon -Se
 # - Priority 4 (normal): o padrao de tarefa e 7, abaixo do normal, e o server
 #   ficaria mais lento que aberto na mao.
 $server = "Minecraft Server (hub)"
-$bat    = (Resolve-Path (Join-Path $PSScriptRoot "..\minecraft-server\server\start.bat")).Path
+$bat    = (Resolve-Path (Join-Path $PSScriptRoot "..\local\server\start.bat")).Path
 
 $acaoServer   = New-ScheduledTaskAction -Execute "cmd.exe" -Argument "/c `"$bat`"" -WorkingDirectory (Split-Path $bat)
 $configServer = New-ScheduledTaskSettingsSet `

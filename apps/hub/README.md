@@ -9,7 +9,7 @@ Painel de celular com a saúde dos robôs, lido ao vivo do Supabase.
 - **Servidor Minecraft**: on/off/sem sinal, jogadores online com os nicks e
   o feed de chat, comandos, entradas e conquistas, de `minecraft_status` e
   `minecraft_eventos` (gravados pelo
-  [monitor do PC](../automacoes/monitor_minecraft/README.md)).
+  [monitor do PC](../minecraft/monitor/README.md)).
   Botão **Ligar/Desligar server**: grava o pedido em `minecraft_comandos`
   (RLS, sem passar pela Vercel) e o monitor do PC executa em até 1 minuto.
 - **Status por robô**, vindo da `vw_saude_robos`: `OK`, `ERRO`, `ATRASADO`,
@@ -21,7 +21,7 @@ Painel de celular com a saúde dos robôs, lido ao vivo do Supabase.
 - **▶ Rodar agora**, que dispara o workflow do robô no GitHub Actions, e o link
   para o log do último run. O workflow vem da coluna `workflow` de
   `controle_cargas`: robô novo cadastrado aparece com o botão sem mexer no hub.
-- **Notificações** do [vigia](../automacoes/vigia_robos.py): uma por
+- **Notificações** do [vigia](../../automacoes/vigia_robos.py): uma por
   verificação diária (em dia, atenção ou resolvido), com contador de não lidas
   e "Marcar como lidas".
 - **Troca de senha** pelo botão *Senha* no topo.
@@ -60,7 +60,7 @@ flowchart LR
   e a Vercel manda `Content-Security-Policy` restringindo scripts, conexões e
   frames ([`vercel.json`](vercel.json)).
 
-Migration: [`supabase/migrations/20260926123000_hub_leitura_autenticada.sql`](../supabase/migrations/20260926123000_hub_leitura_autenticada.sql).
+Migration: [`supabase/migrations/20260926123000_hub_leitura_autenticada.sql`](../../supabase/migrations/20260926123000_hub_leitura_autenticada.sql).
 
 ## Configuração
 
@@ -81,12 +81,12 @@ vercel deploy --prod
 
 Para deploy automático a cada push: na Vercel, **Settings → Git**, conectar
 `diegoscs/ambiente_dev` e em **Settings → Build and Deployment** definir
-*Root Directory* = `hub`.
+*Root Directory* = `apps/hub`.
 
 ## Arquivos
 
 ```
-hub\
+apps\hub\
 ├─ index.html              a página (HTML + JS, sem build)
 ├─ api\rodar.js            função serverless do "Rodar agora"
 ├─ manifest.webmanifest    instalação na tela inicial

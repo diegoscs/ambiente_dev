@@ -38,7 +38,7 @@ robô falhou, mas também se ele **deixou de rodar**.
 | [**001 · Check GitHub**](automacoes/001_check_github/README.md) | registro diário num repositório próprio pela Contents API, com trava de uma execução por dia | 07:00 |
 | [**002 · Check Supabase**](automacoes/002_check_supabase/README.md) | keepalive do projeto Supabase: consulta real por Postgres e por REST, para o plano free não pausar | 08:00 |
 | [**Vigia**](automacoes/vigia_robos.py) | lê a saúde de todos os robôs, deixa uma notificação no hub e falha o run se algum estiver atrasado ou com erro | 09:00 (+ reserva à tarde) |
-| [**Minecraft na nuvem**](automacoes/minecraft_gcp/README.md) | servidor da galera numa VM do Google: status, chat, custo e backups no [hub do servidor](https://server-galera.vercel.app); desliga sozinho após 5 min vazio (não é carga) | a cada minuto, dentro da VM |
+| [**Minecraft na nuvem**](apps/minecraft/gcp/README.md) | servidor da galera numa VM do Google: status, chat, custo e backups no [hub do servidor](https://server-galera.vercel.app); desliga sozinho após 5 min vazio (não é carga) | a cada minuto, dentro da VM |
 
 Os horários são em **hora cheia**, disparados pelo `pg_cron` do Supabase, que
 chama o `workflow_dispatch` de cada robô
@@ -95,7 +95,7 @@ A página tem só a chave pública do Supabase. Os dados ficam atrás de RLS com
 uma policy que libera leitura apenas para o usuário cadastrado. O token do
 GitHub usado pelo botão fica numa função serverless da Vercel, que confere o
 login no Supabase antes de disparar. Um robô novo cadastrado no banco aparece no
-hub sem mudar o código dele. Detalhes em [hub/README.md](hub/README.md).
+hub sem mudar o código dele. Detalhes em [apps/hub/README.md](apps/hub/README.md).
 
 ## Decisões de projeto
 
@@ -133,11 +133,16 @@ automacoes/
   _modelo/             esqueleto de robô, workflow e cadastro
   PADRAO_ROBOS.md      regras para robôs novos
   vigia_robos.py       vigia diário
-hub/                   hub web (HTML, função serverless, config da Vercel)
+apps/
+  hub/                 hub web (HTML, função serverless, config da Vercel)
+  minecraft/           servidor na nuvem: hub/ (Vercel), gcp/ (VM), monitor/
 lib_dscs/              biblioteca compartilhada dos robôs
 supabase/migrations/   schema versionado
 docs/                  migração para a nuvem e revisão
 ```
+
+`projetos/`, `clientes/` e `arquivo/` ficam fora deste repositório: cada
+projeto ali tem o seu próprio repositório no GitHub.
 
 ## Stack
 

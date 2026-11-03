@@ -73,9 +73,9 @@ tabelas públicas do GCP para São Paulo, out/2026).
 ## Deploy
 
 ```powershell
-cd D:\ambiente_dev\hub_minecraft
+cd D:\ambiente_dev\apps\minecraft\hub
 vercel deploy --prod
 ```
 
 Detalhes da VM, do monitor e da trava de 15 min:
-[automacoes/minecraft_gcp](../automacoes/minecraft_gcp/README.md).
+[apps/minecraft/gcp](../gcp/README.md).

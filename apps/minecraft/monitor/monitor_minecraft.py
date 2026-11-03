@@ -27,7 +27,7 @@ if sys.stdout is None:
     sys.stdout = sys.stderr = open(os.devnull, "w", encoding="utf-8")
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 sys.stderr.reconfigure(encoding="utf-8", errors="replace")
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+sys.path.insert(0, str(Path(__file__).resolve().parents[3]))  # raiz: apps/minecraft/monitor/
 os.environ.setdefault("PYTHONIOENCODING", "utf-8")
 
 import gzip
@@ -61,7 +61,7 @@ MAX_LOGS_ERRO = 20
 UUID_ZERADO = "00000000-0000-0000-0000-000000000000"
 
 # No PC, a pasta ao lado; na VM do Google, MINECRAFT_DIR=/opt/minecraft/server.
-PASTA_SERVER = Path(os.environ.get("MINECRAFT_DIR") or BASE.parent / "minecraft-server" / "server")
+PASTA_SERVER = Path(os.environ.get("MINECRAFT_DIR") or BASE.parent / "local" / "server")
 
 # Logs do server. O latest.log vira AAAA-MM-DD-N.log.gz a cada start e a meia-noite.
 PASTA_LOGS = PASTA_SERVER / "logs"

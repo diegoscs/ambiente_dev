@@ -1,6 +1,6 @@
 // Kicka jogador AFK, para a VM nao ficar ligada (e cobrando) com alguem parado.
 // Depois do kick, se nao sobrar ninguem, o monitor da VM desliga a maquina em
-// 5 min (automacoes/minecraft_gcp/vm/monitor_vm.py).
+// 5 min (apps/minecraft/gcp/vm/monitor_vm.py).
 //
 // Atividade = mexer a camera, falar no chat, quebrar/colocar/clicar em bloco.
 // Andar NAO conta: AFK em agua corrente ou carrinho tambem se move.

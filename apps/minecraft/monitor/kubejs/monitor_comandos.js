@@ -1,5 +1,5 @@
 // Registra no log do KubeJS (logs/kubejs/server.log) os comandos digitados por
-// jogador, para o monitor do hub (automacoes/monitor_minecraft).
+// jogador, para o monitor do hub (apps/minecraft/monitor).
 // O Minecraft sozinho so registra comando de op com retorno para os admins.
 // O horario vai na linha em UTC porque o log do KubeJS so tem hora, sem data.
 //

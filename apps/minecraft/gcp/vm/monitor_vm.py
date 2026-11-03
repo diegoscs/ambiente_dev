@@ -23,10 +23,10 @@ import os
 import sys
 from pathlib import Path
 
-# /opt/monitor/automacoes/minecraft_gcp/vm/monitor_vm.py -> raiz em /opt/monitor
-RAIZ = Path(__file__).resolve().parents[3]
+# /opt/monitor/apps/minecraft/gcp/vm/monitor_vm.py -> raiz em /opt/monitor
+RAIZ = Path(__file__).resolve().parents[4]
 sys.path.insert(0, str(RAIZ))
-sys.path.insert(0, str(RAIZ / "automacoes" / "monitor_minecraft"))
+sys.path.insert(0, str(RAIZ / "apps" / "minecraft" / "monitor"))
 os.environ.setdefault("MINECRAFT_DIR", "/opt/minecraft/server")
 
 import json

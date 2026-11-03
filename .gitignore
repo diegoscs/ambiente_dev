@@ -18,12 +18,13 @@ saida/
 # Cada um tem o seu .git e o seu ciclo de vida; aninhar viraria submodulo
 # sem ninguem ter pedido, e traria node_modules junto.
 clientes/
-pipelines/
+projetos/
+arquivo/
 
 # Configuracao pessoal do VS Code (commit + sync automatico)
 .vscode/
 
-# Server de Minecraft: mundo, mods, backups e a senha do RCON no LEIA-ME.
+# Minecraft no PC: backups do mundo e a senha do RCON no LEIA-ME.
 # Repositorio publico - nada dele entra. O script do KubeJS que o monitor usa
-# tem copia versionada em automacoes/monitor_minecraft/kubejs/.
-automacoes/minecraft-server/
+# tem copia versionada em apps/minecraft/monitor/kubejs/.
+apps/minecraft/local/

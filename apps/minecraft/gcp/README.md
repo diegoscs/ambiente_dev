@@ -7,7 +7,7 @@
 
 O servidor da galera (Create Chronicles: The Endventure, NeoForge 1.21.1) roda
 numa VM do Google em São Paulo, liga pelo
-[hub do servidor](../../hub_minecraft/README.md) e **desliga sozinho 5 minutos depois
+[hub do servidor](../hub/README.md) e **desliga sozinho 5 minutos depois
 que o último sai** (15 min de tolerância logo depois de ligar). Tutorial de uso (jogadores e admin):
 [TUTORIAL.md](TUTORIAL.md).
 
@@ -29,15 +29,15 @@ flowchart LR
 |---|---|---|
 | VM | [`vm/minecraft.service`](vm/minecraft.service) | Servidor como serviço: sobe com a VM; ao parar manda `stop`, espera salvar e chama o backup |
 | VM | [`vm/iniciar.sh`](vm/iniciar.sh) | O "start.bat" do Linux: sobe o servidor e reinicia se cair |
-| VM | [`vm/monitor_vm.py`](vm/monitor_vm.py) | A cada minuto: sessão, DuckDNS, status/chat (reaproveita o [monitor_minecraft](../monitor_minecraft/monitor_minecraft.py)) e a trava de 15 min. `--backup`: mundo → Cloud Storage |
+| VM | [`vm/monitor_vm.py`](vm/monitor_vm.py) | A cada minuto: sessão, DuckDNS, status/chat (reaproveita o [monitor_minecraft](../monitor/monitor_minecraft.py)) e a trava de 15 min. `--backup`: mundo → Cloud Storage |
 | VM | [`vm/extras_vm.py`](vm/extras_vm.py) | Extras do hub: TPS/tick (`neoforge tps`), CPU/RAM (`/proc`), hora/dia (`time query`), chuva (`level.dat`, leitor NBT próprio) e ranking (`world/stats` + `world/advancements`) |
-| Banco | [`20261019230000_minecraft_extras.sql`](../../supabase/migrations/20261019230000_minecraft_extras.sql) | Tipo `morte`, colunas de desempenho/mundo, `minecraft_desempenho` (7 dias) e `minecraft_jogadores` |
+| Banco | [`20261019230000_minecraft_extras.sql`](../../../supabase/migrations/20261019230000_minecraft_extras.sql) | Tipo `morte`, colunas de desempenho/mundo, `minecraft_desempenho` (7 dias) e `minecraft_jogadores` |
 | VM | [`vm/monitor-minecraft.timer`](vm/monitor-minecraft.timer) | Roda o monitor 30 s após o boot e depois a cada minuto |
 | VM | [`vm/instalar_monitor.sh`](vm/instalar_monitor.sh) | Instala/atualiza monitor e serviços |
 | PC | [`publicar_vm.ps1`](publicar_vm.ps1) | Empacota, envia e instala na VM (precisa dela ligada) |
-| PC | [`baixar_backup.ps1`](baixar_backup.ps1) | Baixa o backup mais recente do Cloud Storage para `minecraft-server/backups_nuvem` e confere se abre. Cópia fora do Google: se a conta de faturamento tiver problema, os backups do balde vão junto |
+| PC | [`baixar_backup.ps1`](baixar_backup.ps1) | Baixa o backup mais recente do Cloud Storage para `apps/minecraft/local/backups_nuvem` e confere se abre. Cópia fora do Google: se a conta de faturamento tiver problema, os backups do balde vão junto |
 | PC | [`console.bat`](console.bat) | Abre o console do servidor (tmux) pelo túnel do Google |
-| Banco | [`20261019220000_minecraft_nuvem.sql`](../../supabase/migrations/20261019220000_minecraft_nuvem.sql) | `minecraft_sessoes`, `minecraft_backups` e colunas novas em `minecraft_status` |
+| Banco | [`20261019220000_minecraft_nuvem.sql`](../../../supabase/migrations/20261019220000_minecraft_nuvem.sql) | `minecraft_sessoes`, `minecraft_backups` e colunas novas em `minecraft_status` |
 
 ## Recursos no Google (projeto `serverminecasaonly`)
 
@@ -65,7 +65,7 @@ contagem. Desliga quando:
 - alguém pediu para desligar pela fila `minecraft_comandos` (hub dos robôs).
 
 **Jogador AFK** não segura a VM ligada: o
-[`afk_kick.js`](../monitor_minecraft/kubejs/afk_kick.js) (KubeJS) kicka quem
+[`afk_kick.js`](../monitor/kubejs/afk_kick.js) (KubeJS) kicka quem
 fica **10 min sem mexer a câmera, falar ou mexer em blocos** (aviso no chat aos
 8). Andar não conta, por causa de AFK em água corrente ou carrinho. Depois do
 kick, se não sobrar ninguém, vale a trava de 5 min. Lista `EXCECOES` no topo
@@ -95,7 +95,7 @@ backup) → fecha a sessão com o motivo → status "desligada" → `shutdown`.
   consistente. Fica no Cloud Storage, fora da VM: se o disco morrer, o mundo
   não morre junto.
 - **Custo estimado pelas sessões** (`minecraft_sessoes` × preço/hora + disco),
-  porque o faturamento do Google atrasa horas. Preços em `hub_minecraft/api/estado.js`.
+  porque o faturamento do Google atrasa horas. Preços em `apps/minecraft/hub/api/estado.js`.
 - **HTTP na mão no `monitor_vm.py`** só para o que a `lib_dscs` não cobre e só
   existe na VM: metadata do Google, upload binário no Cloud Storage e DuckDNS.
 - **Não é carga:** não entra em `controle_cargas` (mesmo motivo do monitor do PC).
@@ -109,7 +109,7 @@ backup) → fecha a sessão com o motivo → status "desligada" → `shutdown`.
 | Vercel `server-galera` | `SUPABASE_URL`, `SUPABASE_SERVICE_KEY`, `GCP_SA_KEY` |
 
 Atualizar o monitor depois de mexer no código:
-`powershell -File automacoes\minecraft_gcp\publicar_vm.ps1` (com a VM ligada).
+`powershell -File apps\minecraft\gcp\publicar_vm.ps1` (com a VM ligada).
 
 ## Estado em 19/10/2026
 
@@ -190,7 +190,7 @@ Diferenças do Create:
 
 No banco, toda tabela `minecraft_*` tem a coluna `servidor` (`create` ou
 `pixelmon`), da migration
-[`20261028211500_minecraft_dois_servidores.sql`](../../supabase/migrations/20261028211500_minecraft_dois_servidores.sql)
+[`20261028211500_minecraft_dois_servidores.sql`](../../../supabase/migrations/20261028211500_minecraft_dois_servidores.sql)
 (aplicada pelo SQL Editor em 28/10: o MCP do Supabase recusava).
 `minecraft_status.id` ficou sem uso (a chave é `servidor`).
 

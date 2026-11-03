@@ -95,7 +95,7 @@ depois de apertar Ligar.
 
 ## Parte 2: administrar pelo Google Cloud (Diego)
 
-Console do Pixelmon pelo PC: `automacoes\minecraft_gcp\console_pixelmon.bat`
+Console do Pixelmon pelo PC: `apps\minecraft\gcp\console_pixelmon.bat`
 (pelo site: linha **`pixelmon`** em Instâncias de VM → SSH, mesmos comandos).
 A whitelist dele já tem os seis nicks; nick novo precisa do UUID offline
 (mesma armadilha do Create).
@@ -119,7 +119,7 @@ https://console.cloud.google.com (conta `ds023203@gmail.com`).
 
 ### Abrir o console do servidor (como a janela do start.bat)
 
-**Pelo PC:** dois cliques em `automacoes\minecraft_gcp\console.bat`.
+**Pelo PC:** dois cliques em `apps\minecraft\gcp\console.bat`.
 
 **Pelo site (de qualquer computador):**
 1. Instâncias de VM → linha `minecraft` → botão **SSH**. Abre um terminal
@@ -174,6 +174,8 @@ https://console.cloud.google.com (conta `ds023203@gmail.com`).
 ### Voltar para o PC de casa (se um dia precisar)
 
 1. Baixe o mundo da VM (peça ao Claude, ou copie `/opt/minecraft/server/world`).
-2. Coloque em `automacoes\minecraft-server\server\world`.
+2. Reinstale o servidor em `apps\minecraft\local\server` (o do PC foi apagado
+   em 02/11/2026: pacote "Create Chronicles The Endventure 2.0.0 SERVER" do
+   CurseForge) e coloque o mundo em `server\world`.
 3. Reative as tarefas no Agendador do Windows: "Monitor Minecraft (hub)" e
    "Minecraft Server (hub)".

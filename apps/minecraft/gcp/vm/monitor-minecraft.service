@@ -9,5 +9,5 @@ Wants=network-online.target
 
 [Service]
 Type=oneshot
-ExecStart=/usr/bin/python3 /opt/monitor/automacoes/minecraft_gcp/vm/monitor_vm.py
+ExecStart=/usr/bin/python3 /opt/monitor/apps/minecraft/gcp/vm/monitor_vm.py
 TimeoutStartSec=400

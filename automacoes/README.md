@@ -21,7 +21,7 @@ O token fica no Vault (`github_dispatch_token`).
 ## Conferir se rodou
 
 - **Hub** no celular: status, calendário de 14 dias e botão *Rodar agora*
-  ([hub/README.md](../hub/README.md)).
+  ([apps/hub/README.md](../apps/hub/README.md)).
 - **Vigia**: todo dia lê a `vw_saude_robos`, deixa notificação no hub e deixa o
   run vermelho (e-mail do GitHub) se algum robô estiver com `ERRO`, `ATRASADO`,
   `TRAVADO` ou `NUNCA_RODOU`. No PC:

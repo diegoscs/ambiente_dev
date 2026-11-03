@@ -30,7 +30,7 @@ $py = "C:\Users\ferna\AppData\Local\Python\bin\python.exe"
 & $py automacoes\NNN_robo\NNN_robo.py --dry-run
 $env:MODO_EXECUCAO = "CLOUD"; & $py automacoes\NNN_robo\NNN_robo.py
 & $py automacoes\vigia_robos.py        # saude de todos os robos
-cd hub; vercel deploy --prod           # hub (ainda sem deploy automatico)
+cd apps\hub; vercel deploy --prod      # hub (ainda sem deploy automatico)
 ```
 
 ## Cuidados
@@ -43,5 +43,8 @@ cd hub; vercel deploy --prod           # hub (ainda sem deploy automatico)
 - No VS Code (`.vscode/settings.json`, fora do repositório), commit já faz
   sync (pull com rebase + push) e o autofetch traz edições feitas no GitHub.
 - O `.env` nunca vai para o repositório (confira com `git ls-files`).
-- Mudou `hub/`? O deploy na Vercel é manual até o repositório ser conectado lá.
+- Mudou `apps/hub/` ou `apps/minecraft/hub/`? O deploy na Vercel é manual até
+  o repositório ser conectado lá.
+- Mudou `apps/minecraft/monitor/` ou `apps/minecraft/gcp/vm/`? Só chega na VM
+  com o `publicar_vm.ps1` (VM ligada).
 - Supabase do projeto: `mthipdxpedlfnkzddlar` (financas-pipeline, sa-east-1).

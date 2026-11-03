@@ -1,11 +1,11 @@
 # Baixa para o PC o backup mais recente do mundo (Cloud Storage -> pasta local).
-#   powershell -File automacoes\minecraft_gcp\baixar_backup.ps1
+#   powershell -File apps\minecraft\gcp\baixar_backup.ps1
 # Por que: os backups da VM ficam no mesmo projeto/conta de faturamento do
 # servidor. Se a conta tiver problema (suspensao, fim do teste), eles vao
 # junto. Uma copia no PC fica fora do Google. Guarda as 5 mais recentes.
 $gcloud  = "$env:LOCALAPPDATA\Google\Cloud SDK\google-cloud-sdk\bin\gcloud.cmd"
 $balde   = "gs://serverminecasaonly-backups"
-$destino = (Resolve-Path (Join-Path $PSScriptRoot "..\minecraft-server")).Path + "\backups_nuvem"
+$destino = (Resolve-Path (Join-Path $PSScriptRoot "..\local")).Path + "\backups_nuvem"
 $manter  = 5
 
 New-Item -ItemType Directory -Force $destino | Out-Null
