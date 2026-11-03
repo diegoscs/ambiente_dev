@@ -1,0 +1,14 @@
+# Quebra de linha: LF no repositorio e no PC. Sem isto, o core.autocrlf do
+# Git para Windows converte cada arquivo para CRLF e avisa "LF will be
+# replaced by CRLF" a cada commit. O cmd.exe precisa de CRLF nos .bat.
+* text=auto eol=lf
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# Binarios: sem conversao de quebra de linha nem diff de texto
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.ico binary
+*.zip binary
+*.gz binary
