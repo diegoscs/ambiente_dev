@@ -6,11 +6,17 @@ const dns = require("dns").promises;
 const { supa, vm, SERVIDORES, servidorDe } = require("./_comum");
 
 // ─── custo estimado ───
-// US$/hora com a VM ligada. Fonte: tabelas publicas de precos do GCP para
-// southamerica-east1 (out/2026). O valor oficial e o do relatorio de
-// faturamento do Google; isto e para acompanhar no celular.
-const PRECO_HORA_USD = { "n2d-standard-4": 0.268, "n2d-standard-2": 0.134, "e2-standard-2": 0.1064, "e2-standard-4": 0.2128 };
-const PRECO_HORA_SPOT_USD = { "n2d-standard-4": 0.053, "n2d-standard-2": 0.0265, "e2-standard-2": 0.0222, "e2-standard-4": 0.0444 };
+// US$/hora com a VM ligada. Fonte: catalogo de SKUs do Cloud Billing para
+// southamerica-east1 (core + RAM, 02/11/2026). O valor oficial e o do relatorio
+// de faturamento do Google; isto e para acompanhar no celular.
+const PRECO_HORA_USD = {
+  "t2d-standard-4": 0.2683, "c2d-standard-4": 0.2884, "n2d-standard-4": 0.2683, "n2d-standard-2": 0.1341,
+  "e2-standard-4": 0.2127, "e2-standard-2": 0.1064,
+};
+const PRECO_HORA_SPOT_USD = {
+  "t2d-standard-4": 0.0929, "c2d-standard-4": 0.0437, "n2d-standard-4": 0.0797, "n2d-standard-2": 0.0399,
+  "e2-standard-4": 0.0421, "e2-standard-2": 0.0210,
+};
 const IP_HORA_USD = 0.005;              // IP externo, so com a VM ligada
 const DISCO_GB_DIA_USD = 0.15 / 30;     // SSD balanceado por GB, cobra sempre (ligada ou nao)
 // Cambio da propria conta: o Google converteu os US$ 300 do teste em R$ 1.779

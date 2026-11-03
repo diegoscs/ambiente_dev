@@ -43,7 +43,7 @@ flowchart LR
 
 | Recurso | Configuração |
 |---|---|
-| VM `minecraft` | `southamerica-east1-b`, **n2d-standard-4** (4 vCPU, 16 GB), Ubuntu 24.04, disco SSD 30 GB. Trava contra exclusão; o disco não é apagado junto com a VM |
+| VM `minecraft` | `southamerica-east1-b`, **t2d-standard-4** (4 vCPU, 16 GB; n2d-standard-4 até 02/11/2026), Ubuntu 24.04, disco SSD 30 GB. Trava contra exclusão; o disco não é apagado junto com a VM |
 | Firewall | `minecraft-jogo`: só TCP 25565. SSH (22) só pela faixa do IAP (`35.235.240.0/20`). RDP removido |
 | Balde `serverminecasaonly-backups` | São Paulo, acesso público bloqueado, apaga objetos com mais de 30 dias |
 | Conta `minecraft-vm` | Identidade da VM. Só `storage.objectCreator` no balde |
