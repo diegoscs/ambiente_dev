@@ -1,5 +1,13 @@
 # 004 — Clima nas praias (Ubatuba)
 
+> **Aposentado em 03/11/2026.** O app público saiu da Vercel e o robô saiu do
+> ar pela migration
+> [20261103023000_aposenta_robo_004](../../supabase/migrations/20261103023000_aposenta_robo_004.sql):
+> sem disparo no `pg_cron`, `flg_ativo = false` (fora do hub e do vigia) e sem
+> leitura pública do `painel_praias`. O workflow está desativado no GitHub.
+> Histórico e tabelas continuam no banco. O texto abaixo descreve o robô como
+> funcionava.
+
 Ranqueia 15 praias de Ubatuba por **chance de sol**, dia a dia, de amanhã até a
 próxima terça-feira. Mostra o ranking no terminal (`rich`), gera um
 `saida/ranking.html` que abre no celular e grava tudo em
@@ -119,3 +127,8 @@ RLS ligada, escrita revogada de `anon`/`authenticated`, leitura para o leitor do
 - Migrations aplicadas e salvas no repositório; job `robo_004_clima_praias` no `pg_cron`.
 - App publicado em https://praias-ubatuba.vercel.app, conferido no navegador
   (dados do Supabase, mapa e CSP ok); leitura anônima de outras tabelas segue bloqueada.
+
+## Estado (03/11/2026)
+
+- Aposentado: projeto `praias-ubatuba` excluído da Vercel, workflow desativado
+  no GitHub e migration de aposentadoria no repositório.

@@ -33,12 +33,15 @@ robô falhou, mas também se ele **deixou de rodar**.
 
 | Robô | O que faz | Quando roda (São Paulo) |
 |---|---|---|
-| [**004 · Clima Praias**](automacoes/004_clima_praias/README.md) | ranking das praias de Ubatuba por chance de sol (Open-Meteo), de amanhã até a próxima terça, com gráficos hora a hora e mapa de chuva no [app público](https://praias-ubatuba.vercel.app) | 05:00 |
 | [**003 · Sync Open Finance**](.github/workflows/robo_003_sync_openfinance.yml) | sync do [financas-app](https://github.com/diegoscs/financas-app) (Pluggy → Supabase OpenFinance), registrado no hub | 06:00 e 15:00 |
 | [**001 · Check GitHub**](automacoes/001_check_github/README.md) | registro diário num repositório próprio pela Contents API, com trava de uma execução por dia | 07:00 |
 | [**002 · Check Supabase**](automacoes/002_check_supabase/README.md) | keepalive do projeto Supabase: consulta real por Postgres e por REST, para o plano free não pausar | 08:00 |
 | [**Vigia**](automacoes/vigia_robos.py) | lê a saúde de todos os robôs, deixa uma notificação no hub e falha o run se algum estiver atrasado ou com erro | 09:00 (+ reserva à tarde) |
 | [**Minecraft na nuvem**](apps/minecraft/gcp/README.md) | servidor da galera numa VM do Google: status, chat, custo e backups no [hub do servidor](https://server-galera.vercel.app); desliga sozinho após 5 min vazio (não é carga) | a cada minuto, dentro da VM |
+
+O robô [004 · Clima Praias](automacoes/004_clima_praias/README.md) (ranking das
+praias de Ubatuba por chance de sol) foi aposentado em 03/11/2026, junto com o
+app público dele; o código fica no repositório.
 
 Os horários são em **hora cheia**, disparados pelo `pg_cron` do Supabase, que
 chama o `workflow_dispatch` de cada robô
@@ -129,7 +132,7 @@ checklist e a revisão de segurança, está em [docs/migracao_nuvem.md](docs/mig
 automacoes/
   001_check_github/    robô 001 e README
   002_check_supabase/  robô 002 e README
-  004_clima_praias/    robô 004: src/ (coleta, score, relatório) e data/ (praias)
+  004_clima_praias/    robô 004 (aposentado): src/ (coleta, score, relatório) e data/ (praias)
   _modelo/             esqueleto de robô, workflow e cadastro
   PADRAO_ROBOS.md      regras para robôs novos
   vigia_robos.py       vigia diário
