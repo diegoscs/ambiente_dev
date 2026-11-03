@@ -17,6 +17,11 @@ on:
   workflow_dispatch:
 
 # Duas execucoes simultaneas gravariam na mesma linha de controle.
+# Token do Actions so com leitura (checkout). Escrita fora daqui usa
+# secret proprio (GH_PAT, Supabase), nunca o GITHUB_TOKEN.
+permissions:
+  contents: read
+
 concurrency:
   group: robo-002
   cancel-in-progress: false

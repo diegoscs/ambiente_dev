@@ -141,7 +141,7 @@ apps/
   minecraft/           servidor na nuvem: hub/ (Vercel), gcp/ (VM), monitor/
 lib_dscs/              biblioteca compartilhada dos robôs
 supabase/migrations/   schema versionado
-docs/                  migração para a nuvem e revisão
+docs/                  migração para a nuvem e fluxo de git (GIT.md)
 ```
 
 `projetos/`, `clientes/` e `arquivo/` ficam fora deste repositório: cada

@@ -13,6 +13,11 @@ name: robo_003_sync_openfinance
 on:
   workflow_dispatch:
 
+# Token do Actions so com leitura (checkout). Escrita fora daqui usa
+# secret proprio (GH_PAT, Supabase), nunca o GITHUB_TOKEN.
+permissions:
+  contents: read
+
 concurrency:
   group: robo-003
   cancel-in-progress: false

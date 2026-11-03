@@ -35,6 +35,8 @@ cd apps\hub; vercel deploy --prod      # hub (ainda sem deploy automatico)
 
 ## Cuidados
 
+- Mudança vai por branch e PR com squash, nunca direto na `main`: fluxo,
+  nomes e versões em [docs/GIT.md](docs/GIT.md).
 - Workflows e arquivos podem ser editados direto no site do GitHub: comece
   sempre com `git pull` para não sobrescrever uma edição feita por lá.
 - Credencial do GitHub guardada no Git Credential Manager (conta `diegoscs`,

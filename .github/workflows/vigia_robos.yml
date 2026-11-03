@@ -20,6 +20,11 @@ on:
     - cron: "0 15 * * *"
   workflow_dispatch:
 
+# Token do Actions so com leitura (checkout). Escrita fora daqui usa
+# secret proprio (GH_PAT, Supabase), nunca o GITHUB_TOKEN.
+permissions:
+  contents: read
+
 jobs:
   vigiar:
     runs-on: ubuntu-latest
