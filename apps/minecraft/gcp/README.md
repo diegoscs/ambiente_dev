@@ -162,7 +162,7 @@ Atualizar o monitor depois de mexer no código:
 
 ## Servidor Pixelmon
 
-VM `pixelmon` (mesma zona, **e2-standard-4**: 4 vCPU, 16 GB, disco SSD 20 GB,
+VM `pixelmon` (mesma zona, **t2d-standard-4**: 4 vCPU, 16 GB, disco SSD 20 GB,
 trava contra exclusão, tag `minecraft` para a porta 25565). Mesma conta
 `minecraft-vm` e mesmo balde de backup (arquivos `pixelmon_world_*`). A conta
 `hub-minecraft` tem o papel `minecraftHub` também nesta VM.
@@ -225,3 +225,18 @@ No banco, toda tabela `minecraft_*` tem a coluna `servidor` (`create` ou
   (backup leva mais de 1 min) e regravava o motivo. Agora ele não roda com o
   sistema desligando. Publicado no Pixelmon; o Create recebe no próximo
   `publicar_vm.ps1` (VM desligada hoje).
+
+### Estado em 02/11/2026
+
+- Galera reclamou de travadas com 3 jogando. As amostras de 1 min mostravam
+  TPS 20 e ms/tick abaixo de 20, mas o log tinha 12 "Can't keep up" de 2 a 8 s
+  (21:29 a 23:43, horário de SP), todos quando Marllonx12 (Noivern) ou
+  Xxkadu03xX (Corviknight) voavam rápido para terreno novo (632 e 85 "moved
+  too quickly"), ou entravam longe do spawn. É a geração de terreno do
+  Terralith e do Tectonic; RAM e disco estavam folgados.
+- Trocado de e2-standard-4 para **t2d-standard-4** (a do Create: 1 vCPU = 1
+  núcleo inteiro, AMD EPYC 7B13), ~R$ 1,62/h. Desligado com aviso no chat e
+  backup (1 GB) às 23:51. Na volta, o Google tinha vaga. Se faltar t2d, voltar
+  para a e2-standard-4.
+- Se ainda travar ao voar, o próximo passo é pré-gerar o mapa com o Chunky em
+  volta do spawn e das bases (Marllon em x≈-4.600, Kadu em x≈1.500 z≈-3.600).
