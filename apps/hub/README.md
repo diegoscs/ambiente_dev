@@ -71,17 +71,14 @@ Migration: [`supabase/migrations/20260926123000_hub_leitura_autenticada.sql`](..
 
 ## Deploy
 
-Projeto `hub-robos` na Vercel (time `diegoscs-projects`), com esta pasta como
-raiz. Hoje o deploy é pela CLI:
+Projeto `hub-robos` na Vercel (time `diegoscs-projects`), conectado ao repo
+`diegoscs/ambiente_dev` desde 13/11/2026, com *Root Directory* = `apps/hub` e
+"Skip deployments" ligado (só publica quando algo nesta pasta muda).
 
-```powershell
-cd D:\ambiente_dev\hub
-vercel deploy --prod
-```
-
-Para deploy automático a cada push: na Vercel, **Settings → Git**, conectar
-`diegoscs/ambiente_dev` e em **Settings → Build and Deployment** definir
-*Root Directory* = `apps/hub`.
+- Merge na `main` publica em produção; PR ganha uma prévia (protegida por
+  login da Vercel).
+- `vercel deploy` de dentro desta pasta não funciona mais (a Vercel procuraria
+  `apps/hub` dentro dela). Republicar à mão: **Deployments → ⋯ → Redeploy**.
 
 ## Arquivos
 

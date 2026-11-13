@@ -86,7 +86,7 @@ Supabase foi pausado em 21/09 mesmo com o robô 002 "funcionando".
 - [x] Primeiro login do dono, que fica cadastrado como único leitor (autocadastro removido em seguida)
 - [x] Trocar a senha provisória pelo botão *Senha* do hub
 - [x] `GH_DISPATCH_TOKEN` (fine-grained, Actions: Read and write) na Vercel. Testado em 26/09 pelo celular: [001](https://github.com/diegoscs/ambiente_dev/actions/runs/36250050865) e [002](https://github.com/diegoscs/ambiente_dev/actions/runs/36250059803) disparados pelo hub, os dois verdes
-- [x] Deploy automático: conectar o repositório na Vercel com Root Directory `hub`
+- [x] Deploy automático: conectar o repositório na Vercel com Root Directory `hub` (feito de fato em 13/11/2026, já como `apps/hub`)
 
 ## Revisão de 26/09/2026
 

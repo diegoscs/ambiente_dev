@@ -72,10 +72,14 @@ tabelas públicas do GCP para São Paulo, out/2026).
 
 ## Deploy
 
-```powershell
-cd D:\ambiente_dev\apps\minecraft\hub
-vercel deploy --prod
-```
+Projeto `server-galera` na Vercel, conectado ao repo `diegoscs/ambiente_dev`
+desde 13/11/2026, com *Root Directory* = `apps/minecraft/hub` e "Skip
+deployments" ligado (só publica quando algo nesta pasta muda).
+
+- Merge na `main` publica em produção; PR ganha uma prévia (protegida por
+  login da Vercel).
+- `vercel deploy` de dentro desta pasta não funciona mais. Republicar à mão:
+  **Deployments → ⋯ → Redeploy**.
 
 Detalhes da VM, do monitor e da trava de 15 min:
 [apps/minecraft/gcp](../gcp/README.md).
