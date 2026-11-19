@@ -57,11 +57,15 @@ cmd_permissoes() {
   gcloud storage ls "$BALDE" > /dev/null
   local precisa=(compute.instances.get compute.instances.stop
                  resourcemanager.projects.get resourcemanager.projects.deleteBillingAssignment)
+  # Precisa da API cloudresourcemanager ativada no projeto (ativada em 18/11/2026).
   local corpo tem faltam=()
   corpo=$(printf '"%s",' "${precisa[@]}")
-  tem=$(curl -sf -X POST -H "Authorization: Bearer $(gcloud auth print-access-token)" \
+  if ! tem=$(curl -sS --fail-with-body -X POST -H "Authorization: Bearer $(gcloud auth print-access-token)" \
         -H "Content-Type: application/json" -d "{\"permissions\":[${corpo%,}]}" \
-        "https://cloudresourcemanager.googleapis.com/v1/projects/$PROJETO:testIamPermissions")
+        "https://cloudresourcemanager.googleapis.com/v1/projects/$PROJETO:testIamPermissions"); then
+    echo "::error::testIamPermissions falhou: $tem"
+    exit 1
+  fi
   for p in "${precisa[@]}"; do grep -q "\"$p\"" <<<"$tem" || faltam+=("$p"); done
   if (( ${#faltam[@]} )); then
     echo "::error::A conta minecraft-encerrar nao tem: ${faltam[*]}"
