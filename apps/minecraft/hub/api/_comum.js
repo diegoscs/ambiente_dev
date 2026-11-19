@@ -17,6 +17,12 @@ const SERVIDORES = {
   pixelmon: { vm: "pixelmon", dominio: null, disco_gb: 20, desde: "2026-10-28T18:00:00-03:00" },
 };
 const servidorDe = (valor) => (Object.hasOwn(SERVIDORES, valor) ? valor : "create");
+// Fim dos creditos do teste do Google (18/01/2027): desde a meia-noite do dia
+// 17 o hub nao liga mais, e as 06:00 o workflow minecraft_fim_creditos.yml
+// desliga as VMs e corta o faturamento (apps/minecraft/gcp/README.md).
+const ENCERRADO_EM = Date.parse("2027-01-17T00:00:00-03:00");
+const encerrado = (agora = Date.now()) => agora >= ENCERRADO_EM;
+const MSG_ENCERRADO = "Servidor encerrado: os créditos do Google acabaram em janeiro de 2027. Os mundos estão guardados em backup.";
 const instancia = (servidor) =>
   `https://compute.googleapis.com/compute/v1/projects/${PROJETO}/zones/${ZONA}/instances/${SERVIDORES[servidor].vm}`;
 
@@ -65,4 +71,4 @@ async function vm(servidor, metodo = "GET", sufixo = "") {
   return j;
 }
 
-module.exports = { supa, vm, SERVIDORES, servidorDe };
+module.exports = { supa, vm, SERVIDORES, servidorDe, encerrado, MSG_ENCERRADO };

@@ -3,7 +3,7 @@
 // pixelmon. Publico (sem login), por isso fica em cache na Vercel por 15 s
 // (por URL): atualizar a pagina sem parar nao chega ao Supabase nem ao Google.
 const dns = require("dns").promises;
-const { supa, vm, SERVIDORES, servidorDe } = require("./_comum");
+const { supa, vm, SERVIDORES, servidorDe, encerrado, MSG_ENCERRADO } = require("./_comum");
 
 // ─── custo estimado ───
 // US$/hora com a VM ligada. Fonte: catalogo de SKUs do Cloud Billing para
@@ -128,6 +128,8 @@ module.exports = async (req, res) => {
   res.status(200).json({
     agora: new Date(agora).toISOString(),
     servidor_escolhido: servidor,
+    // Fim dos creditos: a pagina esconde o botao Ligar e mostra o aviso.
+    encerrado: encerrado(agora) ? MSG_ENCERRADO : null,
     // Resumo de cada servidor para as abas (so a linha do monitor, sem a VM).
     servidores: Object.keys(SERVIDORES).map((s) => {
       const l = linhas.find((x) => x.servidor === s);

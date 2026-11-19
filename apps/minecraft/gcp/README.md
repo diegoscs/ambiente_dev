@@ -35,7 +35,7 @@ flowchart LR
 | VM | [`vm/monitor-minecraft.timer`](vm/monitor-minecraft.timer) | Roda o monitor 30 s após o boot e depois a cada minuto |
 | VM | [`vm/instalar_monitor.sh`](vm/instalar_monitor.sh) | Instala/atualiza monitor e serviços |
 | PC | [`publicar_vm.ps1`](publicar_vm.ps1) | Empacota, envia e instala na VM (precisa dela ligada) |
-| PC | [`baixar_backup.ps1`](baixar_backup.ps1) | Baixa o backup mais recente do Cloud Storage para `apps/minecraft/local/backups_nuvem` e confere se abre. Cópia fora do Google: se a conta de faturamento tiver problema, os backups do balde vão junto |
+| PC | [`baixar_backup.ps1`](baixar_backup.ps1) | Baixa o backup mais recente de cada mundo (Create e Pixelmon) do Cloud Storage para `apps/minecraft/local/backups_nuvem` e confere se abre. Cópia fora do Google: se a conta de faturamento tiver problema, os backups do balde vão junto |
 | PC | [`console.bat`](console.bat) | Abre o console do servidor (tmux) pelo túnel do Google |
 | Banco | [`20261019220000_minecraft_nuvem.sql`](../../../supabase/migrations/20261019220000_minecraft_nuvem.sql) | `minecraft_sessoes`, `minecraft_backups` e colunas novas em `minecraft_status` |
 
@@ -49,6 +49,49 @@ flowchart LR
 | Conta `minecraft-vm` | Identidade da VM. Só `storage.objectCreator` no balde |
 | Conta `hub-minecraft` + papel `minecraftHub` | Só `compute.instances.get` e `.start`, e só na VM `minecraft`. A chave fica na Vercel (`GCP_SA_KEY`) |
 | Orçamento | Alerta por e-mail em R$ 550/mês, sem descontar os créditos |
+
+## Fim dos créditos (18/01/2027): encerramento automático
+
+Os créditos do teste (US$ 300) acabam em 18/01/2027. Decisão de 18/11/2026:
+**encerrar sem passar para a conta paga** e sem chance de cobrança no cartão.
+No teste, o Google não cobra sem "ativar a conta completa"; mesmo assim, o
+projeto é desvinculado do faturamento um dia antes, para não depender disso.
+
+| Quando (SP) | O quê |
+|---|---|
+| 15/01 06:00 | Workflow em modo `backup`: copia o backup mais recente de cada mundo para um release do GitHub e confere as permissões do dia 17. Falhou = e-mail do GitHub, com 2 dias para corrigir |
+| 17/01 00:00 | O hub para de ligar (`ENCERRADO_EM` em [`../hub/api/_comum.js`](../hub/api/_comum.js)) e mostra o aviso no lugar do botão |
+| 17/01 06:00 | Modo `encerrar`: desliga as VMs (salvam e fazem backup ao parar), copia esse backup final e **desvincula o faturamento** do projeto |
+| 17/01 12:00 | Repescagem: se o faturamento já foi cortado, não faz nada |
+
+| Peça | Arquivo |
+|---|---|
+| Workflow | [`minecraft_fim_creditos.yml`](../../../.github/workflows/minecraft_fim_creditos.yml) (só `workflow_dispatch`; entrada `modo`: auto, backup, encerrar) |
+| Passos | [`fim_creditos.sh`](fim_creditos.sh): `modo`, `permissoes`, `desligar`, `backup`, `faturamento` |
+| Disparo | [`20261118190000_minecraft_fim_creditos.sql`](../../../supabase/migrations/20261118190000_minecraft_fim_creditos.sql): três jobs do pg_cron, com guarda de data (não voltam em 2028) |
+| Conta Google | `minecraft-encerrar` + papel `minecraftEncerrar` (consultar/desligar VMs, `deleteBillingAssignment`) + `storage.objectViewer` só no balde. Chave no secret `MINECRAFT_GCP_KEY` |
+| Senha do backup | Secret `MINECRAFT_BACKUP_SENHA` e a mesma linha no `.env` da raiz. **Guardar também fora do PC**: sem ela o backup não abre |
+| Abrir o backup | [`baixar_backup_github.ps1`](baixar_backup_github.ps1): baixa o release mais recente, junta partes, descriptografa (gpg do Git) e confere |
+
+Decisões:
+
+- **Backup criptografado num release deste repositório.** Precisava sair do
+  Google (o balde some junto com o projeto) sem depender do PC ligado. O
+  repositório é público e o backup leva `config/loginsystem` e
+  `passwords.txt`, então vai com AES-256 (gpg). Release não expira (artifact
+  expira em 90 dias); arquivo acima de 1,9 GB vai em partes (limite de 2 GB).
+- **Corta o faturamento mesmo se o backup falhar** (`!cancelled()`): não
+  ser cobrado vem primeiro. Os arquivos continuam no balde, parados, até o
+  Google apagar; o ensaio do dia 15 existe para isso não acontecer.
+- **Desvincular, não apagar.** Discos, balde e VMs ficam como estão. Para
+  voltar (a galera decidir pagar): console → Faturamento → Gerenciar projetos
+  → vincular a conta, já com a conta completa ativada, e liberar a data em
+  `_comum.js`.
+- **Disparo pelo pg_cron** como os robôs: o `schedule` do GitHub atrasa horas
+  e é desligado em repositório sem commit há 60 dias.
+- **Shell com `gcloud`, não robô Python.** Tarefa única, fora de
+  `controle_cargas` (o vigia acusaria atraso todo dia); o `gcloud` já cuida
+  da autenticação e de esperar as operações.
 
 ## A trava de inatividade (5 min, ou 15 logo depois de ligar)
 

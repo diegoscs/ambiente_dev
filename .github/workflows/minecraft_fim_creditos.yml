@@ -1,0 +1,68 @@
+# =============================================
+# Minecraft: fim dos creditos do teste do Google (acabam em 18/01/2027).
+#   15/01 06:00 SP  backup:   copia os backups para fora do Google e confere permissoes
+#   17/01 06:00 SP  encerrar: desliga as VMs, copia o backup final, corta o faturamento
+#   17/01 12:00 SP  repescagem (se ja cortou, nao faz nada)
+# Disparado pelo pg_cron do Supabase (migration 20261118190000_minecraft_fim_creditos).
+# Nada de schedule aqui: o do GitHub atrasa 2 a 7 h e para em repo sem commit
+# ha 60 dias. Detalhes em apps/minecraft/gcp/README.md.
+# =============================================
+name: minecraft_fim_creditos
+
+on:
+  workflow_dispatch:
+    inputs:
+      modo:
+        description: "auto = pela data (antes de 17/01 so backup); backup = so copia; encerrar = desliga, copia e corta o faturamento"
+        type: choice
+        options: [auto, backup, encerrar]
+        default: auto
+
+# contents: write so para o release com o backup criptografado neste repo.
+permissions:
+  contents: write
+
+concurrency:
+  group: minecraft-fim-creditos
+  cancel-in-progress: false
+
+jobs:
+  executar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      MODO: ${{ inputs.modo || 'auto' }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.MINECRAFT_GCP_KEY }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Decidir o modo
+        id: modo
+        run: bash apps/minecraft/gcp/fim_creditos.sh modo
+
+      - name: Conferir permissoes da conta de servico
+        if: steps.modo.outputs.ja_cortado != 'true'
+        run: bash apps/minecraft/gcp/fim_creditos.sh permissoes
+
+      - name: Desligar as VMs
+        if: steps.modo.outputs.modo == 'encerrar' && steps.modo.outputs.ja_cortado != 'true'
+        run: bash apps/minecraft/gcp/fim_creditos.sh desligar
+
+      - name: Copiar os backups para fora do Google
+        if: steps.modo.outputs.ja_cortado != 'true'
+        run: bash apps/minecraft/gcp/fim_creditos.sh backup
+        env:
+          BACKUP_SENHA: ${{ secrets.MINECRAFT_BACKUP_SENHA }}
+          GH_TOKEN: ${{ github.token }}
+
+      # Corta mesmo se o backup ou o desligar falharem: nao ser cobrado vem
+      # primeiro (os backups seguem no balde por um tempo; ver o README).
+      - name: Desvincular o faturamento
+        if: ${{ !cancelled() && steps.modo.outputs.modo == 'encerrar' && steps.modo.outputs.ja_cortado != 'true' }}
+        run: bash apps/minecraft/gcp/fim_creditos.sh faturamento
