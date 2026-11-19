@@ -470,6 +470,12 @@ code{font:13px var(--mono); background:var(--soft); padding:1px 6px; border-radi
     msg.textContent = textos[estado] || "";
 
     $("ligar").hidden = estado !== "DORMINDO";
+    // Fim dos creditos do Google (17/01/2027): sem botao, so o aviso.
+    if (d.encerrado) {
+      msg.hidden = false;
+      msg.textContent = d.encerrado;
+      $("ligar").hidden = true;
+    }
     return estado;
   }
 

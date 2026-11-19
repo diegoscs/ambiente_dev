@@ -5,7 +5,7 @@
 //   - cada servidor (create ou pixelmon, no corpo) tem os proprios limites
 // E mesmo que alguem fique apertando: a VM se desliga sozinha se ninguem
 // entrar em 15 min (e 5 min depois que o ultimo sair) - monitor_vm.py.
-const { supa, vm, servidorDe } = require("./_comum");
+const { supa, vm, servidorDe, encerrado, MSG_ENCERRADO } = require("./_comum");
 
 const INTERVALO_MIN_MS = 2 * 60000;
 const MAX_POR_DIA = 8;
@@ -18,6 +18,7 @@ module.exports = async (req, res) => {
     res.setHeader("Allow", "POST");
     return res.status(405).json({ erro: "use POST" });
   }
+  if (encerrado()) return res.status(410).json({ erro: MSG_ENCERRADO });
   let corpo = req.body;
   if (typeof corpo === "string") { try { corpo = JSON.parse(corpo); } catch { corpo = {}; } }
   const nome = GALERA.find((n) => n === String((corpo && corpo.nome) || ""));
