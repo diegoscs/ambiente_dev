@@ -4,7 +4,7 @@
 # Por que: os backups da VM ficam no mesmo projeto/conta de faturamento do
 # servidor. Se a conta tiver problema (suspensao, fim do teste), eles vao
 # junto. Uma copia no PC fica fora do Google. Guarda as 5 mais recentes de cada.
-# Depois do fim dos creditos (17/01/2027) o balde fica sem acesso: use o
+# Depois do encerramento (16/01/2027) o balde fica sem acesso: use o
 # baixar_backup_github.ps1.
 $gcloud   = "$env:LOCALAPPDATA\Google\Cloud SDK\google-cloud-sdk\bin\gcloud.cmd"
 $balde    = "gs://serverminecasaonly-backups"

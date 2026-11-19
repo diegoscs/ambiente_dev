@@ -1,8 +1,8 @@
 # =============================================
 # Minecraft: fim dos creditos do teste do Google (acabam em 18/01/2027).
-#   15/01 06:00 SP  backup:   copia os backups para fora do Google e confere permissoes
-#   17/01 06:00 SP  encerrar: desliga as VMs, copia o backup final, corta o faturamento
-#   17/01 12:00 SP  repescagem (se ja cortou, nao faz nada)
+#   14/01 06:00 SP  backup:   copia os backups para fora do Google e confere permissoes
+#   16/01 06:00 SP  encerrar: desliga as VMs, copia o backup final, corta o faturamento
+#   16/01 12:00 SP  repescagem (se ja cortou, nao faz nada)
 # Disparado pelo pg_cron do Supabase (migration 20261118190000_minecraft_fim_creditos).
 # Nada de schedule aqui: o do GitHub atrasa 2 a 7 h e para em repo sem commit
 # ha 60 dias. Detalhes em apps/minecraft/gcp/README.md.
@@ -13,7 +13,7 @@ on:
   workflow_dispatch:
     inputs:
       modo:
-        description: "auto = pela data (antes de 17/01 so backup); backup = so copia; encerrar = desliga, copia e corta o faturamento"
+        description: "auto = pela data (antes de 16/01 so backup); backup = so copia; encerrar = desliga, copia e corta o faturamento"
         type: choice
         options: [auto, backup, encerrar]
         default: auto

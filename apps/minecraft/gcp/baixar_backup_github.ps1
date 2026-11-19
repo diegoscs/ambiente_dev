@@ -2,7 +2,7 @@
 # guardou num release do GitHub (fora do Google). Serve depois do fim dos
 # creditos, quando o Cloud Storage fica sem acesso.
 #   powershell -File apps\minecraft\gcp\baixar_backup_github.ps1
-#   powershell -File apps\minecraft\gcp\baixar_backup_github.ps1 -Tag backup-minecraft-2027-01-17
+#   powershell -File apps\minecraft\gcp\baixar_backup_github.ps1 -Tag backup-minecraft-2027-01-16
 # Os arquivos estao criptografados (o repositorio e publico e o backup leva as
 # senhas do Login System). A senha e MINECRAFT_BACKUP_SENHA no .env da raiz.
 param([string]$Tag)
