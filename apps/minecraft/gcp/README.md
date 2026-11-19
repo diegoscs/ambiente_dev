@@ -69,7 +69,7 @@ projeto é desvinculado do faturamento um dia antes, para não depender disso.
 | Workflow | [`minecraft_fim_creditos.yml`](../../../.github/workflows/minecraft_fim_creditos.yml) (só `workflow_dispatch`; entrada `modo`: auto, backup, encerrar) |
 | Passos | [`fim_creditos.sh`](fim_creditos.sh): `modo`, `permissoes`, `desligar`, `backup`, `faturamento` |
 | Disparo | [`20261118190000_minecraft_fim_creditos.sql`](../../../supabase/migrations/20261118190000_minecraft_fim_creditos.sql): três jobs do pg_cron, com guarda de data (não voltam em 2028) |
-| Conta Google | `minecraft-encerrar` + papel `minecraftEncerrar` (consultar/desligar VMs, `deleteBillingAssignment`) + `storage.objectViewer` só no balde. Chave no secret `MINECRAFT_GCP_KEY` |
+| Conta Google | `minecraft-encerrar` + papel `minecraftEncerrar` (consultar/desligar VMs, `deleteBillingAssignment`) + `storage.objectViewer` só no balde. Chave no secret `MINECRAFT_GCP_KEY`. API `cloudresourcemanager` ativada para a conferência de permissões |
 | Senha do backup | Secret `MINECRAFT_BACKUP_SENHA` e a mesma linha no `.env` da raiz. **Guardar também fora do PC**: sem ela o backup não abre |
 | Abrir o backup | [`baixar_backup_github.ps1`](baixar_backup_github.ps1): baixa o release mais recente, junta partes, descriptografa (gpg do Git) e confere |
 
