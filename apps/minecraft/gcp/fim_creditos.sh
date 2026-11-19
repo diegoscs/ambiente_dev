@@ -3,11 +3,11 @@
 # passo pelo workflow minecraft_fim_creditos.yml, que o pg_cron dispara
 # (migration 20261118190000_minecraft_fim_creditos.sql):
 #
-#   15/01/2027 06:00 SP  backup:   copia o backup mais recente de cada servidor
+#   14/01/2027 06:00 SP  backup:   copia o backup mais recente de cada servidor
 #                                  para fora do Google e confere as permissoes
-#   17/01/2027 06:00 SP  encerrar: desliga as VMs, copia o backup final e
+#   16/01/2027 06:00 SP  encerrar: desliga as VMs, copia o backup final e
 #                                  desvincula o projeto do faturamento
-#   17/01/2027 12:00 SP  repescagem do encerrar (se ja cortou, nao faz nada)
+#   16/01/2027 12:00 SP  repescagem do encerrar (se ja cortou, nao faz nada)
 #
 # Uso: fim_creditos.sh modo | permissoes | desligar | backup | faturamento
 # Credencial: conta minecraft-encerrar (chave no secret MINECRAFT_GCP_KEY).
@@ -19,7 +19,7 @@ BALDE=gs://serverminecasaonly-backups
 VMS=(minecraft pixelmon)
 # Nome dos arquivos de backup de cada servidor (PREFIXO_BACKUP do monitor_vm.py).
 PREFIXOS=(world pixelmon_world)
-DIA_ENCERRAR=2027-01-17
+DIA_ENCERRAR=2027-01-16
 # Release do GitHub aceita arquivo de ate 2 GB: acima disso, vai em partes.
 PARTE=1900M
 
@@ -50,7 +50,7 @@ cmd_modo() {
   fi
 }
 
-# A conta de servico consegue fazer o que o dia 17 precisa? (Roda no dia 15
+# A conta de servico consegue fazer o que o dia 16 precisa? (Roda no dia 14
 # para dar tempo de corrigir.) testIamPermissions devolve so as que ela tem.
 cmd_permissoes() {
   # Storage nao aparece no teste do projeto: confere listando o balde.
