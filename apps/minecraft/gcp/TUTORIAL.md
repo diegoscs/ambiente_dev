@@ -69,13 +69,13 @@ Leva uns **2 minutos** até dar para entrar.
 
 ### Uma vez só
 
-1. **TLauncher → Pacotes de mod → The Pixelmon Modpack, versão 9.4.1.**
-   Tem que ser a 9.4.1: o servidor é 9.4.1 e o jogo recusa versão diferente.
+1. **TLauncher → Pacotes de mod → The Pixelmon Modpack, versão 9.4.2.**
+   Tem que ser a 9.4.2: o servidor é 9.4.2 (desde 22/11/2026; antes 9.4.1) e o jogo recusa versão diferente. Quem tinha a 9.4.1 coloca os três mods extras de novo, na pasta da 9.4.2.
    O pack já traz tudo (Pixelmon, Waystones, bússolas, mapa, biomas). Os mods
    só de tela (JEI, Essential, menu) ficam só no seu PC; tudo bem.
 2. **RAM:** 6144 MB ou mais (engrenagem do TLauncher).
 3. **Três mods extras**, todos na pasta
-   `%APPDATA%\.minecraft\versions\The Pixelmon Modpack 9.4.1\mods`.
+   `%APPDATA%\.minecraft\versions\The Pixelmon Modpack 9.4.2\mods`.
    Sem eles, o servidor recusa a entrada:
    - Tom's Simple Storage 1.21-2.4.2, o mesmo arquivo do Create
      (https://modrinth.com/mod/toms-storage/version/WQAMoIMC):
