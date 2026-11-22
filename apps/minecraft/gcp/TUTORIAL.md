@@ -104,7 +104,7 @@ depois de apertar Ligar.
 
 Console do Pixelmon pelo PC: `apps\minecraft\gcp\console_pixelmon.bat`
 (pelo site: linha **`pixelmon`** em Instâncias de VM → SSH, mesmos comandos).
-A whitelist dele já tem os seis nicks; nick novo precisa do UUID offline
+A whitelist dele já tem os sete nicks; nick novo precisa do UUID offline
 (mesma armadilha do Create).
 
 Tudo fica no projeto **`serverminecasaonly`**, em

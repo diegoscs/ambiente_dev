@@ -20,7 +20,7 @@ CLOTH_URL="https://cdn.modrinth.com/data/9s6osm5g/versions/izKINKFg/cloth-config
 CLOTH_SHA1=c3e5733ba4503b102589a026000fd5ce0212f6f2
 WORLDEDIT_URL="https://cdn.modrinth.com/data/1u6JkXh5/versions/WTAFvuRx/worldedit-mod-7.3.8.jar"
 WORLDEDIT_SHA1=924fe181a29bd66be6783f6d589968ab0ee02250
-GALERA="digoscs Marllonx12 Xxkadu03xX darak2610 watinha socasoca"
+GALERA="digoscs Marllonx12 Xxkadu03xX darak2610 watinha socasoca kae_1227"
 SRV=/opt/minecraft/server
 
 export DEBIAN_FRONTEND=noninteractive

@@ -11,7 +11,7 @@ const INTERVALO_MIN_MS = 2 * 60000;
 const MAX_POR_DIA = 8;
 // Quem pode aparecer como "quem ligou". Obrigatorio: a pagina so libera o
 // botao depois de escolher, e aqui a funcao recusa quem chamar direto sem nome.
-const GALERA = ["digoscs", "Marllonx12", "Xxkadu03xX", "darak2610", "watinha", "socasoca"];
+const GALERA = ["digoscs", "Marllonx12", "Xxkadu03xX", "darak2610", "watinha", "socasoca", "kae_1227"];
 
 module.exports = async (req, res) => {
   if (req.method !== "POST") {
