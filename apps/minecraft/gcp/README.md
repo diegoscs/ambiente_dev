@@ -216,7 +216,7 @@ trava contra exclusão, tag `minecraft` para a porta 25565). Mesma conta
 
 | O quê | Como |
 |---|---|
-| Versões | **Pixelmon 9.4.1 + NeoForge 21.1.248**, iguais ao "The Pixelmon Modpack 9.4.1" do TLauncher (jar conferido pelo SHA-1) |
+| Versões | **Pixelmon 9.4.2 + NeoForge 21.1.248** (9.4.1 até 22/11/2026), iguais ao "The Pixelmon Modpack 9.4.2" do TLauncher (jar do Modrinth conferido pelo SHA-1) |
 | Mods no servidor | Pixelmon, Tom's Simple Storage 2.4.2, Waystones (+ Balm), Explorer's/Nature's Compass, Terralith, Tectonic (+ Lithostitched), Incendium, Structory e Structory Towers, JourneyMap, Login System 2.2, WorldEdit 7.3.8 (só no servidor) |
 | No servidor e no jogador, fora do pack | Prefab 1.0.9 + Cloth Config 15.0.140 (desde 03/11/2026): cada um põe os dois `.jar` na pasta `mods` do TLauncher |
 | Só no jogador | JEI, Essential, FancyMenu, Konkrete, Melody (o pack já traz) |
@@ -302,3 +302,14 @@ No banco, toda tabela `minecraft_*` tem a coluna `servidor` (`create` ou
   para a e2-standard-4.
 - Se ainda travar ao voar, o próximo passo é pré-gerar o mapa com o Chunky em
   volta do spawn e das bases (Marllon em x≈-4.600, Kadu em x≈1.500 z≈-3.600).
+
+### Estado em 22/11/2026
+
+- `kae_1227` na whitelist dos dois servidores (UUID offline) e no hub.
+- **Pixelmon 9.4.1 → 9.4.2** (mesmo NeoForge 21.1.248, sem dependência nova):
+  backup de 1,15 GB antes, jar do Modrinth conferido pelo SHA-1, o 9.4.1
+  guardado em `/opt/minecraft/mods_antigos/` na VM. Subiu em 6 s; o único
+  erro do log (tag `pixelmon:spawning/drowned`) já existia na 9.4.1. Voltar:
+  parar o servidor, trocar o jar de volta e restaurar o backup
+  `pixelmon_world_2026-11-22_23-54_utc.tar.gz` (mundo aberto na 9.4.2 pode
+  não abrir na 9.4.1).

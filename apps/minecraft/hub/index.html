@@ -273,9 +273,9 @@ code{font:13px var(--mono); background:var(--soft); padding:1px 6px; border-radi
   <details class="card">
     <summary id="entrar-titulo">Como entrar no servidor</summary>
     <ol class="passos" data-srv="pixelmon" hidden>
-      <li><b>TLauncher</b> → aba <b>Pacotes de mod</b> → instale <b>The Pixelmon Modpack</b>, versão <b>9.4.1</b> (tem que ser essa: o servidor é 9.4.1).</li>
+      <li><b>TLauncher</b> → aba <b>Pacotes de mod</b> → instale <b>The Pixelmon Modpack</b>, versão <b>9.4.2</b> (tem que ser essa: o servidor é 9.4.2 desde 22/11/2026). Já tinha a 9.4.1? Troque para a 9.4.2 e coloque os três mods abaixo de novo: cada versão tem a sua pasta <code>mods</code>.</li>
       <li>Engrenagem do TLauncher → <b>Memória: 6144 MB</b> ou mais.</li>
-      <li><b>Mod extra (obrigatório):</b> baixe o <a href="https://modrinth.com/mod/toms-storage/version/WQAMoIMC" target="_blank" rel="noopener">Tom's Simple Storage 1.21-2.4.2</a> (botão Download) e coloque o arquivo <code>toms_storage-1.21-2.4.2.jar</code> na pasta <code>%APPDATA%\.minecraft\versions\The Pixelmon Modpack 9.4.1\mods</code> (cole o caminho na barra do Explorador de Arquivos). É o mesmo arquivo do Create. Sem ele o servidor não deixa entrar.</li>
+      <li><b>Mod extra (obrigatório):</b> baixe o <a href="https://modrinth.com/mod/toms-storage/version/WQAMoIMC" target="_blank" rel="noopener">Tom's Simple Storage 1.21-2.4.2</a> (botão Download) e coloque o arquivo <code>toms_storage-1.21-2.4.2.jar</code> na pasta <code>%APPDATA%\.minecraft\versions\The Pixelmon Modpack 9.4.2\mods</code> (cole o caminho na barra do Explorador de Arquivos). É o mesmo arquivo do Create. Sem ele o servidor não deixa entrar.</li>
       <li><b>Construções prontas (obrigatório):</b> na mesma pasta <code>mods</code>, coloque também o <a href="https://modrinth.com/mod/prefab/version/1SASoUIC" target="_blank" rel="noopener">Prefab 1.0.9</a> (<code>prefab-neoforge-1.0.9.jar</code>) e o <a href="https://modrinth.com/mod/cloth-config/version/izKINKFg" target="_blank" rel="noopener">Cloth Config 15.0.140</a> (<code>cloth-config-15.0.140-neoforge.jar</code>), que o Prefab exige. Sem os dois o servidor não deixa entrar.</li>
       <li><b>Multijogador → Adicionar servidor</b> → cole o endereço do topo desta página (aba Pixelmon). <b>O IP muda cada vez que o servidor liga:</b> copie de novo aqui e edite o servidor no jogo.</li>
       <li>Servidor desligado? Aperte <b>Ligar o servidor</b> aqui e espere uns 3 minutos (o Pixelmon demora um pouco mais para subir).</li>
@@ -309,7 +309,7 @@ code{font:13px var(--mono); background:var(--soft); padding:1px 6px; border-radi
   // Os dois servidores (mesmos nomes do api/_comum.js). create e o padrao.
   const SERVS = {
     create: { aba: "Create", nota: "padrão", nome: "Create Chronicles: The Endventure", curto: "Create Chronicles" },
-    pixelmon: { aba: "Pixelmon", nota: "Pokémon", nome: "Pixelmon (The Pixelmon Modpack 9.4.1)", curto: "Pixelmon" },
+    pixelmon: { aba: "Pixelmon", nota: "Pokémon", nome: "Pixelmon (The Pixelmon Modpack 9.4.2)", curto: "Pixelmon" },
   };
   const $ = (id) => document.getElementById(id);
   let d = null, filtro = "tudo", busy = false, timer = null, pedido = 0;

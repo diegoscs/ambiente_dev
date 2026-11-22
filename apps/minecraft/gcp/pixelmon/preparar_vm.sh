@@ -7,9 +7,9 @@
 # VM do Create: publicar_vm.ps1 -Servidor pixelmon.
 set -e
 
-NEOFORGE=21.1.248          # o do "The Pixelmon Modpack 9.4.1" do TLauncher
-PIXELMON_URL="https://mediafilez.forgecdn.net/files/8894/160/Pixelmon-1.21.1-9.4.1-universal.jar"
-PIXELMON_SHA1=21ee5b13cfb5e387069dfc9d9f3772125471a820
+NEOFORGE=21.1.248          # o do "The Pixelmon Modpack 9.4.2" (o mesmo da 9.4.1) do TLauncher
+PIXELMON_URL="https://cdn.modrinth.com/data/59ZceYlU/versions/l63weWf0/Pixelmon-1.21.1-9.4.2-universal.jar"
+PIXELMON_SHA1=274797d381962ae5acec85548ab13028223bcb57
 LOGIN_URL="https://cdn.modrinth.com/data/S4Tu3Hn2/versions/dgFHnrmv/loginsystem-2.2.jar"
 LOGIN_SHA1=959c4fbe8825561065595985f78513c85540d66e
 # Desde 03/11/2026, do Modrinth. Prefab (construcoes prontas) e o Cloth Config
@@ -40,7 +40,7 @@ if [ ! -f "libraries/net/neoforged/neoforge/$NEOFORGE/unix_args.txt" ]; then
   java -jar /tmp/neoforge-installer.jar --installServer $SRV > /tmp/neoforge-install.log
   rm -f /tmp/neoforge-installer.jar run.bat
 fi
-[ -f mods/Pixelmon-1.21.1-9.4.1-universal.jar ] || baixar "$PIXELMON_URL" mods/Pixelmon-1.21.1-9.4.1-universal.jar $PIXELMON_SHA1
+[ -f mods/Pixelmon-1.21.1-9.4.2-universal.jar ] || baixar "$PIXELMON_URL" mods/Pixelmon-1.21.1-9.4.2-universal.jar $PIXELMON_SHA1
 [ -f mods/loginsystem-2.2.jar ] || baixar "$LOGIN_URL" mods/loginsystem-2.2.jar $LOGIN_SHA1
 for mod in PREFAB CLOTH WORLDEDIT; do
   url="${mod}_URL"; sha1="${mod}_SHA1"; jar="mods/$(basename "${!url}")"
