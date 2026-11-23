@@ -1,102 +1,102 @@
 # 005 · Backup Supabase
 
-Backup dos bancos Supabase fora da Supabase, **só com Python** (sem `pg_dump` e
-sem PostgreSQL instalado): estrutura em SQL e dados em CSV num `.zip`,
-criptografado com **age**. Nasceu na etapa 0 da migração dos projetos
+Backup diário dos bancos Supabase fora da Supabase, **só com Python** (sem
+`pg_dump` e sem PostgreSQL instalado): estrutura em SQL e dados em CSV num
+`.zip` por banco. Todo backup é **restaurado e conferido** antes de ser guardado.
+Nasceu na etapa 0 da migração dos projetos
 ([levantamento](../../docs/levantamento_migracao.md)): nenhum banco tinha
 backup, e o plano grátis não inclui.
 
 | | |
 |---|---|
 | Origem | financas-pipeline/DM e OpenFinance (`ALVOS` no robô). O Clientes entra na etapa 3; o OpenFinance sai quando for pausado |
-| Destino hoje | pasta do PC, na mão (`--pasta`) |
-| Destino depois | Google Drive pelo rclone, às 04:00 pelo `pg_cron`, com retenção de 30 dias |
-| `id_carga` | 5 (só a execução automática registra) |
+| Onde roda | repo **privado** `diegoscs/backups-supabase` (workflow `backup_supabase.yml`), com o código deste repo |
+| Destino | artifact da execução no repo privado, **30 dias** |
+| Quando | 04:00 de São Paulo: `pg_cron` → [`robo_005_backup_supabase.yml`](../../.github/workflows/robo_005_backup_supabase.yml) (disparador) → repo privado |
+| `id_carga` | 5 (só a execução na nuvem registra) |
 
-## O que vai no backup
+## Fluxo da execução diária
 
-Um arquivo por banco: `<banco>_<AAAA-MM-DD_HHMMZ>.zip.age`. Aberto, o zip tem:
+1. O `pg_cron` (ou o botão do hub) dispara o `robo_005_backup_supabase.yml`
+   deste repo, que dispara o `backup_supabase.yml` do repo privado e acompanha.
+2. O repo privado baixa este código, sobe um Postgres da Supabase
+   (`supabase/postgres`, mesma versão do DM) num container e roda
+   `005_backup_supabase.py --pasta ... --testar-restore`.
+3. Para cada banco: exporta (uma transação `REPEATABLE READ READ ONLY`, todas as
+   tabelas do mesmo instante), confere o zip contra o banco, **restaura** no
+   container e confere linhas por tabela e objetos por tipo. O restore é
+   desfeito no fim.
+4. Os zips sobem como artifact (30 dias). Se o envio falhar, o registro vira ERROR.
+
+## O que vai em cada zip
 
 | Arquivo | Conteúdo |
 |---|---|
-| `estrutura_1_antes_dos_dados.sql` | schemas, sequences, tabelas, funções, defaults, views, PK/unique/check |
+| `estrutura_1_antes_dos_dados.sql` | schemas, extensões, sequences, tabelas, funções, defaults, views, PK/unique/check |
 | `dados/<schema>.<tabela>.csv` | todas as tabelas dos nossos schemas + `auth.users`, `auth.identities`, `cron.job`, `supabase_migrations.schema_migrations` |
 | `estrutura_2_depois_dos_dados.sql` | FKs, índices, triggers, RLS, policies, grants, valores das sequences |
-| `manifesto.json` | colunas, número de linhas e sha256 de cada CSV |
+| `estrutura.json` | os mesmos comandos, um por item (o restore executa um a um) |
+| `manifesto.json` | colunas, linhas e sha256 de cada CSV; contagem de objetos |
 | `LEIA-ME.txt` | ordem do restore |
 
-Tudo é lido numa transação só (`REPEATABLE READ READ ONLY`): todas as tabelas
-saem do mesmo instante. Antes de criptografar, o robô reabre o zip e confere
-cada CSV (sha256 e número de linhas contra o `count(*)` do banco).
+**Fica de fora:** arquivos do Storage (o bronze é refeito pelo sync), segredos
+do Vault (num restore, o `github_dispatch_token` é criado de novo à mão),
+configuração do painel (Data API, Auth, SMTP), comentários e dono dos objetos.
 
-**Fica de fora:** arquivos do Storage (decisão de 22/11/2026: o bronze é refeito
-pelo sync), segredos do Vault (num restore, o `github_dispatch_token` é criado de
-novo à mão), configuração do painel (Data API, Auth, SMTP), comentários e dono
-dos objetos.
-
-## Uso
+## Uso no PC
 
 ```powershell
 $py = "C:\Users\ferna\AppData\Local\Python\bin\python.exe"
 $r  = "automacoes\005_backup_supabase\005_backup_supabase.py"
 & $py $r --status                              # o que está configurado
 & $py $r --dry-run                             # gera e confere numa pasta temporária, não grava nada
-& $py $r --pasta D:\backups\supabase           # backup manual (pasta FORA do repositório)
+& $py $r --pasta D:\backups\supabase           # backup na mão (pasta FORA do repositório)
 & $py $r --pasta D:\backups\supabase --alvo dm # só um banco
-& $py $r --pasta D:\backups\supabase --sem-cripto # sem a chave à mão: .zip em claro (só no PC)
-& $py $r --conferir D:\backups\supabase\dm_<data>.zip.age --chave <arquivo da chave privada>
+& $py $r --conferir D:\backups\supabase\dm_<data>.zip   # confere um zip, sem banco
 ```
 
-`--conferir` abre o backup com a chave privada numa pasta temporária e confere
-cada CSV contra o manifesto, sem banco nenhum. A chave privada fica num arquivo
-só durante o comando: crie a partir do gerenciador de senhas e apague logo depois.
-
-Configuração no `.env` (veja o `.env.example`):
+No PC o robô não registra no hub (modo LOCAL) e não testa o restore (não há
+Postgres). Baixar um backup do repo privado:
+`gh run download -R diegoscs/backups-supabase --name backups-<id> -D D:\backups\supabase`.
 
 | Variável | O que é |
 |---|---|
 | `SUPABASE_DUMP_URL_DM` | string de conexão do DM. Opcional: sem ela, vale o `SUPABASE_DB_URL` |
-| `SUPABASE_DUMP_URL_OPENFINANCE` | string de conexão do OpenFinance (Connect → Session pooler) |
-| `BACKUP_AGE_RECIPIENT` | chave **pública** do age (`age1...`) |
+| `SUPABASE_DUMP_URL_OPENFINANCE` | string de conexão do OpenFinance (`aws-0-us-east-2.pooler.supabase.com`) |
+| `BACKUP_RESTORE_URL` | Postgres do teste de restore (no Actions, o container) |
 
-## Restore
+## Restore de verdade
 
-Ordem (também no `LEIA-ME.txt` de cada backup):
-
-1. `estrutura_1_antes_dos_dados.sql`
-2. cada CSV com `COPY <schema>.<tabela> (<colunas do manifesto>) FROM ... CSV HEADER`;
-   `auth.users` e `auth.identities` antes das tabelas que apontam para elas, e
-   só num projeto Supabase
-3. `estrutura_2_depois_dos_dados.sql`
-
-As triggers só são criadas no passo 3: carregar os dados não dispara nada (as
-quantidades do estoque não são somadas de novo).
+Ordem (também no `LEIA-ME.txt`): `estrutura_1` → cada CSV por `COPY` (com as
+colunas do manifesto; `auth.users`/`auth.identities` só num projeto Supabase e
+antes das tabelas que apontam para elas) → `estrutura_2`. As triggers só nascem
+no fim, então carregar os dados não dispara nada (as quantidades do estoque não
+são somadas de novo). O `restaurar.py` faz isso com `confirmar=True`; é o
+caminho da etapa 1 da migração.
 
 ## Decisões
 
-- **Sem `pg_dump` (23/11/2026).** Instalar o PostgreSQL no PC só para o backup
-  foi descartado. O `psycopg`, que os robôs já usam, lê a estrutura do catálogo
-  e os dados por `COPY`. O banco usa só tabelas, views, funções, triggers,
-  policies, sequences e colunas identity (conferido em 23/11/2026); se aparecer
-  enum, domínio ou view materializada, a exportação precisa aprender o tipo novo.
-- **Qualquer pooler serve.** A exportação inteira é uma transação, com
-  `prepare_threshold=None`: funciona no Transaction pooler (6543, o mesmo do
-  robô 002) e no Session pooler (5432).
-- **Criptografia com age e chave pública.** Quem tem o arquivo ou acesso ao PC,
-  ao Actions ou ao Drive não abre o backup: a chave privada só existe no
-  gerenciador de senhas. **Perder a chave privada = perder todos os backups.**
-- **Nada passa pelo GitHub.** O `ambiente_dev` é público: nenhum backup vai para
-  artifact, release ou log. A pasta do `--pasta` não pode ficar dentro do repositório.
+- **Sem `pg_dump` (23/11/2026).** Instalar o PostgreSQL no PC foi descartado. O
+  `psycopg` lê a estrutura do catálogo e os dados por `COPY`. Os bancos usam só
+  tabelas, views, funções, triggers, policies, sequences e colunas identity
+  (conferido em 23/11/2026); um tipo novo (enum, domínio, view materializada)
+  faz o teste de restore falhar, e aí a exportação precisa aprender o tipo.
+- **Teste de restore todo dia.** Backup que não restaura não serve. O container
+  é a imagem oficial da Supabase, com os papéis e o schema `auth`.
+- **Repo privado em vez de Google Drive (23/11/2026).** O Drive exigia app
+  próprio no Google Cloud (o client_id compartilhado do rclone sai em 2026). O
+  artifact do Actions já tem retenção de 30 dias e não precisa de credencial nova.
+- **Sem criptografia (23/11/2026).** O repo privado é o controle de acesso. Ele
+  **precisa continuar privado**, e nenhum backup pode passar pelo `ambiente_dev`,
+  que é público.
+- **Qualquer pooler serve.** A exportação é uma transação só, com
+  `prepare_threshold=None`: funciona no Transaction pooler (6543) e no Session (5432).
 - **Retry só em falha de conexão.** Erro de SQL ou permissão estoura na primeira.
-- **Sem Telegram** (decisão de 22/11/2026): o alerta é o e-mail do GitHub (run
-  vermelho); depois, o Discord.
-- **Drive depois.** O client_id compartilhado do rclone deixa de funcionar em
-  2026: a automação vai precisar de um client_id próprio no Google Cloud, com o
-  app publicado (em "Teste" o token vence a cada 7 dias).
+- **Sem Telegram** (22/11/2026): alerta é o e-mail do GitHub (run vermelho); depois, o Discord.
 
-## Cadastro (para a execução automática)
+## Cadastro
 
-Migration a aplicar antes do primeiro run automático:
+Migration a aplicar antes da primeira execução automática:
 
 ```sql
 insert into public.controle_cargas (
@@ -105,18 +105,19 @@ insert into public.controle_cargas (
 )
 values (
   5, '005 - Backup Supabase',
-  'Backup dos bancos Supabase (estrutura + CSV), criptografado com age, 30 dias',
-  20, 26, '{1,2,3,4,5,6,7}', true, 'Python/psycopg', '005_backup_supabase.py',
+  'Backup dos bancos Supabase (estrutura + CSV), restaurado e conferido, 30 dias no repo privado',
+  30, 26, '{1,2,3,4,5,6,7}', true, 'Python/psycopg', '005_backup_supabase.py',
   'robo_005_backup_supabase.yml'
 )
 on conflict (id_carga) do nothing;
-```
 
-O horário (04:00 SP = `0 7 * * *` UTC) entra numa migration à parte.
+select cron.schedule('robo_005_backup_supabase', '0 7 * * *',
+  $$select private.disparar_workflow('diegoscs/ambiente_dev', 'robo_005_backup_supabase.yml')$$);
+```
 
 ## Estado
 
-- **23/11/2026**: primeiros backups de verdade em `D:\backups\supabase`, conferidos:
-  DM (50 tabelas, 2.604 linhas) e OpenFinance (14 tabelas, 2.626 linhas), 0,2 MB
-  cada, **sem criptografia** (a chave age não estava à mão). Falta refazer os
-  dois com a chave, apagar os `.zip` em claro e rodar o `--conferir`.
+- **23/11/2026**: backups manuais do DM (50 tabelas, 2.604 linhas) e do
+  OpenFinance (14 tabelas, 2.626 linhas) em `D:\backups\supabase`, conferidos.
+  Execução diária pronta no código; faltam criar o repo privado, os secrets dele,
+  o primeiro teste de restore na nuvem, o cadastro e o horário.
