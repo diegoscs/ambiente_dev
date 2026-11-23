@@ -115,7 +115,7 @@ O horário (04:00 SP = `0 7 * * *` UTC) entra numa migration à parte.
 
 ## Estado
 
-- **23/11/2026**: exportação sem `pg_dump` testada em dry-run no DM: 50 tabelas,
-  2.604 linhas, todas conferidas, 0,2 MB. Falta o primeiro backup de verdade
-  (precisa da chave pública e da string do OpenFinance no `.env`) e o
-  `--conferir` com a chave privada.
+- **23/11/2026**: primeiro backup de verdade do DM em `D:ackups\supabase`
+  (50 tabelas, 2.604 linhas, conferidas; 0,2 MB), **sem criptografia** porque a
+  chave age não estava à mão. Faltam: o backup do OpenFinance (senha do banco),
+  refazer os dois com a chave (e apagar o `.zip` em claro) e o `--conferir`.

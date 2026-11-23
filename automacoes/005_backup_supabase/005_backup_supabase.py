@@ -39,12 +39,15 @@ from exportar import conferir_zip, exportar_banco
 # --dry-run     -> gera e confere em pasta temporaria; nao grava, nao envia e
 #                  nao registra. Sem chave age, testa sem criptografar.
 # --alvo NOME   -> so um banco.
+# --sem-cripto  -> so com --pasta: grava o .zip sem age (quando a chave nao
+#                  esta a mao). Rodar de novo com a chave e apagar o .zip depois.
 # --status      -> mostra a configuracao e sai.
 # --conferir ARQ --chave ARQ_CHAVE -> abre um .zip.age com a chave privada e
 #                  confere cada CSV contra o manifesto. Nao usa banco.
 DEBUG = False
 DRY_RUN = "--dry-run" in sys.argv
 STATUS = "--status" in sys.argv
+SEM_CRIPTO = "--sem-cripto" in sys.argv
 
 
 def _valor_do_argumento(nome: str) -> str | None:
@@ -133,7 +136,9 @@ def validar_configuracao(alvos: list[str]) -> None:
     faltando = [" ou ".join(ALVOS[r]) for r in alvos if not url_do_alvo(r)]
     if not (DRY_RUN or PASTA_LOCAL):
         faltando += [c for c in ("SUPABASE_URL", "SUPABASE_KEY") if not dl.ler_env().get(c)]
-    if not chave_publica() and not DRY_RUN:
+    if SEM_CRIPTO and not PASTA_LOCAL:
+        raise ValueError("--sem-cripto so vale junto com --pasta (nada sai do PC sem criptografia)")
+    if not chave_publica() and not (DRY_RUN or SEM_CRIPTO):
         faltando.append("BACKUP_AGE_RECIPIENT")
     if faltando:
         raise ValueError(f"Faltam variaveis no ambiente/.env: {', '.join(faltando)}")
@@ -201,8 +206,8 @@ def gerar_backup(rotulo: str, pasta_tmp: Path, carimbo: str) -> tuple[Path, str]
     dl.log(f"[EXPORT] {resumo} (Postgres {manifesto['servidor']})")
 
     recipient = chave_publica()
-    if not recipient:  # so no dry-run
-        return arquivo_zip, resumo + " (sem criptografia: dry-run sem chave)"
+    if SEM_CRIPTO or not recipient:  # --sem-cripto, ou dry-run sem chave
+        return arquivo_zip, resumo + " (SEM criptografia)"
     cifrado = arquivo_zip.with_name(arquivo_zip.name + ".age")
     rodar([binario("age"), "--encrypt", "--recipient", recipient, "--output", str(cifrado), str(arquivo_zip)])
     arquivo_zip.unlink()  # o zip em claro nao fica nem no disco temporario
