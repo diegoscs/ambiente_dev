@@ -50,6 +50,8 @@ Conteudo:
   dados/<schema>.<tabela>.csv        dados (COPY ... CSV HEADER, UTF-8)
   estrutura_2_depois_dos_dados.sql   chaves estrangeiras, indices, triggers, RLS,
                                      policies, grants e valores das sequences
+  estrutura.json                     os mesmos comandos, um por item (usado pelo
+                                     restaurar.py do robo 005)
 
 Restaurar, nesta ordem:
   1. estrutura_1_antes_dos_dados.sql
@@ -65,16 +67,19 @@ Fora do backup: arquivos do Storage, segredos do Vault, configuracao do painel
 """
 
 
-def conectar(url: str, nome_app: str) -> psycopg.Connection:
-    """Conexao de leitura. prepare_threshold=None: funciona tambem no
-    Transaction pooler (porta 6543), que nao aceita prepared statements."""
+def conectar(url: str, nome_app: str, leitura: bool = True) -> psycopg.Connection:
+    """Conexao de leitura (exportacao) ou escrita (restore). prepare_threshold=None:
+    funciona tambem no Transaction pooler (porta 6543), que nao aceita prepared
+    statements. SSL obrigatorio, menos no Postgres local do teste de restore."""
     partes = urlsplit(url)
     if partes.scheme not in ("postgres", "postgresql"):
         raise ValueError("string de conexao precisa comecar com postgresql://")
-    conn = psycopg.connect(url, prepare_threshold=None, connect_timeout=30,
-                           application_name=nome_app, sslmode="require")
-    conn.isolation_level = psycopg.IsolationLevel.REPEATABLE_READ
-    conn.read_only = True
+    local = partes.hostname in ("localhost", "127.0.0.1")
+    conn = psycopg.connect(url, prepare_threshold=None, connect_timeout=30, application_name=nome_app,
+                           sslmode="disable" if local else "require")
+    if leitura:
+        conn.isolation_level = psycopg.IsolationLevel.REPEATABLE_READ
+        conn.read_only = True
     return conn
 
 
@@ -313,44 +318,92 @@ def _ordenar_views(conn: psycopg.Connection, schemas: list[str]) -> list[str]:
     return [views[o] for o in ordem]
 
 
-def gerar_estrutura(conn: psycopg.Connection, schemas: list[str]) -> tuple[str, str]:
-    """(antes_dos_dados, depois_dos_dados) em SQL."""
-    antes = [
-        "-- Estrutura, parte 1 (antes dos dados). Gerado pelo robo 005.",
-        "SET check_function_bodies = false;",
-        "SET client_min_messages = warning;",
-        "",
-    ]
-    antes += [f"CREATE SCHEMA IF NOT EXISTS {psycopg.sql.Identifier(s).as_string(conn)};"
-              for s in schemas if s != "public"]
-    antes += ["", "-- sequences"] + _coluna(conn, SQL_SEQUENCES, (schemas,))
+# Extensoes que a Supabase ja traz ou que nao se criam por SQL num projeto novo
+# (pg_cron e pg_net: habilitar no painel). As demais entram no restore.
+EXTENSOES_FORA = ("plpgsql", "pg_stat_statements", "supabase_vault", "pg_graphql", "pgsodium",
+                  "pg_cron", "pg_net")
 
-    antes += ["", "-- tabelas (defaults depois das funcoes)"]
+SQL_EXTENSOES = """
+select format('CREATE EXTENSION IF NOT EXISTS %%I WITH SCHEMA %%I;', e.extname, n.nspname)
+  from pg_extension e join pg_namespace n on n.oid = e.extnamespace
+ where e.extname <> all(%s)
+ order by e.extname
+"""
+
+# Contagem de objetos: vai no manifesto e e comparada depois do restore.
+SQL_OBJETOS = """
+select json_build_object(
+  'tabelas',   (select count(*) from pg_class c join pg_namespace n on n.oid = c.relnamespace
+                 where n.nspname = any(%(s)s) and c.relkind in ('r', 'p')),
+  'views',     (select count(*) from pg_class c join pg_namespace n on n.oid = c.relnamespace
+                 where n.nspname = any(%(s)s) and c.relkind = 'v'),
+  'sequences', (select count(*) from pg_class c join pg_namespace n on n.oid = c.relnamespace
+                 where n.nspname = any(%(s)s) and c.relkind = 'S'),
+  'funcoes',   (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+                 where n.nspname = any(%(s)s) and p.prokind in ('f', 'p')
+                   and not exists (select 1 from pg_depend d where d.classid = 'pg_proc'::regclass
+                                   and d.objid = p.oid and d.deptype = 'e')),
+  'constraints', (select count(*) from pg_constraint k join pg_namespace n on n.oid = k.connamespace
+                   where n.nspname = any(%(s)s) and k.contype in ('p', 'u', 'c', 'x', 'f') and k.conislocal),
+  'indices',   (select count(*) from pg_index i join pg_class c on c.oid = i.indrelid
+                  join pg_namespace n on n.oid = c.relnamespace where n.nspname = any(%(s)s)),
+  'triggers',  (select count(*) from pg_trigger t join pg_class c on c.oid = t.tgrelid
+                  join pg_namespace n on n.oid = c.relnamespace
+                 where n.nspname = any(%(s)s) and not t.tgisinternal),
+  'policies',  (select count(*) from pg_policy p join pg_class c on c.oid = p.polrelid
+                  join pg_namespace n on n.oid = c.relnamespace where n.nspname = any(%(s)s)),
+  'tabelas_com_rls', (select count(*) from pg_class c join pg_namespace n on n.oid = c.relnamespace
+                       where n.nspname = any(%(s)s) and c.relkind in ('r', 'p') and c.relrowsecurity)
+)
+"""
+
+
+def contar_objetos(conn: psycopg.Connection, schemas: list[str]) -> dict:
+    return _coluna(conn, SQL_OBJETOS, {"s": schemas})[0]
+
+
+def gerar_estrutura(conn: psycopg.Connection, schemas: list[str]) -> dict[str, list[tuple[str, list[str]]]]:
+    """Comandos da estrutura em secoes: {"antes": [(secao, [sql, ...])], "depois": [...]}."""
+    params = {"schemas": schemas, "papeis": list(PAPEIS)}
+    tabelas = []
     for oid, schema, tabela in _linhas(conn, SQL_TABELAS, (schemas,)):
         colunas = _coluna(conn, SQL_COLUNAS, (oid,))
         nome = psycopg.sql.Identifier(schema, tabela).as_string(conn)
-        antes.append(f"CREATE TABLE {nome} (\n    " + ",\n    ".join(colunas) + "\n);")
-    antes += _coluna(conn, SQL_SEQ_DONAS, (schemas,))
+        tabelas.append(f"CREATE TABLE {nome} (\n    " + ",\n    ".join(colunas) + "\n);")
 
-    antes += ["", "-- funcoes"] + _coluna(conn, SQL_FUNCOES, (schemas,))
-    antes += ["", "-- defaults"] + _coluna(conn, SQL_DEFAULTS, (schemas,))
-    antes += ["", "-- views"] + _ordenar_views(conn, schemas)
-    antes += ["", "-- chaves primarias, unique, check e exclusion"]
-    antes += _coluna(conn, SQL_CONSTRAINTS, (schemas, ["p", "u", "c", "x"]))
+    antes = [
+        ("configuracao", ["SET check_function_bodies = false;", "SET client_min_messages = warning;"]),
+        ("schemas", [f"CREATE SCHEMA IF NOT EXISTS {psycopg.sql.Identifier(s).as_string(conn)};"
+                     for s in schemas if s != "public"]),
+        ("extensoes (pg_cron e pg_net: habilitar no painel)", _coluna(conn, SQL_EXTENSOES, (list(EXTENSOES_FORA),))),
+        ("sequences", _coluna(conn, SQL_SEQUENCES, (schemas,))),
+        ("tabelas (defaults depois das funcoes)", tabelas + _coluna(conn, SQL_SEQ_DONAS, (schemas,))),
+        ("funcoes", _coluna(conn, SQL_FUNCOES, (schemas,))),
+        ("defaults", _coluna(conn, SQL_DEFAULTS, (schemas,))),
+        ("views", _ordenar_views(conn, schemas)),
+        ("chaves primarias, unique, check e exclusion", _coluna(conn, SQL_CONSTRAINTS, (schemas, ["p", "u", "c", "x"]))),
+    ]
+    depois = [
+        ("chaves estrangeiras", _coluna(conn, SQL_CONSTRAINTS, (schemas, ["f"]))),
+        ("indices", _coluna(conn, SQL_INDICES, (schemas,))),
+        ("triggers", _coluna(conn, SQL_TRIGGERS, (schemas,))),
+        ("RLS e policies", _coluna(conn, SQL_RLS, (schemas,)) + _coluna(conn, SQL_POLICIES, (schemas,))),
+        ("grants", _coluna(conn, SQL_GRANTS_SCHEMAS, params) + _coluna(conn, SQL_GRANTS_RELACOES, params)
+                   + _coluna(conn, SQL_GRANTS_FUNCOES, params)),
+        ("valores das sequences", _coluna(conn, SQL_SETVAL, (schemas,))),
+    ]
+    return {"antes": antes, "depois": depois}
 
-    params = {"schemas": schemas, "papeis": list(PAPEIS)}
-    depois = ["-- Estrutura, parte 2 (depois dos dados). Gerado pelo robo 005.", "",
-              "-- chaves estrangeiras"]
-    depois += _coluna(conn, SQL_CONSTRAINTS, (schemas, ["f"]))
-    depois += ["", "-- indices"] + _coluna(conn, SQL_INDICES, (schemas,))
-    depois += ["", "-- triggers"] + _coluna(conn, SQL_TRIGGERS, (schemas,))
-    depois += ["", "-- RLS e policies"] + _coluna(conn, SQL_RLS, (schemas,))
-    depois += _coluna(conn, SQL_POLICIES, (schemas,))
-    depois += ["", "-- grants"] + _coluna(conn, SQL_GRANTS_SCHEMAS, params)
-    depois += _coluna(conn, SQL_GRANTS_RELACOES, params)
-    depois += _coluna(conn, SQL_GRANTS_FUNCOES, params)
-    depois += ["", "-- valores das sequences"] + _coluna(conn, SQL_SETVAL, (schemas,))
-    return "\n".join(antes) + "\n", "\n".join(depois) + "\n"
+
+def estrutura_em_sql(secoes: list[tuple[str, list[str]]], titulo: str) -> str:
+    partes = [f"-- {titulo}. Gerado pelo robo 005."]
+    for secao, comandos in secoes:
+        partes += ["", f"-- {secao}", *comandos]
+    return "\n".join(partes) + "\n"
+
+
+def estrutura_em_lista(secoes: list[tuple[str, list[str]]]) -> list[str]:
+    return [c for _, comandos in secoes for c in comandos]
 
 
 # ─── dados ───────────────────────────────────────────────────────────────────
@@ -394,12 +447,18 @@ def exportar_banco(url: str, rotulo: str, destino_zip, nome_app: str) -> dict:
         with conn.cursor() as cur:
             cur.execute("SET LOCAL statement_timeout = '15min'")
         schemas = _coluna(conn, SQL_SCHEMAS, (list(SCHEMAS_GERENCIADOS),))
-        antes, depois = gerar_estrutura(conn, schemas)
+        estrutura = gerar_estrutura(conn, schemas)
 
         with zipfile.ZipFile(destino_zip, "w", compression=zipfile.ZIP_DEFLATED) as zf:
             zf.writestr("LEIA-ME.txt", LEIA_ME)
-            zf.writestr("estrutura_1_antes_dos_dados.sql", antes)
-            zf.writestr("estrutura_2_depois_dos_dados.sql", depois)
+            zf.writestr("estrutura_1_antes_dos_dados.sql",
+                        estrutura_em_sql(estrutura["antes"], "Estrutura, parte 1 (antes dos dados)"))
+            zf.writestr("estrutura_2_depois_dos_dados.sql",
+                        estrutura_em_sql(estrutura["depois"], "Estrutura, parte 2 (depois dos dados)"))
+            # Os mesmos comandos, um por item: o restore executa um a um.
+            zf.writestr("estrutura.json", json.dumps(
+                {"antes": estrutura_em_lista(estrutura["antes"]),
+                 "depois": estrutura_em_lista(estrutura["depois"])}, ensure_ascii=False, indent=1))
             tabelas = [_exportar_tabela(conn, zf, s, t) for s, t in _tabelas_de_dados(conn, schemas)]
             manifesto = {
                 "formato": FORMATO,
@@ -408,6 +467,7 @@ def exportar_banco(url: str, rotulo: str, destino_zip, nome_app: str) -> dict:
                 "servidor": _coluna(conn, "show server_version")[0],
                 "schemas": schemas,
                 "extensoes": _coluna(conn, "select extname || ' ' || extversion from pg_extension order by 1"),
+                "objetos": contar_objetos(conn, schemas),
                 "tabelas": tabelas,
             }
             zf.writestr("manifesto.json", json.dumps(manifesto, ensure_ascii=False, indent=2))
@@ -425,7 +485,7 @@ def conferir_zip(caminho_zip) -> tuple[int, int]:
         if zf.testzip() is not None:
             raise RuntimeError("zip corrompido")
         manifesto = json.loads(zf.read("manifesto.json"))
-        for nome in ("estrutura_1_antes_dos_dados.sql", "estrutura_2_depois_dos_dados.sql"):
+        for nome in ("estrutura_1_antes_dos_dados.sql", "estrutura_2_depois_dos_dados.sql", "estrutura.json"):
             if len(zf.read(nome)) < 100:
                 raise RuntimeError(f"{nome} vazio")
         total = 0
