@@ -1,5 +1,5 @@
 # =============================================
-# Robo 005 - backup diario dos bancos Supabase (pg_dump -> age -> Google Drive).
+# Robo 005 - backup diario dos bancos Supabase (Python/psycopg -> zip -> age -> Google Drive).
 # Regras em automacoes/PADRAO_ROBOS.md; decisoes em automacoes/005_backup_supabase/README.md.
 #
 # Nenhum dump passa pelo GitHub: nada de artifact ou release com dado (o repo
@@ -34,7 +34,7 @@ concurrency:
 
 jobs:
   backup:
-    # Versao fixa: os nomes dos pacotes do apt abaixo sao os do Ubuntu 24.04.
+    # Versao fixa: os pacotes do apt abaixo sao os do Ubuntu 24.04.
     runs-on: ubuntu-24.04
     timeout-minutes: 30
 
@@ -42,15 +42,15 @@ jobs:
       MODO_EXECUCAO: CLOUD
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
-      # Session pooler (porta 5432) de cada banco.
+      # String de conexao de cada banco (Session ou Transaction pooler). O DM
+      # cai para o SUPABASE_DB_URL se o SUPABASE_DUMP_URL_DM nao existir.
+      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
       SUPABASE_DUMP_URL_DM: ${{ secrets.SUPABASE_DUMP_URL_DM }}
       SUPABASE_DUMP_URL_OPENFINANCE: ${{ secrets.SUPABASE_DUMP_URL_OPENFINANCE }}
       # Chave PUBLICA do age: a privada nunca sai do gerenciador de senhas.
       BACKUP_AGE_RECIPIENT: ${{ secrets.BACKUP_AGE_RECIPIENT }}
       # Conteudo do remote "gdrive" do rclone (com o token OAuth).
       BACKUP_RCLONE_CONF: ${{ secrets.BACKUP_RCLONE_CONF }}
-      # pg_dump igual ao servidor (Postgres 17); o runner traz o 16 no PATH.
-      BACKUP_PG_BIN: /usr/lib/postgresql/17/bin
 
     steps:
       - uses: actions/checkout@v4
@@ -63,12 +63,10 @@ jobs:
       - name: Instalar dependencias
         run: pip install -r requirements.txt
 
-      - name: Instalar pg_dump 17, age e rclone
+      - name: Instalar age e rclone
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq postgresql-common
-          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
-          sudo apt-get install -y -qq postgresql-client-17 age rclone
+          sudo apt-get install -y -qq age rclone
 
       - name: Backup
         env:

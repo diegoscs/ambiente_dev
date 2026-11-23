@@ -2,10 +2,11 @@
 # =============================================
 # AUTOR          : Diego Candido
 # DATA CRIACAO   : 23/11/2026
-# DESCRICAO      : Backup diario dos bancos Supabase: pg_dump pelo Session
-#                  pooler, criptografado com age (so a chave PUBLICA fica na
-#                  nuvem) e enviado ao Google Drive pelo rclone, com retencao
-#                  de 30 dias. Regras em automacoes\PADRAO_ROBOS.md.
+# DESCRICAO      : Backup dos bancos Supabase so com Python (sem pg_dump):
+#                  estrutura em SQL + dados em CSV num zip, criptografado com
+#                  age (so a chave PUBLICA fica no PC/nuvem). Destino: uma pasta
+#                  local (--pasta) ou o Google Drive (rclone, etapa futura).
+#                  Regras em automacoes\PADRAO_ROBOS.md.
 # =============================================
 from __future__ import annotations
 
@@ -17,24 +18,30 @@ from pathlib import Path
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 sys.stderr.reconfigure(encoding="utf-8", errors="replace")
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+sys.path.insert(0, str(Path(__file__).parent))
 os.environ.setdefault("PYTHONIOENCODING", "utf-8")
 
 import shutil
 import subprocess
 import tempfile
-import zipfile
+import time
 from datetime import datetime, timezone
-from urllib.parse import unquote, urlsplit
+
+import psycopg
 
 import lib_dscs as dl
+from exportar import conferir_zip, exportar_banco
 
 # ─── configuracao ────────────────────────────────────────────────────────────
-# --dry-run    -> gera, criptografa e confere os dumps, mas nao envia ao Drive,
-#                 nao apaga nada e nao registra status.
-# --status     -> mostra configuracao e versoes das ferramentas e sai.
-# --alvo NOME  -> so um banco (ex.: --alvo dm antes de uma etapa da migracao).
-# --pasta DIR  -> backup manual no PC: grava o .zip.age em DIR (fora do
-#                 repositorio), sem Drive, sem limpeza e sem registrar status.
+# --pasta DIR   -> backup manual: grava <banco>_<data>.zip.age em DIR (fora do
+#                  repositorio). Nao registra status nem apaga nada antigo.
+# (sem --pasta) -> carga diaria: envia ao Google Drive pelo rclone e registra.
+# --dry-run     -> gera e confere em pasta temporaria; nao grava, nao envia e
+#                  nao registra. Sem chave age, testa sem criptografar.
+# --alvo NOME   -> so um banco.
+# --status      -> mostra a configuracao e sai.
+# --conferir ARQ --chave ARQ_CHAVE -> abre um .zip.age com a chave privada e
+#                  confere cada CSV contra o manifesto. Nao usa banco.
 DEBUG = False
 DRY_RUN = "--dry-run" in sys.argv
 STATUS = "--status" in sys.argv
@@ -50,170 +57,106 @@ def _valor_do_argumento(nome: str) -> str | None:
 
 
 PASTA_LOCAL = _valor_do_argumento("--pasta")
+CONFERIR = _valor_do_argumento("--conferir")
 
 IDCARGA = 5  # ★ mesmo numero da pasta e do id_carga em public.controle_cargas
 NOME_ROBO = "backup_supabase"
 
 BASE = Path(__file__).resolve().parent
 
-# Bancos copiados: rotulo (vai no nome do arquivo) -> secret com a string do
-# Session pooler (porta 5432). Etapa 3 da migracao: entra "clientes". Depois
-# da etapa 1 (OpenFinance pausado): sai "openfinance".
+# Bancos: rotulo (vai no nome do arquivo) -> variaveis com a string de conexao,
+# na ordem de preferencia. Qualquer pooler serve (a exportacao roda numa
+# transacao so). Etapa 3: entra "clientes". OpenFinance pausado: sai.
 ALVOS = {
-    "dm": "SUPABASE_DUMP_URL_DM",
-    "openfinance": "SUPABASE_DUMP_URL_OPENFINANCE",
+    "dm": ("SUPABASE_DUMP_URL_DM", "SUPABASE_DB_URL"),
+    "openfinance": ("SUPABASE_DUMP_URL_OPENFINANCE",),
 }
 
-# Schemas que a Supabase cria e administra. Ficam fora do dump principal: nao
-# sao nossos, e restaurar por cima de um projeto novo quebraria. Os dados de
-# que precisamos deles (contas, jobs, historico de migrations) vao no dump
-# "extras", so dados.
-SCHEMAS_GERENCIADOS = (
-    "auth", "storage", "realtime", "_realtime", "extensions", "graphql",
-    "graphql_public", "pgbouncer", "vault", "pgsodium", "pgsodium_masks",
-    "net", "cron", "supabase_functions", "supabase_migrations", "_analytics",
-)
-
-# So dados, nunca estrutura: num restore a Supabase ja traz essas tabelas.
-# cron.job e schema_migrations nao existem em todo projeto; pg_dump so falha
-# se NENHUMA tabela da lista existir.
-TABELAS_EXTRAS = (
-    "auth.users",
-    "auth.identities",
-    "cron.job",
-    "supabase_migrations.schema_migrations",
-)
-
-REMOTO = "gdrive"                  # nome do remote no rclone config
-PASTA_DRIVE = "Backups Supabase"   # criada pelo proprio rclone (escopo drive.file)
+REMOTO = "gdrive"
+PASTA_DRIVE = "Backups Supabase"
 RETENCAO_DIAS = 30
-# So arquivos com este formato entram na limpeza: nada mais da pasta e tocado.
-FILTRO_RETENCAO = "{" + ",".join(ALVOS) + ",clientes}_*.zip.age"
-
-# pg_dump do instalador do PostgreSQL no Windows (winget), se BACKUP_PG_BIN
-# nao disser outra coisa e ele nao estiver no PATH.
-PG_BIN_WINDOWS = (Path(r"C:\Program Files\PostgreSQL\18\bin"), Path(r"C:\Program Files\PostgreSQL\17\bin"))
+# So arquivos neste formato entram na limpeza do Drive.
+FILTRO_RETENCAO = "{dm,openfinance,clientes}_*.zip.age"
 
 TENTATIVAS = 3
 SEGUNDOS_ENTRE_TENTATIVAS = 30
-TIMEOUT_DUMP_S = 15 * 60
 
-# Backups que chegaram ao Drive nesta execucao (vai para o qtd_itens).
+# Backups que chegaram ao destino nesta execucao (vai para o qtd_itens).
 ITENS_FEITOS = 0
 
 
-# ─── ferramentas externas ────────────────────────────────────────────────────
+# ─── auxiliares ──────────────────────────────────────────────────────────────
 
 
 def binario(nome: str) -> str:
-    """Caminho de pg_dump/pg_restore (de BACKUP_PG_BIN, se houver), age ou rclone."""
-    pasta_pg = dl.ler_env().get("BACKUP_PG_BIN")
-    if pasta_pg and nome.startswith("pg_"):
-        caminho = Path(pasta_pg) / (nome + (".exe" if os.name == "nt" else ""))
-        if caminho.exists():
-            return str(caminho)
-        raise FileNotFoundError(f"{nome} nao encontrado em BACKUP_PG_BIN ({pasta_pg})")
     achado = shutil.which(nome)
-    if not achado and os.name == "nt" and nome.startswith("pg_"):
-        achado = next((str(p / f"{nome}.exe") for p in PG_BIN_WINDOWS if (p / f"{nome}.exe").exists()), None)
     if not achado:
         raise FileNotFoundError(f"{nome} nao encontrado no PATH")
     return achado
 
 
-def rodar(cmd: list[str], env: dict[str, str] | None = None, timeout: int = 600) -> str:
-    """Roda um comando e devolve o stdout. No erro, levanta com o fim do stderr.
-
-    Segredos nunca vao em `cmd` (que aparece no erro): senha do banco vai por
-    variavel PG*, e a config do rclone por arquivo temporario.
-    """
-    r = subprocess.run(cmd, env=env, capture_output=True, text=True,
-                       encoding="utf-8", errors="replace", timeout=timeout)
+def rodar(cmd: list[str], timeout: int = 600) -> str:
+    """Roda age/rclone. Segredo nunca vai em `cmd` (que aparece no erro)."""
+    r = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8",
+                       errors="replace", timeout=timeout)
     if r.returncode != 0:
         fim = " | ".join((r.stderr or r.stdout or "").strip().splitlines()[-3:])
         raise RuntimeError(f"{Path(cmd[0]).stem} saiu com codigo {r.returncode}: {fim}")
     return r.stdout
 
 
-def versao(nome: str) -> str:
-    try:
-        saida = rodar([binario(nome), "version" if nome == "rclone" else "--version"], timeout=30)
-        return saida.strip().splitlines()[0]
-    except Exception as e:  # noqa: BLE001 - so informativo no --status
-        return f"AUSENTE ({e})"
+def mb(caminho: Path) -> str:
+    return f"{caminho.stat().st_size / 1e6:.1f} MB".replace(".", ",")
 
 
-# ─── configuracao e validacao ────────────────────────────────────────────────
+def url_do_alvo(rotulo: str) -> str | None:
+    env = dl.ler_env()
+    return next((env[v] for v in ALVOS[rotulo] if env.get(v)), None)
 
 
-def alvos_da_execucao() -> dict[str, str]:
+def chave_publica() -> str | None:
+    valor = (dl.ler_env().get("BACKUP_AGE_RECIPIENT") or "").strip()
+    return valor or None
+
+
+def alvos_da_execucao() -> list[str]:
     nome = _valor_do_argumento("--alvo")
     if nome is None:
-        return dict(ALVOS)
+        return list(ALVOS)
     if nome not in ALVOS:
         raise ValueError(f"--alvo invalido: {nome!r}. Opcoes: {', '.join(ALVOS)}")
-    return {nome: ALVOS[nome]}
+    return [nome]
 
 
-def env_postgres(url: str) -> dict[str, str]:
-    """Variaveis PG* a partir da string de conexao (a senha nunca vai na linha de comando)."""
-    partes = urlsplit(url)
-    if partes.scheme not in ("postgres", "postgresql"):
-        raise ValueError("string de conexao precisa comecar com postgresql://")
-    if (partes.port or 5432) != 5432:
-        raise ValueError(
-            f"porta {partes.port}: use o Session pooler (porta 5432). O Transaction "
-            f"pooler (6543) nao serve para pg_dump."
-        )
-    if not (partes.username and partes.password and partes.hostname):
-        raise ValueError("string de conexao sem usuario, senha ou host")
-    env = os.environ.copy()
-    env.update({
-        "PGHOST": partes.hostname,
-        "PGPORT": "5432",
-        "PGUSER": unquote(partes.username),
-        "PGPASSWORD": unquote(partes.password),
-        "PGDATABASE": partes.path.lstrip("/") or "postgres",
-        "PGSSLMODE": "require",
-        "PGCONNECT_TIMEOUT": "30",
-        "PGAPPNAME": f"robo_{IDCARGA:03d}_{NOME_ROBO}",
-    })
-    return env
-
-
-def validar_configuracao(alvos: dict[str, str]) -> None:
+def validar_configuracao(alvos: list[str]) -> None:
     """Tudo que pode faltar, conferido antes de qualquer rede."""
-    env = dl.ler_env()
-    faltando = [c for c in ("SUPABASE_URL", "SUPABASE_KEY", "BACKUP_AGE_RECIPIENT", *alvos.values())
-                if not env.get(c)]
+    faltando = [" ou ".join(ALVOS[r]) for r in alvos if not url_do_alvo(r)]
+    if not (DRY_RUN or PASTA_LOCAL):
+        faltando += [c for c in ("SUPABASE_URL", "SUPABASE_KEY") if not dl.ler_env().get(c)]
+    if not chave_publica() and not DRY_RUN:
+        faltando.append("BACKUP_AGE_RECIPIENT")
     if faltando:
         raise ValueError(f"Faltam variaveis no ambiente/.env: {', '.join(faltando)}")
 
-    if not env["BACKUP_AGE_RECIPIENT"].strip().startswith("age1"):
+    if chave_publica() and not chave_publica().startswith("age1"):
         raise ValueError("BACKUP_AGE_RECIPIENT precisa ser a chave PUBLICA do age (age1...)")
-
-    for secret in alvos.values():
-        try:
-            env_postgres(env[secret])
-        except ValueError as e:
-            raise ValueError(f"{secret}: {e}") from None
 
     if PASTA_LOCAL:
         pasta = Path(PASTA_LOCAL).resolve()
         if pasta == dl.RAIZ or dl.RAIZ in pasta.parents:
             raise ValueError(f"--pasta {pasta} fica dentro do repositorio: escolha uma pasta fora dele")
 
-    usa_drive = not (DRY_RUN or PASTA_LOCAL)
-    for nome in ("pg_dump", "pg_restore", "age") + (("rclone",) if usa_drive else ()):
-        binario(nome)  # levanta se faltar
+    if chave_publica():
+        binario("age")
+    if not (DRY_RUN or PASTA_LOCAL):
+        binario("rclone")
 
 
-# ─── rclone ──────────────────────────────────────────────────────────────────
+# ─── destino Drive (rclone) ──────────────────────────────────────────────────
 
 
 def args_rclone(pasta_tmp: Path) -> list[str]:
-    """Config do rclone: BACKUP_RCLONE_CONF (Actions) num arquivo temporario,
-    ou a config padrao do PC (rclone config)."""
+    """BACKUP_RCLONE_CONF (Actions) num arquivo temporario, ou a config do PC."""
     conteudo = dl.ler_env().get("BACKUP_RCLONE_CONF")
     if not conteudo:
         return []
@@ -223,152 +166,123 @@ def args_rclone(pasta_tmp: Path) -> list[str]:
     return ["--config", str(arquivo)]
 
 
-def destino(nome_arquivo: str = "") -> str:
+def destino_drive(nome_arquivo: str = "") -> str:
     return f"{REMOTO}:{PASTA_DRIVE}" + (f"/{nome_arquivo}" if nome_arquivo else "")
 
 
-def antigos_no_drive(conf: list[str]) -> list[str]:
-    saida = rodar([binario("rclone"), *conf, "lsf", destino(), "--files-only",
-                   "--min-age", f"{RETENCAO_DIAS}d", "--include", FILTRO_RETENCAO], timeout=120)
-    return [linha for linha in saida.splitlines() if linha.strip()]
-
-
-# ─── backup de um banco ──────────────────────────────────────────────────────
-
-
-def gerar_dumps(rotulo: str, url: str, pasta: Path) -> None:
-    """Dois dumps em formato custom: o principal (estrutura + dados dos nossos
-    schemas) e o "extras" (so dados de contas, jobs e historico de migrations)."""
-    env = env_postgres(url)
-    pg_dump = binario("pg_dump")
-
-    principal = [pg_dump, "--format=custom", "--file", str(pasta / "principal.dump")]
-    for schema in SCHEMAS_GERENCIADOS:
-        principal += ["--exclude-schema", schema]
-
-    extras = [pg_dump, "--format=custom", "--data-only", "--file", str(pasta / "extras.dump")]
-    for tabela in TABELAS_EXTRAS:
-        extras += ["--table", tabela]
-
-    for nome, cmd in (("principal", principal), ("extras", extras)):
-        dl.executar_com_retry(
-            f"pg_dump {rotulo} ({nome})",
-            lambda cmd=cmd: rodar(cmd, env=env, timeout=TIMEOUT_DUMP_S),
-            TENTATIVAS, SEGUNDOS_ENTRE_TENTATIVAS,
-        )
-
-    # Confere que os arquivos abrem: dump truncado nao chega ao Drive.
-    for nome in ("principal", "extras"):
-        indice = rodar([binario("pg_restore"), "--list", str(pasta / f"{nome}.dump")])
-        itens = sum(1 for linha in indice.splitlines() if linha and not linha.startswith(";"))
-        if itens == 0:
-            raise RuntimeError(f"{rotulo}: {nome}.dump sem nenhum objeto")
-
-
-def empacotar_e_cifrar(rotulo: str, pasta: Path, carimbo: str) -> Path:
-    """zip dos dois dumps -> age com a chave publica. Devolve o .zip.age.
-
-    ZIP_STORED: o formato custom do pg_dump ja vem comprimido."""
-    arquivo_zip = pasta.parent / f"{rotulo}_{carimbo}.zip"
-    with zipfile.ZipFile(arquivo_zip, "w", compression=zipfile.ZIP_STORED) as z:
-        for nome in ("principal.dump", "extras.dump"):
-            z.write(pasta / nome, arcname=nome)
-    cifrado = arquivo_zip.with_name(arquivo_zip.name + ".age")
-    recipient = dl.obter_variavel("BACKUP_AGE_RECIPIENT").strip()
-    rodar([binario("age"), "--encrypt", "--recipient", recipient, "--output", str(cifrado), str(arquivo_zip)])
-    arquivo_zip.unlink()   # o .zip em claro nao fica nem no disco temporario
-    shutil.rmtree(pasta)   # nem os dumps
-    return cifrado
-
-
-def mb(caminho: Path) -> str:
-    return f"{caminho.stat().st_size / 1e6:.1f} MB".replace(".", ",")
+def limpar_drive(conf: list[str]) -> int:
+    filtro = ["--min-age", f"{RETENCAO_DIAS}d", "--include", FILTRO_RETENCAO]
+    velhos = [l for l in rodar([binario("rclone"), *conf, "lsf", destino_drive(), "--files-only", *filtro],
+                               timeout=120).splitlines() if l.strip()]
+    if velhos:
+        rodar([binario("rclone"), *conf, "delete", destino_drive(), *filtro], timeout=300)
+    return len(velhos)
 
 
 # ─── carga ───────────────────────────────────────────────────────────────────
 
 
-def processar(alvos: dict[str, str]) -> tuple[int, str]:
+def gerar_backup(rotulo: str, pasta_tmp: Path, carimbo: str) -> tuple[Path, str]:
+    """Exporta, confere e (com chave) criptografa. Devolve (arquivo, resumo)."""
+    arquivo_zip = pasta_tmp / f"{rotulo}_{carimbo}.zip"
+    # Retry so em falha de conexao: erro de SQL ou permissao estoura na primeira.
+    for tentativa in range(1, TENTATIVAS + 1):
+        try:
+            manifesto = exportar_banco(url_do_alvo(rotulo), rotulo, arquivo_zip,
+                                       f"robo_{IDCARGA:03d}_{NOME_ROBO}")
+            break
+        except psycopg.OperationalError as e:
+            if tentativa == TENTATIVAS:
+                raise
+            dl.log(f"[EXPORT] {rotulo}: conexao falhou ({e}); nova tentativa em {SEGUNDOS_ENTRE_TENTATIVAS}s")
+            time.sleep(SEGUNDOS_ENTRE_TENTATIVAS)
+    tabelas, linhas = conferir_zip(arquivo_zip)  # o zip abre e bate com o banco
+    resumo = f"{rotulo}: {tabelas} tabelas, {linhas} linhas"
+    dl.log(f"[EXPORT] {resumo} (Postgres {manifesto['servidor']})")
+
+    recipient = chave_publica()
+    if not recipient:  # so no dry-run
+        return arquivo_zip, resumo + " (sem criptografia: dry-run sem chave)"
+    cifrado = arquivo_zip.with_name(arquivo_zip.name + ".age")
+    rodar([binario("age"), "--encrypt", "--recipient", recipient, "--output", str(cifrado), str(arquivo_zip)])
+    arquivo_zip.unlink()  # o zip em claro nao fica nem no disco temporario
+    return cifrado, resumo
+
+
+def processar(alvos: list[str]) -> tuple[int, str]:
     """A carga. Devolve (qtd_itens, resumo) para o registro no Supabase."""
     global ITENS_FEITOS
-
     carimbo = datetime.now(timezone.utc).strftime("%Y-%m-%d_%H%MZ")
-    env = dl.ler_env()
     feitos: list[str] = []
 
     with tempfile.TemporaryDirectory(prefix="robo005_") as tmp:
         tmp_path = Path(tmp)
-        conf = [] if (DRY_RUN or PASTA_LOCAL) else args_rclone(tmp_path)
-        if PASTA_LOCAL and not DRY_RUN:
-            Path(PASTA_LOCAL).mkdir(parents=True, exist_ok=True)
+        usa_drive = not (DEBUG or DRY_RUN or PASTA_LOCAL)
+        conf = args_rclone(tmp_path) if usa_drive else []
 
-        for rotulo, secret in alvos.items():
-            pasta = tmp_path / rotulo
-            pasta.mkdir()
-            gerar_dumps(rotulo, env[secret], pasta)
-            arquivo = empacotar_e_cifrar(rotulo, pasta, carimbo)
+        for rotulo in alvos:
+            arquivo, resumo = gerar_backup(rotulo, tmp_path, carimbo)
+            tamanho = mb(arquivo)
 
             if DEBUG or DRY_RUN:
-                dl.log(f"[DRY RUN] {arquivo.name} ({mb(arquivo)}) pronto; nao enviado")
-                feitos.append(f"{rotulo} {mb(arquivo)}")
+                feitos.append(f"{resumo}, {tamanho}")
                 continue
 
             if PASTA_LOCAL:
-                final = Path(PASTA_LOCAL) / arquivo.name
-                tamanho = mb(arquivo)
-                shutil.move(str(arquivo), final)
-                ITENS_FEITOS += 1
-                feitos.append(f"{rotulo} {tamanho}")
-                dl.log(f"[PASTA] {final} ({tamanho})")
-                continue
-
-            dl.executar_com_retry(
-                f"envio {arquivo.name}",
-                lambda arquivo=arquivo: rodar(
-                    [binario("rclone"), *conf, "copyto", str(arquivo), destino(arquivo.name)],
-                    timeout=600,
-                ),
-                TENTATIVAS, SEGUNDOS_ENTRE_TENTATIVAS,
-            )
+                pasta = Path(PASTA_LOCAL)
+                pasta.mkdir(parents=True, exist_ok=True)
+                shutil.move(str(arquivo), pasta / arquivo.name)
+                dl.log(f"[PASTA] {pasta.resolve() / arquivo.name} ({tamanho})")
+            else:
+                dl.executar_com_retry(
+                    f"envio {arquivo.name}",
+                    lambda arquivo=arquivo: rodar([binario("rclone"), *conf, "copyto", str(arquivo),
+                                                   destino_drive(arquivo.name)]),
+                    TENTATIVAS, SEGUNDOS_ENTRE_TENTATIVAS,
+                )
+                dl.log(f"[DRIVE] {arquivo.name} enviado ({tamanho})")
             ITENS_FEITOS += 1
-            feitos.append(f"{rotulo} {mb(arquivo)}")
-            dl.log(f"[DRIVE] {arquivo.name} enviado ({mb(arquivo)})")
+            feitos.append(f"{resumo}, {tamanho}")
 
         if DEBUG or DRY_RUN:
-            return 0, f"dry-run: {len(feitos)} backup(s) gerado(s) e conferido(s) ({' · '.join(feitos)})"
-
+            return 0, "dry-run: " + " · ".join(feitos)
         if PASTA_LOCAL:
-            return ITENS_FEITOS, f"{ITENS_FEITOS} backup(s) em {Path(PASTA_LOCAL).resolve()}: {' · '.join(feitos)}"
+            return ITENS_FEITOS, f"{ITENS_FEITOS} backup(s) em {Path(PASTA_LOCAL).resolve()}: " + " · ".join(feitos)
 
-        # Limpeza so depois de TODOS os envios do dia: com erro no meio, a
-        # excecao ja saiu antes daqui e nada antigo e apagado.
-        velhos = antigos_no_drive(conf)
-        if velhos:
-            rodar([binario("rclone"), *conf, "delete", destino(), "--min-age",
-                   f"{RETENCAO_DIAS}d", "--include", FILTRO_RETENCAO], timeout=300)
-            dl.log(f"[DRIVE] {len(velhos)} backup(s) com mais de {RETENCAO_DIAS} dias na lixeira")
+        # Limpeza so depois de TODOS os envios: com erro no meio, nada antigo sai.
+        apagados = limpar_drive(conf)
 
-    resumo = f"{ITENS_FEITOS} backup(s) no Drive: {' · '.join(feitos)}"
-    if velhos:
-        resumo += f" · {len(velhos)} antigo(s) apagado(s)"
-    return ITENS_FEITOS, resumo
+    resumo = f"{ITENS_FEITOS} backup(s) no Drive: " + " · ".join(feitos)
+    return ITENS_FEITOS, resumo + (f" · {apagados} antigo(s) apagado(s)" if apagados else "")
 
 
-def mostrar_status(alvos: dict[str, str]) -> None:
-    env = dl.ler_env()
+def conferir_arquivo(arquivo: str) -> None:
+    """--conferir: decifra com a chave privada numa pasta temporaria e confere."""
+    chave = _valor_do_argumento("--chave")
+    if not chave:
+        raise ValueError("--conferir precisa de --chave <arquivo com a chave privada do age>")
+    with tempfile.TemporaryDirectory(prefix="robo005_conf_") as tmp:
+        aberto = Path(tmp) / "backup.zip"
+        rodar([binario("age"), "--decrypt", "--identity", chave, "--output", str(aberto), arquivo])
+        tabelas, linhas = conferir_zip(aberto)
+    print(f"OK: {Path(arquivo).name} abre e confere: {tabelas} tabelas, {linhas} linhas")
+
+
+def mostrar_status(alvos: list[str]) -> None:
     print(f"Robo {IDCARGA:03d} - {NOME_ROBO}")
-    for rotulo, secret in alvos.items():
-        print(f"  alvo {rotulo:<12} {secret}: {'configurado' if env.get(secret) else 'AUSENTE'}")
-    print(f"  chave age (publica): {'configurada' if env.get('BACKUP_AGE_RECIPIENT') else 'AUSENTE'}")
-    print(f"  rclone: {'BACKUP_RCLONE_CONF' if env.get('BACKUP_RCLONE_CONF') else 'config padrao do PC'}"
-          f" -> {destino()} (retencao {RETENCAO_DIAS} dias)")
-    for nome in ("pg_dump", "pg_restore", "age", "rclone"):
-        print(f"  {nome:<11} {versao(nome)}")
+    for rotulo in alvos:
+        print(f"  {rotulo:<12} {' ou '.join(ALVOS[rotulo])}: {'configurado' if url_do_alvo(rotulo) else 'AUSENTE'}")
+    print(f"  chave age (publica): {'configurada' if chave_publica() else 'AUSENTE'}")
+    for nome in ("age", "rclone"):
+        print(f"  {nome:<7} {'ok' if shutil.which(nome) else 'AUSENTE'}")
 
 
 def main() -> None:
-    dl.configurar_logger(IDCARGA, NOME_ROBO, BASE)
+    if CONFERIR:
+        conferir_arquivo(CONFERIR)
+        return
 
+    dl.configurar_logger(IDCARGA, NOME_ROBO, BASE)
     modo = dl.modo_execucao()
     dta_ini = datetime.now(timezone.utc)
     alvos = alvos_da_execucao()
@@ -377,9 +291,8 @@ def main() -> None:
         "DRY-RUN" if (DEBUG or DRY_RUN) else modo,
         extras={
             "Modo de execucao": modo,
-            "Supabase": "configurado" if dl.supabase_configurado() else "AUSENTE",
             "Bancos": ", ".join(alvos),
-            "Destino": str(Path(PASTA_LOCAL).resolve()) if PASTA_LOCAL else destino(),
+            "Destino": str(Path(PASTA_LOCAL).resolve()) if PASTA_LOCAL else destino_drive(),
             "DEBUG / DRY_RUN": f"{DEBUG} / {DRY_RUN}",
         },
     )
@@ -400,10 +313,8 @@ def main() -> None:
         qtd, resumo = processar(alvos)
 
         if registrar:
-            dl.registrar_carga_supabase(
-                IDCARGA, dl.STATUS_SUCESSO, dta_ini, fechar=True,
-                mensagem=resumo, qtd_itens=qtd,
-            )
+            dl.registrar_carga_supabase(IDCARGA, dl.STATUS_SUCESSO, dta_ini, fechar=True,
+                                        mensagem=resumo, qtd_itens=qtd)
 
         dl.log(f"[ROBO{IDCARGA:03d}] ✅ RESULTADO FINAL: SUCESSO - {resumo}")
         dl.log("=" * 70)
@@ -413,10 +324,8 @@ def main() -> None:
         dl.logar_traceback("erro final")
 
         if registrar:
-            dl.registrar_carga_supabase(
-                IDCARGA, dl.STATUS_ERRO, dta_ini, fechar=True,
-                mensagem=str(e)[:500], qtd_itens=ITENS_FEITOS,
-            )
+            dl.registrar_carga_supabase(IDCARGA, dl.STATUS_ERRO, dta_ini, fechar=True,
+                                        mensagem=str(e)[:500], qtd_itens=ITENS_FEITOS)
             dl.alertar_erro_robo(IDCARGA, NOME_ROBO, str(e))
 
         dl.log(f"[ROBO{IDCARGA:03d}] ❌ RESULTADO FINAL: ERRO")

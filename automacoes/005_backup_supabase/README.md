@@ -1,112 +1,101 @@
 # 005 · Backup Supabase
 
-Backup diário dos bancos Supabase, fora da Supabase: `pg_dump` pelo Session
-pooler, criptografado com **age** e guardado no **Google Drive** (pasta
-"Backups Supabase"), com retenção de 30 dias. Nasceu na etapa 0 da migração dos
-projetos ([levantamento](../../docs/levantamento_migracao.md)): nenhum dos
-bancos tinha backup, e o plano grátis não inclui.
+Backup dos bancos Supabase fora da Supabase, **só com Python** (sem `pg_dump` e
+sem PostgreSQL instalado): estrutura em SQL e dados em CSV num `.zip`,
+criptografado com **age**. Nasceu na etapa 0 da migração dos projetos
+([levantamento](../../docs/levantamento_migracao.md)): nenhum banco tinha
+backup, e o plano grátis não inclui.
 
 | | |
 |---|---|
 | Origem | financas-pipeline/DM e OpenFinance (`ALVOS` no robô). O Clientes entra na etapa 3; o OpenFinance sai quando for pausado |
-| Destino | `gdrive:Backups Supabase/<banco>_<AAAA-MM-DD_HHMMZ>.zip.age` |
-| Quando | 04:00 de São Paulo, pelo `pg_cron` (depois do primeiro restore conferido) |
-| `id_carga` | 5 |
-| `qtd_itens` | backups que chegaram ao Drive |
+| Destino hoje | pasta do PC, na mão (`--pasta`) |
+| Destino depois | Google Drive pelo rclone, às 04:00 pelo `pg_cron`, com retenção de 30 dias |
+| `id_carga` | 5 (só a execução automática registra) |
 
-## Fluxo
+## O que vai no backup
 
-1. Valida variáveis, a porta 5432 de cada string de conexão, a chave pública e
-   as ferramentas (`pg_dump`, `pg_restore`, `age`, `rclone`), antes de qualquer rede.
-2. Para cada banco, dois `pg_dump --format=custom`:
-   - **principal**: estrutura e dados de tudo que é nosso (`public`, `private`,
-     `estoque`, `openfinance`…), sem os schemas que a Supabase administra;
-   - **extras**: só dados de `auth.users`, `auth.identities`, `cron.job` e
-     `supabase_migrations.schema_migrations`.
-3. `pg_restore --list` em cada dump: dump que não abre não segue.
-4. `zip` dos dois e `age` com a chave **pública**. O `.zip` em claro e os dumps
-   são apagados na hora; a pasta temporária some no fim.
-5. `rclone copyto` para o Drive (com retry).
-6. Só depois de **todos** os envios: apaga do Drive os backups com mais de 30
-   dias (vão para a lixeira do Drive, que guarda mais 30 dias). Só arquivos no
-   formato `<banco>_*.zip.age` entram na limpeza.
+Um arquivo por banco: `<banco>_<AAAA-MM-DD_HHMMZ>.zip.age`. Aberto, o zip tem:
 
-## Configuração
-
-Secrets do Actions (`ambiente_dev`):
-
-| Secret | O que é |
+| Arquivo | Conteúdo |
 |---|---|
-| `SUPABASE_URL`, `SUPABASE_KEY` | os de sempre (registro no hub) |
-| `SUPABASE_DUMP_URL_DM` | Session pooler (porta 5432) do financas-pipeline/DM |
-| `SUPABASE_DUMP_URL_OPENFINANCE` | Session pooler (porta 5432) do OpenFinance |
-| `BACKUP_AGE_RECIPIENT` | chave **pública** do age (`age1...`) |
-| `BACKUP_RCLONE_CONF` | saída de `rclone config show gdrive` (com o token OAuth) |
+| `estrutura_1_antes_dos_dados.sql` | schemas, sequences, tabelas, funções, defaults, views, PK/unique/check |
+| `dados/<schema>.<tabela>.csv` | todas as tabelas dos nossos schemas + `auth.users`, `auth.identities`, `cron.job`, `supabase_migrations.schema_migrations` |
+| `estrutura_2_depois_dos_dados.sql` | FKs, índices, triggers, RLS, policies, grants, valores das sequences |
+| `manifesto.json` | colunas, número de linhas e sha256 de cada CSV |
+| `LEIA-ME.txt` | ordem do restore |
 
-No PC, as mesmas chaves no `.env` (veja o `.env.example`), menos a
-`BACKUP_RCLONE_CONF`: lá o rclone usa a config padrão. `BACKUP_PG_BIN` aponta
-para a pasta do `pg_dump` se ele não estiver no PATH.
+Tudo é lido numa transação só (`REPEATABLE READ READ ONLY`): todas as tabelas
+saem do mesmo instante. Antes de criptografar, o robô reabre o zip e confere
+cada CSV (sha256 e número de linhas contra o `count(*)` do banco).
+
+**Fica de fora:** arquivos do Storage (decisão de 22/11/2026: o bronze é refeito
+pelo sync), segredos do Vault (num restore, o `github_dispatch_token` é criado de
+novo à mão), configuração do painel (Data API, Auth, SMTP), comentários e dono
+dos objetos.
 
 ## Uso
 
 ```powershell
 $py = "C:\Users\ferna\AppData\Local\Python\bin\python.exe"
-& $py automacoes\005_backup_supabase\005_backup_supabase.py --status      # config e versões
-& $py automacoes\005_backup_supabase\005_backup_supabase.py --dry-run     # gera e confere, não envia
-& $py automacoes\005_backup_supabase\005_backup_supabase.py --alvo dm     # só um banco
+$r  = "automacoes\005_backup_supabase\005_backup_supabase.py"
+& $py $r --status                              # o que está configurado
+& $py $r --dry-run                             # gera e confere numa pasta temporária, não grava nada
+& $py $r --pasta D:\backups\supabase           # backup manual (pasta FORA do repositório)
+& $py $r --pasta D:\backups\supabase --alvo dm # só um banco
+& $py $r --conferir D:\backups\supabase\dm_<data>.zip.age --chave <arquivo da chave privada>
 ```
 
-No Actions, o "Run workflow" tem as mesmas opções (`dry_run`, `alvo`).
+`--conferir` abre o backup com a chave privada numa pasta temporária e confere
+cada CSV contra o manifesto, sem banco nenhum. A chave privada fica num arquivo
+só durante o comando: crie a partir do gerenciador de senhas e apague logo depois.
 
-### Backup manual numa pasta do PC
+Configuração no `.env` (veja o `.env.example`):
 
-Sem Drive e sem rclone: grava `<banco>_<data>.zip.age` na pasta escolhida
-(precisa ficar **fora** do repositório; o robô recusa o contrário). Não registra
-no hub nem apaga nada antigo. Precisa do PostgreSQL 17 ou 18 instalado (o robô
-acha o `pg_dump` em `C:\Program Files\PostgreSQL\18\bin`) e, no `.env`,
-`SUPABASE_DUMP_URL_DM`, `SUPABASE_DUMP_URL_OPENFINANCE` e `BACKUP_AGE_RECIPIENT`.
+| Variável | O que é |
+|---|---|
+| `SUPABASE_DUMP_URL_DM` | string de conexão do DM. Opcional: sem ela, vale o `SUPABASE_DB_URL` |
+| `SUPABASE_DUMP_URL_OPENFINANCE` | string de conexão do OpenFinance (Connect → Session pooler) |
+| `BACKUP_AGE_RECIPIENT` | chave **pública** do age (`age1...`) |
 
-```powershell
-& $py automacoes\005_backup_supabase\005_backup_supabase.py --pasta D:\backups\supabase
-```
+## Restore
 
-Para abrir: `age --decrypt --identity <arquivo com a chave privada> -o dm.zip dm_<data>.zip.age`.
-Antes de cada etapa da migração: rodar na mão com `alvo` = o banco que vai mudar.
+Ordem (também no `LEIA-ME.txt` de cada backup):
+
+1. `estrutura_1_antes_dos_dados.sql`
+2. cada CSV com `COPY <schema>.<tabela> (<colunas do manifesto>) FROM ... CSV HEADER`;
+   `auth.users` e `auth.identities` antes das tabelas que apontam para elas, e
+   só num projeto Supabase
+3. `estrutura_2_depois_dos_dados.sql`
+
+As triggers só são criadas no passo 3: carregar os dados não dispara nada (as
+quantidades do estoque não são somadas de novo).
 
 ## Decisões
 
-- **Session pooler, porta 5432.** O Transaction pooler (6543, o do robô 002)
-  não serve para `pg_dump`, e a conexão direta da Supabase é só IPv6, que o
-  runner do GitHub não tem. O robô recusa outra porta.
-- **`pg_dump` 17**, igual ao servidor. O runner traz o 16; o 17 vem do
-  repositório oficial do Postgres (`BACKUP_PG_BIN`). Para restaurar, qualquer
-  `pg_restore` 17 ou mais novo serve (o PC usa o 18).
-- **Criptografia com age e chave pública.** Quem tem acesso ao Actions ou ao
-  Drive não consegue abrir o backup: a chave privada só existe no gerenciador
-  de senhas. **Perder a chave privada = perder todos os backups.**
-- **Nada passa pelo GitHub.** O `ambiente_dev` é público: nenhum dump vai para
-  artifact, release ou log.
-- **Drive pessoal com OAuth (rclone), não conta de serviço**, que não tem cota
-  no Drive pessoal. Escopo `drive.file`: o rclone só enxerga o que ele mesmo
-  criou. Por isso a pasta "Backups Supabase" é criada pelo rclone, nunca à mão.
-  O token de acesso é renovado a cada execução; o de renovação fica no secret.
-- **Fica fora do backup, de propósito:**
-  - arquivos do Storage (o `openfinance-bronze` é refeito pelo sync, decisão de 22/11/2026);
-  - segredos do Vault (o `pg_dump` levaria o valor cifrado, que não abre em outro
-    projeto). Num restore, o `github_dispatch_token` é criado de novo à mão;
-  - a configuração do projeto (Data API, Auth, SMTP), que fica no painel.
-- **Dois dumps em vez de um.** O principal restaura num projeto novo sem brigar
-  com o que a Supabase já cria; o "extras" traz as contas com os mesmos IDs, que
-  as tabelas do estoque e do openfinance referenciam.
-- **Sem trava de uma vez por dia:** rodar de novo antes de uma etapa da
-  migração tem que funcionar. O carimbo com hora no nome evita sobrescrever.
-- **Sem Telegram** (decisão de 22/11/2026): durante a migração o alerta é o
-  e-mail do GitHub (run vermelho); depois, o Discord.
+- **Sem `pg_dump` (23/11/2026).** Instalar o PostgreSQL no PC só para o backup
+  foi descartado. O `psycopg`, que os robôs já usam, lê a estrutura do catálogo
+  e os dados por `COPY`. O banco usa só tabelas, views, funções, triggers,
+  policies, sequences e colunas identity (conferido em 23/11/2026); se aparecer
+  enum, domínio ou view materializada, a exportação precisa aprender o tipo novo.
+- **Qualquer pooler serve.** A exportação inteira é uma transação, com
+  `prepare_threshold=None`: funciona no Transaction pooler (6543, o mesmo do
+  robô 002) e no Session pooler (5432).
+- **Criptografia com age e chave pública.** Quem tem o arquivo ou acesso ao PC,
+  ao Actions ou ao Drive não abre o backup: a chave privada só existe no
+  gerenciador de senhas. **Perder a chave privada = perder todos os backups.**
+- **Nada passa pelo GitHub.** O `ambiente_dev` é público: nenhum backup vai para
+  artifact, release ou log. A pasta do `--pasta` não pode ficar dentro do repositório.
+- **Retry só em falha de conexão.** Erro de SQL ou permissão estoura na primeira.
+- **Sem Telegram** (decisão de 22/11/2026): o alerta é o e-mail do GitHub (run
+  vermelho); depois, o Discord.
+- **Drive depois.** O client_id compartilhado do rclone deixa de funcionar em
+  2026: a automação vai precisar de um client_id próprio no Google Cloud, com o
+  app publicado (em "Teste" o token vence a cada 7 dias).
 
-## Cadastro
+## Cadastro (para a execução automática)
 
-Migration a aplicar antes do primeiro run de verdade (sem ela o registro falha
-e o vigia não enxerga o robô):
+Migration a aplicar antes do primeiro run automático:
 
 ```sql
 insert into public.controle_cargas (
@@ -115,20 +104,18 @@ insert into public.controle_cargas (
 )
 values (
   5, '005 - Backup Supabase',
-  'pg_dump dos bancos Supabase, criptografado (age) e guardado no Google Drive, 30 dias',
-  20, 26, '{1,2,3,4,5,6,7}', true, 'Python/pg_dump', '005_backup_supabase.py',
+  'Backup dos bancos Supabase (estrutura + CSV), criptografado com age, 30 dias',
+  20, 26, '{1,2,3,4,5,6,7}', true, 'Python/psycopg', '005_backup_supabase.py',
   'robo_005_backup_supabase.yml'
 )
 on conflict (id_carga) do nothing;
 ```
 
-O horário (04:00 SP = `0 7 * * *` UTC) entra numa migration à parte, depois do
-primeiro restore conferido.
+O horário (04:00 SP = `0 7 * * *` UTC) entra numa migration à parte.
 
 ## Estado
 
-- **23/11/2026**: código e workflow prontos. Primeiro passo simplificado: backup
-  manual em pasta do PC (`--pasta`). O Drive fica para depois: o client_id
-  compartilhado do rclone deixa de funcionar em 2026, então a automação vai
-  precisar de um client_id próprio no Google Cloud, com o app publicado (em
-  "Teste" o token vence a cada 7 dias). Restore ainda não testado.
+- **23/11/2026**: exportação sem `pg_dump` testada em dry-run no DM: 50 tabelas,
+  2.604 linhas, todas conferidas, 0,2 MB. Falta o primeiro backup de verdade
+  (precisa da chave pública e da string do OpenFinance no `.env`) e o
+  `--conferir` com a chave privada.
