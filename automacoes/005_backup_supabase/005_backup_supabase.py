@@ -21,8 +21,8 @@ os.environ.setdefault("PYTHONIOENCODING", "utf-8")
 
 import shutil
 import subprocess
-import tarfile
 import tempfile
+import zipfile
 from datetime import datetime, timezone
 from urllib.parse import unquote, urlsplit
 
@@ -33,9 +33,23 @@ import lib_dscs as dl
 #                 nao apaga nada e nao registra status.
 # --status     -> mostra configuracao e versoes das ferramentas e sai.
 # --alvo NOME  -> so um banco (ex.: --alvo dm antes de uma etapa da migracao).
+# --pasta DIR  -> backup manual no PC: grava o .zip.age em DIR (fora do
+#                 repositorio), sem Drive, sem limpeza e sem registrar status.
 DEBUG = False
 DRY_RUN = "--dry-run" in sys.argv
 STATUS = "--status" in sys.argv
+
+
+def _valor_do_argumento(nome: str) -> str | None:
+    if nome not in sys.argv:
+        return None
+    i = sys.argv.index(nome)
+    if i + 1 >= len(sys.argv) or sys.argv[i + 1].startswith("--"):
+        raise ValueError(f"{nome} precisa de um valor")
+    return sys.argv[i + 1]
+
+
+PASTA_LOCAL = _valor_do_argumento("--pasta")
 
 IDCARGA = 5  # ★ mesmo numero da pasta e do id_carga em public.controle_cargas
 NOME_ROBO = "backup_supabase"
@@ -74,7 +88,11 @@ REMOTO = "gdrive"                  # nome do remote no rclone config
 PASTA_DRIVE = "Backups Supabase"   # criada pelo proprio rclone (escopo drive.file)
 RETENCAO_DIAS = 30
 # So arquivos com este formato entram na limpeza: nada mais da pasta e tocado.
-FILTRO_RETENCAO = "{" + ",".join(ALVOS) + ",clientes}_*.tar.age"
+FILTRO_RETENCAO = "{" + ",".join(ALVOS) + ",clientes}_*.zip.age"
+
+# pg_dump do instalador do PostgreSQL no Windows (winget), se BACKUP_PG_BIN
+# nao disser outra coisa e ele nao estiver no PATH.
+PG_BIN_WINDOWS = (Path(r"C:\Program Files\PostgreSQL\18\bin"), Path(r"C:\Program Files\PostgreSQL\17\bin"))
 
 TENTATIVAS = 3
 SEGUNDOS_ENTRE_TENTATIVAS = 30
@@ -96,6 +114,8 @@ def binario(nome: str) -> str:
             return str(caminho)
         raise FileNotFoundError(f"{nome} nao encontrado em BACKUP_PG_BIN ({pasta_pg})")
     achado = shutil.which(nome)
+    if not achado and os.name == "nt" and nome.startswith("pg_"):
+        achado = next((str(p / f"{nome}.exe") for p in PG_BIN_WINDOWS if (p / f"{nome}.exe").exists()), None)
     if not achado:
         raise FileNotFoundError(f"{nome} nao encontrado no PATH")
     return achado
@@ -127,10 +147,9 @@ def versao(nome: str) -> str:
 
 
 def alvos_da_execucao() -> dict[str, str]:
-    if "--alvo" not in sys.argv:
+    nome = _valor_do_argumento("--alvo")
+    if nome is None:
         return dict(ALVOS)
-    i = sys.argv.index("--alvo")
-    nome = sys.argv[i + 1] if i + 1 < len(sys.argv) else ""
     if nome not in ALVOS:
         raise ValueError(f"--alvo invalido: {nome!r}. Opcoes: {', '.join(ALVOS)}")
     return {nome: ALVOS[nome]}
@@ -179,7 +198,13 @@ def validar_configuracao(alvos: dict[str, str]) -> None:
         except ValueError as e:
             raise ValueError(f"{secret}: {e}") from None
 
-    for nome in ("pg_dump", "pg_restore", "age") + (() if DRY_RUN else ("rclone",)):
+    if PASTA_LOCAL:
+        pasta = Path(PASTA_LOCAL).resolve()
+        if pasta == dl.RAIZ or dl.RAIZ in pasta.parents:
+            raise ValueError(f"--pasta {pasta} fica dentro do repositorio: escolha uma pasta fora dele")
+
+    usa_drive = not (DRY_RUN or PASTA_LOCAL)
+    for nome in ("pg_dump", "pg_restore", "age") + (("rclone",) if usa_drive else ()):
         binario(nome)  # levanta se faltar
 
 
@@ -241,15 +266,17 @@ def gerar_dumps(rotulo: str, url: str, pasta: Path) -> None:
 
 
 def empacotar_e_cifrar(rotulo: str, pasta: Path, carimbo: str) -> Path:
-    """tar dos dois dumps -> age com a chave publica. Devolve o .tar.age."""
-    tar = pasta.parent / f"{rotulo}_{carimbo}.tar"
-    with tarfile.open(tar, "w") as t:
+    """zip dos dois dumps -> age com a chave publica. Devolve o .zip.age.
+
+    ZIP_STORED: o formato custom do pg_dump ja vem comprimido."""
+    arquivo_zip = pasta.parent / f"{rotulo}_{carimbo}.zip"
+    with zipfile.ZipFile(arquivo_zip, "w", compression=zipfile.ZIP_STORED) as z:
         for nome in ("principal.dump", "extras.dump"):
-            t.add(pasta / nome, arcname=f"{rotulo}_{carimbo}/{nome}")
-    cifrado = tar.with_name(tar.name + ".age")
+            z.write(pasta / nome, arcname=nome)
+    cifrado = arquivo_zip.with_name(arquivo_zip.name + ".age")
     recipient = dl.obter_variavel("BACKUP_AGE_RECIPIENT").strip()
-    rodar([binario("age"), "--encrypt", "--recipient", recipient, "--output", str(cifrado), str(tar)])
-    tar.unlink()           # o .tar em claro nao fica nem no disco temporario
+    rodar([binario("age"), "--encrypt", "--recipient", recipient, "--output", str(cifrado), str(arquivo_zip)])
+    arquivo_zip.unlink()   # o .zip em claro nao fica nem no disco temporario
     shutil.rmtree(pasta)   # nem os dumps
     return cifrado
 
@@ -271,7 +298,9 @@ def processar(alvos: dict[str, str]) -> tuple[int, str]:
 
     with tempfile.TemporaryDirectory(prefix="robo005_") as tmp:
         tmp_path = Path(tmp)
-        conf = [] if DRY_RUN else args_rclone(tmp_path)
+        conf = [] if (DRY_RUN or PASTA_LOCAL) else args_rclone(tmp_path)
+        if PASTA_LOCAL and not DRY_RUN:
+            Path(PASTA_LOCAL).mkdir(parents=True, exist_ok=True)
 
         for rotulo, secret in alvos.items():
             pasta = tmp_path / rotulo
@@ -282,6 +311,15 @@ def processar(alvos: dict[str, str]) -> tuple[int, str]:
             if DEBUG or DRY_RUN:
                 dl.log(f"[DRY RUN] {arquivo.name} ({mb(arquivo)}) pronto; nao enviado")
                 feitos.append(f"{rotulo} {mb(arquivo)}")
+                continue
+
+            if PASTA_LOCAL:
+                final = Path(PASTA_LOCAL) / arquivo.name
+                tamanho = mb(arquivo)
+                shutil.move(str(arquivo), final)
+                ITENS_FEITOS += 1
+                feitos.append(f"{rotulo} {tamanho}")
+                dl.log(f"[PASTA] {final} ({tamanho})")
                 continue
 
             dl.executar_com_retry(
@@ -298,6 +336,9 @@ def processar(alvos: dict[str, str]) -> tuple[int, str]:
 
         if DEBUG or DRY_RUN:
             return 0, f"dry-run: {len(feitos)} backup(s) gerado(s) e conferido(s) ({' · '.join(feitos)})"
+
+        if PASTA_LOCAL:
+            return ITENS_FEITOS, f"{ITENS_FEITOS} backup(s) em {Path(PASTA_LOCAL).resolve()}: {' · '.join(feitos)}"
 
         # Limpeza so depois de TODOS os envios do dia: com erro no meio, a
         # excecao ja saiu antes daqui e nada antigo e apagado.
@@ -338,7 +379,7 @@ def main() -> None:
             "Modo de execucao": modo,
             "Supabase": "configurado" if dl.supabase_configurado() else "AUSENTE",
             "Bancos": ", ".join(alvos),
-            "Destino": destino(),
+            "Destino": str(Path(PASTA_LOCAL).resolve()) if PASTA_LOCAL else destino(),
             "DEBUG / DRY_RUN": f"{DEBUG} / {DRY_RUN}",
         },
     )
@@ -347,7 +388,8 @@ def main() -> None:
         mostrar_status(alvos)
         return
 
-    registrar = not (DEBUG or DRY_RUN)
+    # Backup manual em pasta local nao e a carga diaria: nao registra no hub.
+    registrar = not (DEBUG or DRY_RUN or PASTA_LOCAL)
 
     try:
         validar_configuracao(alvos)

@@ -9,7 +9,7 @@ bancos tinha backup, e o plano grátis não inclui.
 | | |
 |---|---|
 | Origem | financas-pipeline/DM e OpenFinance (`ALVOS` no robô). O Clientes entra na etapa 3; o OpenFinance sai quando for pausado |
-| Destino | `gdrive:Backups Supabase/<banco>_<AAAA-MM-DD_HHMMZ>.tar.age` |
+| Destino | `gdrive:Backups Supabase/<banco>_<AAAA-MM-DD_HHMMZ>.zip.age` |
 | Quando | 04:00 de São Paulo, pelo `pg_cron` (depois do primeiro restore conferido) |
 | `id_carga` | 5 |
 | `qtd_itens` | backups que chegaram ao Drive |
@@ -24,12 +24,12 @@ bancos tinha backup, e o plano grátis não inclui.
    - **extras**: só dados de `auth.users`, `auth.identities`, `cron.job` e
      `supabase_migrations.schema_migrations`.
 3. `pg_restore --list` em cada dump: dump que não abre não segue.
-4. `tar` dos dois e `age` com a chave **pública**. O `.tar` em claro e os dumps
+4. `zip` dos dois e `age` com a chave **pública**. O `.zip` em claro e os dumps
    são apagados na hora; a pasta temporária some no fim.
 5. `rclone copyto` para o Drive (com retry).
 6. Só depois de **todos** os envios: apaga do Drive os backups com mais de 30
    dias (vão para a lixeira do Drive, que guarda mais 30 dias). Só arquivos no
-   formato `<banco>_*.tar.age` entram na limpeza.
+   formato `<banco>_*.zip.age` entram na limpeza.
 
 ## Configuração
 
@@ -57,6 +57,20 @@ $py = "C:\Users\ferna\AppData\Local\Python\bin\python.exe"
 ```
 
 No Actions, o "Run workflow" tem as mesmas opções (`dry_run`, `alvo`).
+
+### Backup manual numa pasta do PC
+
+Sem Drive e sem rclone: grava `<banco>_<data>.zip.age` na pasta escolhida
+(precisa ficar **fora** do repositório; o robô recusa o contrário). Não registra
+no hub nem apaga nada antigo. Precisa do PostgreSQL 17 ou 18 instalado (o robô
+acha o `pg_dump` em `C:\Program Files\PostgreSQL\18\bin`) e, no `.env`,
+`SUPABASE_DUMP_URL_DM`, `SUPABASE_DUMP_URL_OPENFINANCE` e `BACKUP_AGE_RECIPIENT`.
+
+```powershell
+& $py automacoes\005_backup_supabase\005_backup_supabase.py --pasta D:\backups\supabase
+```
+
+Para abrir: `age --decrypt --identity <arquivo com a chave privada> -o dm.zip dm_<data>.zip.age`.
 Antes de cada etapa da migração: rodar na mão com `alvo` = o banco que vai mudar.
 
 ## Decisões
@@ -113,5 +127,8 @@ primeiro restore conferido.
 
 ## Estado
 
-- **23/11/2026**: código e workflow prontos; faltam os secrets, o cadastro e o
-  primeiro run. Restore ainda não testado.
+- **23/11/2026**: código e workflow prontos. Primeiro passo simplificado: backup
+  manual em pasta do PC (`--pasta`). O Drive fica para depois: o client_id
+  compartilhado do rclone deixa de funcionar em 2026, então a automação vai
+  precisar de um client_id próprio no Google Cloud, com o app publicado (em
+  "Teste" o token vence a cada 7 dias). Restore ainda não testado.
