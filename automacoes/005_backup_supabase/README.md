@@ -116,7 +116,7 @@ O horário (04:00 SP = `0 7 * * *` UTC) entra numa migration à parte.
 
 ## Estado
 
-- **23/11/2026**: primeiro backup de verdade do DM em `D:\backups\supabase`
-  (50 tabelas, 2.604 linhas, conferidas; 0,2 MB), **sem criptografia** porque a
-  chave age não estava à mão. Faltam: o backup do OpenFinance (senha do banco),
-  refazer os dois com a chave (e apagar o `.zip` em claro) e o `--conferir`.
+- **23/11/2026**: primeiros backups de verdade em `D:\backups\supabase`, conferidos:
+  DM (50 tabelas, 2.604 linhas) e OpenFinance (14 tabelas, 2.626 linhas), 0,2 MB
+  cada, **sem criptografia** (a chave age não estava à mão). Falta refazer os
+  dois com a chave, apagar os `.zip` em claro e rodar o `--conferir`.
