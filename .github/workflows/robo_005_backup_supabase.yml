@@ -1,0 +1,90 @@
+# =============================================
+# Robo 005 - backup diario dos bancos Supabase (pg_dump -> age -> Google Drive).
+# Regras em automacoes/PADRAO_ROBOS.md; decisoes em automacoes/005_backup_supabase/README.md.
+#
+# Nenhum dump passa pelo GitHub: nada de artifact ou release com dado (o repo
+# e publico). So o log de erro sobe, e ele nunca tem senha nem dado.
+# =============================================
+name: robo_005_backup_supabase
+
+on:
+  # 04:00 de Sao Paulo (07:00 UTC), disparado pelo pg_cron do Supabase (o
+  # horario entra numa migration depois do primeiro restore conferido).
+  # Nada de schedule aqui: o do GitHub atrasa 2 a 7 h.
+  # Disparado pelo pg_cron, os inputs chegam vazios: vale o padrao.
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "So gerar e conferir os dumps, sem enviar ao Drive nem registrar"
+        type: boolean
+        default: false
+      alvo:
+        description: "Banco (todos = os da lista ALVOS do robo)"
+        type: choice
+        options: [todos, dm, openfinance]
+        default: todos
+
+permissions:
+  contents: read
+
+# Duas execucoes simultaneas gravariam na mesma linha de controle.
+concurrency:
+  group: robo-005
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    # Versao fixa: os nomes dos pacotes do apt abaixo sao os do Ubuntu 24.04.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+
+    env:
+      MODO_EXECUCAO: CLOUD
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+      # Session pooler (porta 5432) de cada banco.
+      SUPABASE_DUMP_URL_DM: ${{ secrets.SUPABASE_DUMP_URL_DM }}
+      SUPABASE_DUMP_URL_OPENFINANCE: ${{ secrets.SUPABASE_DUMP_URL_OPENFINANCE }}
+      # Chave PUBLICA do age: a privada nunca sai do gerenciador de senhas.
+      BACKUP_AGE_RECIPIENT: ${{ secrets.BACKUP_AGE_RECIPIENT }}
+      # Conteudo do remote "gdrive" do rclone (com o token OAuth).
+      BACKUP_RCLONE_CONF: ${{ secrets.BACKUP_RCLONE_CONF }}
+      # pg_dump igual ao servidor (Postgres 17); o runner traz o 16 no PATH.
+      BACKUP_PG_BIN: /usr/lib/postgresql/17/bin
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Instalar dependencias
+        run: pip install -r requirements.txt
+
+      - name: Instalar pg_dump 17, age e rclone
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-common
+          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
+          sudo apt-get install -y -qq postgresql-client-17 age rclone
+
+      - name: Backup
+        env:
+          # inputs via env, nunca interpolados direto no shell
+          IN_DRY_RUN: ${{ inputs.dry_run }}
+          IN_ALVO: ${{ inputs.alvo }}
+        run: |
+          ARGS=()
+          if [ "$IN_DRY_RUN" = "true" ]; then ARGS+=(--dry-run); fi
+          if [ -n "$IN_ALVO" ] && [ "$IN_ALVO" != "todos" ]; then ARGS+=(--alvo "$IN_ALVO"); fi
+          python automacoes/005_backup_supabase/005_backup_supabase.py "${ARGS[@]}"
+
+      - name: Guardar o log do erro
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: log-erro-005
+          path: automacoes/005_backup_supabase/temp/erro_*.txt
+          if-no-files-found: ignore

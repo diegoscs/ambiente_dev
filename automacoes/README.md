@@ -8,6 +8,7 @@ ninguém percebe.
 
 | Robô | Workflow | Quando roda (São Paulo) |
 |---|---|---|
+| [005 · Backup Supabase](005_backup_supabase/README.md) | `robo_005_backup_supabase.yml` | 04:00 (em implantação) |
 | 003 · Sync Open Finance | `sync-openfinance.yml` no financas-app (botão: `robo_003_sync_openfinance.yml`) | 06:00 e 15:00 |
 | [001 · Check GitHub](001_check_github/README.md) | `robo_001_check_github.yml` | 07:00 |
 | [002 · Check Supabase](002_check_supabase/README.md) | `robo_002_check_supabase.yml` | 08:00 |

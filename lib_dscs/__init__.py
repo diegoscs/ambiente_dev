@@ -70,7 +70,8 @@ from .supabase import (
 # trava em temp\estado.json). Os STATUS_* passam a morar no supabase.py.
 # 2.1.0 (28/10/2026): funcoes do Minecraft recebem `servidor` (create ou
 # pixelmon), com "create" como padrao.
-__version__ = "2.1.0"
+# 2.2.0 (23/11/2026): prefixo BACKUP_ em PREFIXOS_AMBIENTE (robo 005).
+__version__ = "2.2.0"
 
 __all__ = [
     # config

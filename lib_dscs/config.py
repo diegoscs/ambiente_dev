@@ -22,7 +22,8 @@ ENV_FILE = RAIZ / ".env"
 # Actions, onde NAO existe .env e tudo chega por variavel de ambiente. GH_ veio
 # com o robo 001 na nuvem: o GitHub nao aceita secret com prefixo GITHUB_, entao
 # o token dele chega como GH_PAT. (PG_ saiu em 27/10/2026 com o Postgres local.)
-PREFIXOS_AMBIENTE = ("GITHUB_", "GH_", "SUPABASE_", "TELEGRAM_", "MODO_")
+# BACKUP_ veio com o robo 005 (chave publica do age, config do rclone, pasta do pg_dump).
+PREFIXOS_AMBIENTE = ("GITHUB_", "GH_", "SUPABASE_", "TELEGRAM_", "MODO_", "BACKUP_")
 
 
 def ler_env() -> dict[str, str]:
