@@ -43,6 +43,7 @@ $r  = "automacoes\005_backup_supabase\005_backup_supabase.py"
 & $py $r --dry-run                             # gera e confere numa pasta temporária, não grava nada
 & $py $r --pasta D:\backups\supabase           # backup manual (pasta FORA do repositório)
 & $py $r --pasta D:\backups\supabase --alvo dm # só um banco
+& $py $r --pasta D:\backups\supabase --sem-cripto # sem a chave à mão: .zip em claro (só no PC)
 & $py $r --conferir D:\backups\supabase\dm_<data>.zip.age --chave <arquivo da chave privada>
 ```
 
@@ -115,7 +116,7 @@ O horário (04:00 SP = `0 7 * * *` UTC) entra numa migration à parte.
 
 ## Estado
 
-- **23/11/2026**: primeiro backup de verdade do DM em `D:ackups\supabase`
+- **23/11/2026**: primeiro backup de verdade do DM em `D:\backups\supabase`
   (50 tabelas, 2.604 linhas, conferidas; 0,2 MB), **sem criptografia** porque a
   chave age não estava à mão. Faltam: o backup do OpenFinance (senha do banco),
   refazer os dois com a chave (e apagar o `.zip` em claro) e o `--conferir`.
