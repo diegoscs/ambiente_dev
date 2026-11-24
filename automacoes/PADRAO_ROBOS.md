@@ -6,6 +6,22 @@ esqueleto que o hub, o vigia e a `vw_saude_robos` esperam.
 
 Ponto de partida: a pasta [`_modelo/`](_modelo).
 
+## 0. Que tipo de processo é
+
+Decisão de 24/11/2026: o DMP (pessoal) e o DMC (clientes) são isolados. Todo
+processo novo é de um destes três tipos, e o tipo decide onde ele mora:
+
+| Tipo | Onde roda | Pode tocar | Exemplos |
+|---|---|---|---|
+| **Pessoal** | armazém (este repo, Actions) | só o DMP e os seus serviços | 001, 003, sites no ar, fim do Minecraft |
+| **Neutro** | armazém (este repo, Actions) | os dois bancos, só para integridade: manter acordado, copiar, conferir, limpar | 002, 005, vigia, limites, segurança, migrations |
+| **De clientes** | **dentro do DMC** (pg_cron do DMC) | só o DMC | monitor dos apps, teste de isolamento, avisos ao cliente |
+
+- Neutro **nunca** grava dado de cliente no DMP; no DMP fica só o registro de
+  que o robô rodou.
+- Processo de clientes não depende do DMP: se o DMP cair, ele continua.
+- O tipo vai no README do robô e na página central (Mapa do ambiente_dev).
+
 ## 1. Onde roda
 
 - **GitHub Actions, modo `CLOUD`, é o padrão.** O PC não é agendador: se o robô
