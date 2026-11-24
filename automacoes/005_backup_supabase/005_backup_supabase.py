@@ -72,10 +72,10 @@ BASE = Path(__file__).resolve().parent
 
 # Bancos: rotulo (vai no nome do arquivo) -> variaveis com a string de conexao,
 # na ordem de preferencia. Qualquer pooler serve (a exportacao e uma transacao
-# so). Etapa 3 da migracao: entra "clientes". OpenFinance pausado: sai.
+# so). 24/11/2026: OpenFinance pausado (saiu), clientes entrou.
 ALVOS = {
     "dm": ("SUPABASE_DUMP_URL_DM", "SUPABASE_DB_URL"),
-    "openfinance": ("SUPABASE_DUMP_URL_OPENFINANCE",),
+    "clientes": ("SUPABASE_DUMP_URL_CLIENTES", "SUPABASE_DB_URL_CLIENTES"),
 }
 
 TENTATIVAS = 3
