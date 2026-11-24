@@ -77,6 +77,11 @@ Copie [`_modelo/robo_NNN_nome_robo.yml`](_modelo/robo_NNN_nome_robo.yml). O que 
   `private.disparar_workflow('diegoscs/ambiente_dev', 'robo_NNN_nome_robo.yml')`
   ([exemplo](../supabase/migrations/20261027233340_robos_disparo_pg_cron.sql)).
   O mesmo `workflow_dispatch` é o que o botão "Rodar agora" usa.
+- **Exceção: reserva.** Robô que protege os outros pode ter um `schedule`
+  *a mais*, independente do pg_cron do DMP, para o caso de o próprio DMP ou o
+  token do Vault falharem. Hoje: o vigia (todo dia, `--reserva`) e o keepalive
+  002 (seg/qui, porque o DMC não pode dormir). Rodar a mais não pode fazer mal
+  (trava diária ou trabalho idempotente) e o motivo fica num comentário no yml.
 - `concurrency` por robô, `timeout-minutes`, `MODO_EXECUCAO: CLOUD`.
 - Upload do log de erro com `if: failure()`.
 - **Hora cheia** de São Paulo (o cron do `pg_cron` é em UTC: SP + 3), sem

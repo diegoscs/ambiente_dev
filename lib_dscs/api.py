@@ -68,3 +68,40 @@ def chamar_api_json(
             ) from e
 
         return e.code, payload
+
+
+def validade_token_github(token: str, timeout: int = TIMEOUT_PADRAO) -> dict[str, Any]:
+    """Confere um token do GitHub sem gastar cota (GET /rate_limit).
+
+    Devolve {"status": int, "expira": datetime | None, "valido": bool}. `expira`
+    vem do cabecalho github-authentication-token-expiration, que o GitHub so
+    manda para token com data de validade; None = token sem vencimento.
+    401 = token vencido, revogado ou errado. Nunca loga o token.
+    """
+    from datetime import datetime, timezone
+
+    requisicao = urllib.request.Request("https://api.github.com/rate_limit", method="GET")
+    requisicao.add_header("Authorization", f"Bearer {token}")
+    requisicao.add_header("Accept", "application/vnd.github+json")
+    requisicao.add_header("User-Agent", "lib_dscs")
+    try:
+        with urllib.request.urlopen(requisicao, timeout=timeout) as resposta:
+            status, cabecalho = resposta.status, resposta.headers.get("github-authentication-token-expiration")
+    except urllib.error.HTTPError as e:
+        if e.code >= 500:
+            raise RuntimeError(f"HTTP {e.code} em GET /rate_limit") from e
+        return {"status": e.code, "expira": None, "valido": False}
+
+    expira = None
+    if cabecalho:  # "2026-12-31 23:59:59 UTC" (as vezes com fuso numerico)
+        texto = cabecalho.replace(" UTC", " +0000")
+        for formato in ("%Y-%m-%d %H:%M:%S %z", "%Y-%m-%d %H:%M:%S"):
+            try:
+                expira = datetime.strptime(texto, formato)
+                break
+            except ValueError:
+                continue
+        if expira and expira.tzinfo is None:
+            expira = expira.replace(tzinfo=timezone.utc)
+    return {"status": status, "expira": expira, "valido": 200 <= status < 300}
+

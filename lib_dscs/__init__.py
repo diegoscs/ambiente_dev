@@ -16,7 +16,7 @@
 # =============================================
 from __future__ import annotations
 
-from .api import chamar_api_json
+from .api import chamar_api_json, validade_token_github
 from .config import (
     ENV_FILE,
     RAIZ,
@@ -62,6 +62,7 @@ from .supabase import (
     supabase_configurado,
     supabase_inserir,
     supabase_ler,
+    supabase_rpc,
     trabalho_feito_no_dia,
     url_execucao_actions,
 )
@@ -71,7 +72,9 @@ from .supabase import (
 # 2.1.0 (28/10/2026): funcoes do Minecraft recebem `servidor` (create ou
 # pixelmon), com "create" como padrao.
 # 2.2.0 (23/11/2026): prefixo BACKUP_ em PREFIXOS_AMBIENTE (robo 005).
-__version__ = "2.2.0"
+# 2.3.0 (24/11/2026): supabase_rpc, validade_token_github e prefixo FINANCAS_
+# (o vigia confere os tokens de disparo).
+__version__ = "2.3.0"
 
 __all__ = [
     # config
@@ -95,6 +98,7 @@ __all__ = [
     "executar_com_retry",
     # api
     "chamar_api_json",
+    "validade_token_github",
     # supabase (controle de cargas)
     "MODO_LOCAL",
     "MODO_CLOUD",
@@ -118,6 +122,7 @@ __all__ = [
     "comandos_minecraft_abertos",
     "fechar_comando_minecraft",
     "supabase_ler",
+    "supabase_rpc",
     "supabase_inserir",
     "supabase_atualizar",
     "supabase_apagar",
