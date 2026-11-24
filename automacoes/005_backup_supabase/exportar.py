@@ -1,0 +1,500 @@
+# -*- coding: utf-8 -*-
+# =============================================
+# AUTOR          : Diego Candido
+# DATA CRIACAO   : 23/11/2026
+# DESCRICAO      : Exportacao de um banco Supabase so com Python (psycopg),
+#                  sem pg_dump: estrutura em SQL (lida do catalogo) e dados em
+#                  CSV (COPY), tudo dentro de um zip. Uma transacao REPEATABLE
+#                  READ READ ONLY garante a mesma fotografia para tudo.
+# =============================================
+from __future__ import annotations
+
+import hashlib
+import json
+import zipfile
+from datetime import datetime, timezone
+from urllib.parse import urlsplit
+
+import psycopg
+import psycopg.sql
+
+FORMATO = 1
+
+# Schemas que a Supabase cria e administra: fora da estrutura e dos dados.
+SCHEMAS_GERENCIADOS = (
+    "auth", "storage", "realtime", "_realtime", "extensions", "graphql",
+    "graphql_public", "pgbouncer", "vault", "pgsodium", "pgsodium_masks",
+    "net", "cron", "supabase_functions", "supabase_migrations", "_analytics",
+    "information_schema",
+)
+
+# So os dados destas (num restore, a Supabase ja traz a estrutura). As que nao
+# existirem no banco sao puladas.
+TABELAS_EXTRAS = (
+    ("auth", "users"),
+    ("auth", "identities"),
+    ("cron", "job"),
+    ("supabase_migrations", "schema_migrations"),
+)
+
+# Papeis cujos grants sao copiados (os demais sao internos da Supabase).
+PAPEIS = ("anon", "authenticated", "service_role")
+
+LEIA_ME = """\
+Backup gerado pelo robo 005 (ambiente_dev), sem pg_dump.
+
+Conteudo:
+  manifesto.json                     tabelas, colunas, linhas e sha256 de cada CSV
+  estrutura_1_antes_dos_dados.sql    schemas, sequences, tabelas, funcoes, defaults,
+                                     views, chaves primarias, unique e check
+  dados/<schema>.<tabela>.csv        dados (COPY ... CSV HEADER, UTF-8)
+  estrutura_2_depois_dos_dados.sql   chaves estrangeiras, indices, triggers, RLS,
+                                     policies, grants e valores das sequences
+  estrutura.json                     os mesmos comandos, um por item (usado pelo
+                                     restaurar.py do robo 005)
+
+Restaurar, nesta ordem:
+  1. estrutura_1_antes_dos_dados.sql
+  2. cada CSV: COPY <schema>.<tabela> (<colunas do manifesto>) FROM ... CSV HEADER
+     (auth.users e auth.identities: so num projeto Supabase, e ANTES das
+     tabelas que apontam para elas)
+  3. estrutura_2_depois_dos_dados.sql
+Triggers so entram no passo 3: carregar os dados nao dispara nada (ex.: as
+quantidades do estoque nao sao somadas de novo).
+
+Fora do backup: arquivos do Storage, segredos do Vault, configuracao do painel
+(Data API, Auth, SMTP), comentarios e dono dos objetos.
+"""
+
+
+def conectar(url: str, nome_app: str, leitura: bool = True) -> psycopg.Connection:
+    """Conexao de leitura (exportacao) ou escrita (restore). prepare_threshold=None:
+    funciona tambem no Transaction pooler (porta 6543), que nao aceita prepared
+    statements. SSL obrigatorio, menos no Postgres local do teste de restore."""
+    partes = urlsplit(url)
+    if partes.scheme not in ("postgres", "postgresql"):
+        raise ValueError("string de conexao precisa comecar com postgresql://")
+    local = partes.hostname in ("localhost", "127.0.0.1")
+    conn = psycopg.connect(url, prepare_threshold=None, connect_timeout=30, application_name=nome_app,
+                           sslmode="disable" if local else "require")
+    if leitura:
+        conn.isolation_level = psycopg.IsolationLevel.REPEATABLE_READ
+        conn.read_only = True
+    return conn
+
+
+def _linhas(conn: psycopg.Connection, sql: str, params: tuple = ()) -> list[tuple]:
+    with conn.cursor() as cur:
+        cur.execute(sql, params)
+        return cur.fetchall()
+
+
+def _coluna(conn: psycopg.Connection, sql: str, params: tuple = ()) -> list:
+    return [r[0] for r in _linhas(conn, sql, params)]
+
+
+# ─── estrutura ───────────────────────────────────────────────────────────────
+
+SQL_SCHEMAS = """
+select nspname from pg_namespace
+ where nspname <> all(%s) and nspname not like 'pg\\_%%'
+ order by nspname
+"""
+
+SQL_SEQUENCES = """
+select format('CREATE SEQUENCE IF NOT EXISTS %%I.%%I AS %%s INCREMENT %%s MINVALUE %%s MAXVALUE %%s START %%s CACHE %%s%%s;',
+              n.nspname, c.relname, format_type(s.seqtypid, null), s.seqincrement, s.seqmin,
+              s.seqmax, s.seqstart, s.seqcache, case when s.seqcycle then ' CYCLE' else '' end)
+  from pg_sequence s join pg_class c on c.oid = s.seqrelid join pg_namespace n on n.oid = c.relnamespace
+ where n.nspname = any(%s)
+   and not exists (select 1 from pg_depend d where d.classid = 'pg_class'::regclass and d.objid = c.oid and d.deptype = 'i')
+ order by n.nspname, c.relname
+"""
+
+SQL_TABELAS = """
+select c.oid, n.nspname, c.relname
+  from pg_class c join pg_namespace n on n.oid = c.relnamespace
+ where n.nspname = any(%s) and c.relkind in ('r', 'p')
+ order by n.nspname, c.relname
+"""
+
+SQL_COLUNAS = """
+select format('%%I %%s%%s%%s', a.attname, format_type(a.atttypid, a.atttypmod),
+              case a.attidentity when 'a' then ' GENERATED ALWAYS AS IDENTITY'
+                                 when 'd' then ' GENERATED BY DEFAULT AS IDENTITY' else '' end,
+              case when a.attnotnull then ' NOT NULL' else '' end)
+  from pg_attribute a
+ where a.attrelid = %s and a.attnum > 0 and not a.attisdropped
+ order by a.attnum
+"""
+
+SQL_DEFAULTS = """
+select format('ALTER TABLE %%I.%%I ALTER COLUMN %%I SET DEFAULT %%s;', n.nspname, c.relname, a.attname,
+              pg_get_expr(d.adbin, d.adrelid))
+  from pg_attrdef d
+  join pg_attribute a on a.attrelid = d.adrelid and a.attnum = d.adnum
+  join pg_class c on c.oid = d.adrelid join pg_namespace n on n.oid = c.relnamespace
+ where n.nspname = any(%s) and a.attgenerated = '' and c.relkind in ('r', 'p')
+ order by n.nspname, c.relname, a.attnum
+"""
+
+SQL_SEQ_DONAS = """
+select format('ALTER SEQUENCE %%I.%%I OWNED BY %%I.%%I.%%I;', sn.nspname, s.relname, tn.nspname, t.relname, a.attname)
+  from pg_depend d
+  join pg_class s on s.oid = d.objid and s.relkind = 'S'
+  join pg_namespace sn on sn.oid = s.relnamespace
+  join pg_class t on t.oid = d.refobjid join pg_namespace tn on tn.oid = t.relnamespace
+  join pg_attribute a on a.attrelid = t.oid and a.attnum = d.refobjsubid
+ where d.deptype = 'a' and sn.nspname = any(%s)
+"""
+
+SQL_FUNCOES = """
+select pg_get_functiondef(p.oid) || ';'
+  from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+ where n.nspname = any(%s) and p.prokind in ('f', 'p')
+   and not exists (select 1 from pg_depend d where d.classid = 'pg_proc'::regclass and d.objid = p.oid and d.deptype = 'e')
+ order by n.nspname, p.proname, p.oid
+"""
+
+SQL_VIEWS = """
+select c.oid, format('CREATE OR REPLACE VIEW %%I.%%I%%s AS %%s', n.nspname, c.relname,
+              coalesce(' WITH (' || array_to_string(c.reloptions, ', ') || ')', ''),
+              rtrim(rtrim(pg_get_viewdef(c.oid)), ';')) || ';'
+  from pg_class c join pg_namespace n on n.oid = c.relnamespace
+ where n.nspname = any(%s) and c.relkind = 'v'
+"""
+
+SQL_DEP_VIEWS = """
+select distinct r.ev_class, d.refobjid
+  from pg_rewrite r join pg_depend d on d.objid = r.oid
+ where r.ev_class = any(%s) and d.refobjid = any(%s) and d.refobjid <> r.ev_class
+"""
+
+SQL_CONSTRAINTS = """
+select format('ALTER TABLE %%I.%%I ADD CONSTRAINT %%I %%s;', n.nspname, c.relname, k.conname,
+              pg_get_constraintdef(k.oid))
+  from pg_constraint k join pg_class c on c.oid = k.conrelid join pg_namespace n on n.oid = c.relnamespace
+ where n.nspname = any(%s) and k.contype::text = any(%s) and k.conislocal
+ order by n.nspname, c.relname, k.contype, k.conname
+"""
+
+SQL_INDICES = """
+select pg_get_indexdef(i.indexrelid) || ';'
+  from pg_index i join pg_class c on c.oid = i.indrelid join pg_namespace n on n.oid = c.relnamespace
+ where n.nspname = any(%s)
+   and not exists (select 1 from pg_constraint k where k.conindid = i.indexrelid and k.contype in ('p', 'u', 'x'))
+ order by n.nspname, c.relname
+"""
+
+SQL_TRIGGERS = """
+select pg_get_triggerdef(t.oid) || ';'
+  from pg_trigger t join pg_class c on c.oid = t.tgrelid join pg_namespace n on n.oid = c.relnamespace
+ where n.nspname = any(%s) and not t.tgisinternal
+ order by n.nspname, c.relname, t.tgname
+"""
+
+SQL_RLS = """
+select format('ALTER TABLE %%I.%%I ENABLE ROW LEVEL SECURITY;', n.nspname, c.relname)
+       || case when c.relforcerowsecurity
+               then format(E'\\nALTER TABLE %%I.%%I FORCE ROW LEVEL SECURITY;', n.nspname, c.relname) else '' end
+  from pg_class c join pg_namespace n on n.oid = c.relnamespace
+ where n.nspname = any(%s) and c.relkind in ('r', 'p') and c.relrowsecurity
+ order by n.nspname, c.relname
+"""
+
+SQL_POLICIES = """
+select format('CREATE POLICY %%I ON %%I.%%I AS %%s FOR %%s TO %%s%%s%%s;',
+              p.polname, n.nspname, c.relname,
+              case when p.polpermissive then 'PERMISSIVE' else 'RESTRICTIVE' end,
+              case p.polcmd when 'r' then 'SELECT' when 'a' then 'INSERT' when 'w' then 'UPDATE'
+                            when 'd' then 'DELETE' else 'ALL' end,
+              (select string_agg(case when r = 0 then 'public' else quote_ident(pg_get_userbyid(r)) end, ', ')
+                 from unnest(p.polroles) r),
+              coalesce(' USING (' || pg_get_expr(p.polqual, p.polrelid) || ')', ''),
+              coalesce(' WITH CHECK (' || pg_get_expr(p.polwithcheck, p.polrelid) || ')', ''))
+  from pg_policy p join pg_class c on c.oid = p.polrelid join pg_namespace n on n.oid = c.relnamespace
+ where n.nspname = any(%s)
+ order by n.nspname, c.relname, p.polname
+"""
+
+# Grants: primeiro tira tudo dos papeis da API (um projeto novo ja nasce com
+# grants padrao), depois devolve so o que o original tinha.
+SQL_GRANTS_RELACOES = """
+with alvo as (
+  select c.oid, n.nspname, c.relname, c.relkind, c.relacl
+    from pg_class c join pg_namespace n on n.oid = c.relnamespace
+   where n.nspname = any(%(schemas)s) and c.relkind in ('r', 'p', 'v', 'S')
+)
+select format('REVOKE ALL ON %%s %%I.%%I FROM PUBLIC, %%s;',
+              case when relkind = 'S' then 'SEQUENCE' else 'TABLE' end, nspname, relname,
+              array_to_string(%(papeis)s::text[], ', '))
+  from alvo
+union all
+select format('GRANT %%s ON %%s %%I.%%I TO %%s;', string_agg(x.privilege_type, ', '),
+              case when a.relkind = 'S' then 'SEQUENCE' else 'TABLE' end, a.nspname, a.relname,
+              case when x.grantee = 0 then 'PUBLIC' else quote_ident(pg_get_userbyid(x.grantee)) end)
+  from alvo a cross join lateral aclexplode(a.relacl) x
+ where x.grantee = 0 or pg_get_userbyid(x.grantee) = any(%(papeis)s)
+ group by a.nspname, a.relname, a.relkind, x.grantee
+union all
+select format('GRANT %%s (%%I) ON TABLE %%I.%%I TO %%s;', x.privilege_type, at.attname, a.nspname, a.relname,
+              case when x.grantee = 0 then 'PUBLIC' else quote_ident(pg_get_userbyid(x.grantee)) end)
+  from alvo a join pg_attribute at on at.attrelid = a.oid and at.attacl is not null
+  cross join lateral aclexplode(at.attacl) x
+ where x.grantee = 0 or pg_get_userbyid(x.grantee) = any(%(papeis)s)
+"""
+
+SQL_GRANTS_FUNCOES = """
+with alvo as (
+  select p.oid, p.proacl
+    from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+   where n.nspname = any(%(schemas)s) and p.prokind in ('f', 'p')
+     and not exists (select 1 from pg_depend d where d.classid = 'pg_proc'::regclass and d.objid = p.oid and d.deptype = 'e')
+)
+select format('REVOKE ALL ON FUNCTION %%s FROM PUBLIC, %%s;', oid::regprocedure,
+              array_to_string(%(papeis)s::text[], ', '))
+  from alvo
+union all
+select format('GRANT EXECUTE ON FUNCTION %%s TO %%s;', a.oid::regprocedure,
+              case when x.grantee = 0 then 'PUBLIC' else quote_ident(pg_get_userbyid(x.grantee)) end)
+  from alvo a cross join lateral aclexplode(coalesce(a.proacl, acldefault('f', 10))) x
+ where x.grantee = 0 or pg_get_userbyid(x.grantee) = any(%(papeis)s)
+"""
+
+SQL_GRANTS_SCHEMAS = """
+select format('GRANT %%s ON SCHEMA %%I TO %%s;', x.privilege_type, n.nspname,
+              case when x.grantee = 0 then 'PUBLIC' else quote_ident(pg_get_userbyid(x.grantee)) end)
+  from pg_namespace n cross join lateral aclexplode(n.nspacl) x
+ where n.nspname = any(%(schemas)s) and (x.grantee = 0 or pg_get_userbyid(x.grantee) = any(%(papeis)s))
+"""
+
+# Valor atual das sequences, aplicado depois dos dados.
+# O CTE materializado filtra as sequences ANTES de chamar pg_sequence_last_value
+# (que estoura se receber um indice ou tabela).
+SQL_SETVAL = """
+with seq as materialized (
+  select c.oid, n.nspname, c.relname
+    from pg_class c join pg_namespace n on n.oid = c.relnamespace
+   where c.relkind = 'S' and n.nspname = any(%s)
+), valor as materialized (
+  select seq.*, pg_sequence_last_value(seq.oid) as ultimo from seq
+)
+select case when dep.deptype = 'i'
+            then format('SELECT setval(pg_get_serial_sequence(%%L, %%L), %%s, true);',
+                        format('%%I.%%I', tn.nspname, t.relname), a.attname, v.ultimo)
+            else format('SELECT setval(%%L, %%s, true);', format('%%I.%%I', v.nspname, v.relname), v.ultimo) end
+  from valor v
+  left join pg_depend dep on dep.classid = 'pg_class'::regclass and dep.objid = v.oid and dep.deptype = 'i'
+  left join pg_class t on t.oid = dep.refobjid
+  left join pg_namespace tn on tn.oid = t.relnamespace
+  left join pg_attribute a on a.attrelid = t.oid and a.attnum = dep.refobjsubid
+ where v.ultimo is not null
+ order by v.nspname, v.relname
+"""
+
+
+def _ordenar_views(conn: psycopg.Connection, schemas: list[str]) -> list[str]:
+    """Views na ordem de dependencia (a que usa outra vem depois)."""
+    views = dict(_linhas(conn, SQL_VIEWS, (schemas,)))
+    oids = list(views)
+    deps: dict[int, set[int]] = {o: set() for o in oids}
+    for vista, depende in _linhas(conn, SQL_DEP_VIEWS, (oids, oids)):
+        deps[vista].add(depende)
+    ordem: list[int] = []
+    feitos: set[int] = set()
+
+    def visitar(oid: int, caminho: set[int]) -> None:
+        if oid in feitos:
+            return
+        if oid in caminho:
+            raise RuntimeError("dependencia circular entre views")
+        for d in sorted(deps[oid]):
+            visitar(d, caminho | {oid})
+        feitos.add(oid)
+        ordem.append(oid)
+
+    for oid in sorted(oids):
+        visitar(oid, set())
+    return [views[o] for o in ordem]
+
+
+# Extensoes que a Supabase ja traz ou que nao se criam por SQL num projeto novo
+# (pg_cron e pg_net: habilitar no painel). As demais entram no restore.
+EXTENSOES_FORA = ("plpgsql", "pg_stat_statements", "supabase_vault", "pg_graphql", "pgsodium",
+                  "pg_cron", "pg_net")
+
+SQL_EXTENSOES = """
+select format('CREATE EXTENSION IF NOT EXISTS %%I WITH SCHEMA %%I;', e.extname, n.nspname)
+  from pg_extension e join pg_namespace n on n.oid = e.extnamespace
+ where e.extname <> all(%s)
+ order by e.extname
+"""
+
+# Contagem de objetos: vai no manifesto e e comparada depois do restore.
+SQL_OBJETOS = """
+select json_build_object(
+  'tabelas',   (select count(*) from pg_class c join pg_namespace n on n.oid = c.relnamespace
+                 where n.nspname = any(%(s)s) and c.relkind in ('r', 'p')),
+  'views',     (select count(*) from pg_class c join pg_namespace n on n.oid = c.relnamespace
+                 where n.nspname = any(%(s)s) and c.relkind = 'v'),
+  'sequences', (select count(*) from pg_class c join pg_namespace n on n.oid = c.relnamespace
+                 where n.nspname = any(%(s)s) and c.relkind = 'S'),
+  'funcoes',   (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+                 where n.nspname = any(%(s)s) and p.prokind in ('f', 'p')
+                   and not exists (select 1 from pg_depend d where d.classid = 'pg_proc'::regclass
+                                   and d.objid = p.oid and d.deptype = 'e')),
+  'constraints', (select count(*) from pg_constraint k join pg_namespace n on n.oid = k.connamespace
+                   where n.nspname = any(%(s)s) and k.contype in ('p', 'u', 'c', 'x', 'f') and k.conislocal),
+  'indices',   (select count(*) from pg_index i join pg_class c on c.oid = i.indrelid
+                  join pg_namespace n on n.oid = c.relnamespace where n.nspname = any(%(s)s)),
+  'triggers',  (select count(*) from pg_trigger t join pg_class c on c.oid = t.tgrelid
+                  join pg_namespace n on n.oid = c.relnamespace
+                 where n.nspname = any(%(s)s) and not t.tgisinternal),
+  'policies',  (select count(*) from pg_policy p join pg_class c on c.oid = p.polrelid
+                  join pg_namespace n on n.oid = c.relnamespace where n.nspname = any(%(s)s)),
+  'tabelas_com_rls', (select count(*) from pg_class c join pg_namespace n on n.oid = c.relnamespace
+                       where n.nspname = any(%(s)s) and c.relkind in ('r', 'p') and c.relrowsecurity)
+)
+"""
+
+
+def contar_objetos(conn: psycopg.Connection, schemas: list[str]) -> dict:
+    return _coluna(conn, SQL_OBJETOS, {"s": schemas})[0]
+
+
+def gerar_estrutura(conn: psycopg.Connection, schemas: list[str]) -> dict[str, list[tuple[str, list[str]]]]:
+    """Comandos da estrutura em secoes: {"antes": [(secao, [sql, ...])], "depois": [...]}."""
+    params = {"schemas": schemas, "papeis": list(PAPEIS)}
+    tabelas = []
+    for oid, schema, tabela in _linhas(conn, SQL_TABELAS, (schemas,)):
+        colunas = _coluna(conn, SQL_COLUNAS, (oid,))
+        nome = psycopg.sql.Identifier(schema, tabela).as_string(conn)
+        tabelas.append(f"CREATE TABLE {nome} (\n    " + ",\n    ".join(colunas) + "\n);")
+
+    antes = [
+        ("configuracao", ["SET check_function_bodies = false;", "SET client_min_messages = warning;"]),
+        ("schemas", [f"CREATE SCHEMA IF NOT EXISTS {psycopg.sql.Identifier(s).as_string(conn)};"
+                     for s in schemas if s != "public"]),
+        ("extensoes (pg_cron e pg_net: habilitar no painel)", _coluna(conn, SQL_EXTENSOES, (list(EXTENSOES_FORA),))),
+        ("sequences", _coluna(conn, SQL_SEQUENCES, (schemas,))),
+        ("tabelas (defaults depois das funcoes)", tabelas + _coluna(conn, SQL_SEQ_DONAS, (schemas,))),
+        ("funcoes", _coluna(conn, SQL_FUNCOES, (schemas,))),
+        ("defaults", _coluna(conn, SQL_DEFAULTS, (schemas,))),
+        ("views", _ordenar_views(conn, schemas)),
+        ("chaves primarias, unique, check e exclusion", _coluna(conn, SQL_CONSTRAINTS, (schemas, ["p", "u", "c", "x"]))),
+    ]
+    depois = [
+        ("chaves estrangeiras", _coluna(conn, SQL_CONSTRAINTS, (schemas, ["f"]))),
+        ("indices", _coluna(conn, SQL_INDICES, (schemas,))),
+        ("triggers", _coluna(conn, SQL_TRIGGERS, (schemas,))),
+        ("RLS e policies", _coluna(conn, SQL_RLS, (schemas,)) + _coluna(conn, SQL_POLICIES, (schemas,))),
+        ("grants", _coluna(conn, SQL_GRANTS_SCHEMAS, params) + _coluna(conn, SQL_GRANTS_RELACOES, params)
+                   + _coluna(conn, SQL_GRANTS_FUNCOES, params)),
+        ("valores das sequences", _coluna(conn, SQL_SETVAL, (schemas,))),
+    ]
+    return {"antes": antes, "depois": depois}
+
+
+def estrutura_em_sql(secoes: list[tuple[str, list[str]]], titulo: str) -> str:
+    partes = [f"-- {titulo}. Gerado pelo robo 005."]
+    for secao, comandos in secoes:
+        partes += ["", f"-- {secao}", *comandos]
+    return "\n".join(partes) + "\n"
+
+
+def estrutura_em_lista(secoes: list[tuple[str, list[str]]]) -> list[str]:
+    return [c for _, comandos in secoes for c in comandos]
+
+
+# ─── dados ───────────────────────────────────────────────────────────────────
+
+
+def _tabelas_de_dados(conn: psycopg.Connection, schemas: list[str]) -> list[tuple[str, str]]:
+    nossas = [(s, t) for _, s, t in _linhas(conn, SQL_TABELAS, (schemas,))]
+    extras = [(s, t) for s, t in TABELAS_EXTRAS
+              if _coluna(conn, "select to_regclass(%s) is not null", (f"{s}.{t}",))[0]]
+    return extras + nossas
+
+
+def _exportar_tabela(conn: psycopg.Connection, zf: zipfile.ZipFile, schema: str, tabela: str) -> dict:
+    colunas = _coluna(conn, """
+        select a.attname from pg_attribute a
+         where a.attrelid = to_regclass(%s) and a.attnum > 0 and not a.attisdropped and a.attgenerated = ''
+         order by a.attnum""", (psycopg.sql.Identifier(schema, tabela).as_string(conn),))
+    nome = psycopg.sql.Identifier(schema, tabela)
+    lista = psycopg.sql.SQL(", ").join(psycopg.sql.Identifier(c) for c in colunas)
+    linhas = _coluna(conn, psycopg.sql.SQL("select count(*) from {}").format(nome).as_string(conn))[0]
+
+    arquivo = f"dados/{schema}.{tabela}.csv"
+    hash_ = hashlib.sha256()
+    comando = psycopg.sql.SQL("COPY {} ({}) TO STDOUT WITH (FORMAT csv, HEADER true, ENCODING 'UTF8')").format(
+        nome, lista)
+    with conn.cursor() as cur, zf.open(arquivo, "w", force_zip64=True) as destino:
+        with cur.copy(comando) as copia:
+            for bloco in copia:
+                destino.write(bloco)
+                hash_.update(bloco)
+    return {"tabela": f"{schema}.{tabela}", "arquivo": arquivo, "colunas": colunas,
+            "linhas": linhas, "sha256": hash_.hexdigest()}
+
+
+# ─── tudo junto ──────────────────────────────────────────────────────────────
+
+
+def exportar_banco(url: str, rotulo: str, destino_zip, nome_app: str) -> dict:
+    """Gera o zip do banco e devolve o manifesto (tambem gravado dentro do zip)."""
+    with conectar(url, nome_app) as conn:
+        with conn.cursor() as cur:
+            cur.execute("SET LOCAL statement_timeout = '15min'")
+        schemas = _coluna(conn, SQL_SCHEMAS, (list(SCHEMAS_GERENCIADOS),))
+        estrutura = gerar_estrutura(conn, schemas)
+
+        with zipfile.ZipFile(destino_zip, "w", compression=zipfile.ZIP_DEFLATED) as zf:
+            zf.writestr("LEIA-ME.txt", LEIA_ME)
+            zf.writestr("estrutura_1_antes_dos_dados.sql",
+                        estrutura_em_sql(estrutura["antes"], "Estrutura, parte 1 (antes dos dados)"))
+            zf.writestr("estrutura_2_depois_dos_dados.sql",
+                        estrutura_em_sql(estrutura["depois"], "Estrutura, parte 2 (depois dos dados)"))
+            # Os mesmos comandos, um por item: o restore executa um a um.
+            zf.writestr("estrutura.json", json.dumps(
+                {"antes": estrutura_em_lista(estrutura["antes"]),
+                 "depois": estrutura_em_lista(estrutura["depois"])}, ensure_ascii=False, indent=1))
+            tabelas = [_exportar_tabela(conn, zf, s, t) for s, t in _tabelas_de_dados(conn, schemas)]
+            manifesto = {
+                "formato": FORMATO,
+                "banco": rotulo,
+                "gerado_em": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+                "servidor": _coluna(conn, "show server_version")[0],
+                "schemas": schemas,
+                "extensoes": _coluna(conn, "select extname || ' ' || extversion from pg_extension order by 1"),
+                "objetos": contar_objetos(conn, schemas),
+                "tabelas": tabelas,
+            }
+            zf.writestr("manifesto.json", json.dumps(manifesto, ensure_ascii=False, indent=2))
+        conn.rollback()  # so leitura; fecha a transacao sem efeito
+    return manifesto
+
+
+def conferir_zip(caminho_zip) -> tuple[int, int]:
+    """Confere um zip ja aberto (sem banco): sha256 e numero de linhas de cada
+    CSV contra o manifesto. Devolve (tabelas, linhas). Levanta se algo diverge."""
+    import csv
+    import io
+
+    with zipfile.ZipFile(caminho_zip) as zf:
+        if zf.testzip() is not None:
+            raise RuntimeError("zip corrompido")
+        manifesto = json.loads(zf.read("manifesto.json"))
+        for nome in ("estrutura_1_antes_dos_dados.sql", "estrutura_2_depois_dos_dados.sql", "estrutura.json"):
+            if len(zf.read(nome)) < 100:
+                raise RuntimeError(f"{nome} vazio")
+        total = 0
+        for t in manifesto["tabelas"]:
+            dados = zf.read(t["arquivo"])
+            if hashlib.sha256(dados).hexdigest() != t["sha256"]:
+                raise RuntimeError(f"{t['tabela']}: sha256 nao confere")
+            registros = sum(1 for _ in csv.reader(io.StringIO(dados.decode("utf-8"), newline=""))) - 1
+            if registros != t["linhas"]:
+                raise RuntimeError(f"{t['tabela']}: {registros} linhas no CSV, {t['linhas']} no banco")
+            total += registros
+    return len(manifesto["tabelas"]), total

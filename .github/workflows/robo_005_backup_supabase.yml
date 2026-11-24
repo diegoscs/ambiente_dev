@@ -1,0 +1,53 @@
+# =============================================
+# Robo 005 - backup diario dos bancos Supabase (disparo).
+#
+# O backup roda no repo PRIVADO diegoscs/backups-supabase (backup_supabase.yml),
+# que guarda os zips por 30 dias: este repo e publico e nenhum backup pode
+# passar por ele. Este workflow existe porque o pg_cron e o botao do hub so
+# disparam workflows deste repo: ele aciona o backup de la e acompanha ate o fim.
+# O codigo do robo continua aqui (automacoes/005_backup_supabase).
+#
+# Secret: FINANCAS_DISPATCH_TOKEN (PAT com Actions read/write no financas-app
+# e no backups-supabase).
+# =============================================
+name: robo_005_backup_supabase
+
+on:
+  # 04:00 de Sao Paulo (07:00 UTC), disparado pelo pg_cron do Supabase.
+  # Nada de schedule aqui: o do GitHub atrasa 2 a 7 h.
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: robo-005
+  cancel-in-progress: false
+
+jobs:
+  disparar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      GH_TOKEN: ${{ secrets.FINANCAS_DISPATCH_TOKEN }}
+      REPO_BACKUP: diegoscs/backups-supabase
+      WORKFLOW_BACKUP: backup_supabase.yml
+
+    steps:
+      - name: Dispara o backup no repo privado e acompanha
+        run: |
+          T0=$(date -u +%FT%TZ)
+          gh workflow run "$WORKFLOW_BACKUP" -R "$REPO_BACKUP" --ref main
+
+          RUN_ID=""
+          for i in $(seq 1 12); do
+            sleep 5
+            RUN_ID=$(gh run list -R "$REPO_BACKUP" -w "$WORKFLOW_BACKUP" -e workflow_dispatch -L 5 \
+              --json databaseId,createdAt \
+              -q "[.[] | select(.createdAt >= \"$T0\")][0].databaseId // empty")
+            [ -n "$RUN_ID" ] && break
+          done
+          if [ -z "$RUN_ID" ]; then echo "o run do backup nao apareceu"; exit 1; fi
+
+          echo "backup: execucao $RUN_ID no repo privado" | tee -a "$GITHUB_STEP_SUMMARY"
+          gh run watch "$RUN_ID" -R "$REPO_BACKUP" --exit-status --interval 15
