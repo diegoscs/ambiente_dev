@@ -51,7 +51,7 @@ $r  = "automacoes\005_backup_supabase\005_backup_supabase.py"
 & $py $r --status                              # o que está configurado
 & $py $r --dry-run                             # gera e confere numa pasta temporária, não grava nada
 & $py $r --pasta D:\backups\supabase           # backup na mão (pasta FORA do repositório)
-& $py $r --pasta D:\backups\supabase --alvo dm # só um banco
+& $py $r --pasta D:\backups\supabase --alvo dmp # só um banco
 & $py $r --conferir D:\backups\supabase\dm_<data>.zip   # confere um zip, sem banco
 ```
 
@@ -61,8 +61,8 @@ Postgres). Baixar um backup do repo privado:
 
 | Variável | O que é |
 |---|---|
-| `SUPABASE_DUMP_URL_DM` | string de conexão do DM. Opcional: sem ela, vale o `SUPABASE_DB_URL` |
-| `SUPABASE_DB_URL_CLIENTES` | string de conexão do projeto clientes (`aws-1-sa-east-1.pooler.supabase.com`); `SUPABASE_DUMP_URL_CLIENTES` tem preferência |
+| `SUPABASE_DUMP_URL_DMP` | string de conexão do DMP. Opcional: sem ela, vale o `SUPABASE_DB_URL` |
+| `SUPABASE_DMC_DB_URL` | string de conexão do DMC (`aws-1-sa-east-1.pooler.supabase.com`) |
 | `BACKUP_RESTORE_URL` | Postgres do teste de restore (no Actions, o container) |
 
 ## Restore de verdade
@@ -150,5 +150,5 @@ select cron.schedule('robo_005_backup_supabase', '0 7 * * *',
   `FINANCAS_DISPATCH_TOKEN` alcança o `backups-supabase` (primeiro "Rodar agora"
   pelo `robo_005_backup_supabase.yml`); aplicar o cadastro e o horário.
 - **24/11/2026 (tarde)**: alvos passam a ser DM e clientes (OpenFinance
-  pausado). No repo privado faltam o secret `SUPABASE_DB_URL_CLIENTES` e a
+  pausado). No repo privado faltam o secret `SUPABASE_DMC_DB_URL` e a
   linha dele no workflow; o `SUPABASE_DUMP_URL_OPENFINANCE` pode sair.

@@ -2,9 +2,10 @@
 # =============================================
 # AUTOR          : Diego Candido
 # DATA CRIACAO   : 15/09/2026
-# DESCRICAO      : Keepalive do projeto Supabase (plano free). Executa uma
-#                  consulta real por dois caminhos - conexao Postgres e REST -
-#                  para o projeto nao ser pausado por inatividade.
+# DESCRICAO      : Keepalive dos projetos Supabase (plano free): DMP (pessoal)
+#                  e DMC (apps de clientes). Executa uma consulta real por dois
+#                  caminhos - conexao Postgres e REST - em cada projeto, para
+#                  nenhum ser pausado por inatividade.
 # =============================================
 from __future__ import annotations
 
@@ -26,6 +27,8 @@ import lib_dscs as dl
 from config_robo import (
     IDCARGA,
     NOME_ROBO,
+    PROJETOS,
+    faltando,
     url_supabase,
     validar_configuracao,
 )
@@ -48,7 +51,10 @@ BASE = Path(__file__).resolve().parent
 def mostrar_status(modo: str) -> None:
     """Manutencao: o que o robo enxerga, sem tocar em nada."""
     dl.log(f"[STATUS] modo         : {modo}")
-    dl.log(f"[STATUS] supabase     : {url_supabase()}")
+    for projeto in PROJETOS:
+        falta = faltando(projeto)
+        dl.log(f"[STATUS] {projeto.nome:<12} : {url_supabase(projeto) or '(sem url)'}"
+               f"{' | faltam ' + ', '.join(falta) if falta else ' | ok'}")
     dl.log(f"[STATUS] telegram     : {'configurado' if dl.telegram_configurado() else 'AUSENTE'}")
 
 
@@ -85,15 +91,16 @@ def main() -> None:
             resultados = executar_pings()
 
         if registrar:
-            # Mensagem do hub: curta e legivel ("banco 1,1 s · API 0,2 s")
-            nomes = {"postgres": "banco", "rest": "API"}
-            tempos = " · ".join(
-                f"{nomes.get(r['metodo'], r['metodo'])} {float(r['latencia_ms']) / 1000:.1f} s".replace(".", ",")
-                for r in resultados
-            )
+            # Mensagem do hub: curta e legivel ("DMP 1,1 s · DMC 0,9 s"), com o
+            # tempo do ping mais lento de cada projeto.
+            lentos: dict[str, float] = {}
+            for r in resultados:
+                lentos[r["projeto"]] = max(lentos.get(r["projeto"], 0.0), float(r["latencia_ms"]))
+            tempos = " · ".join(f"{p} {ms / 1000:.1f} s".replace(".", ",") for p, ms in lentos.items())
             dl.registrar_carga_supabase(
                 IDCARGA, dl.STATUS_SUCESSO, dta_ini, fechar=True,
-                mensagem=f"Ok, tudo certo: Supabase ativo ✅ · {tempos}", qtd_itens=len(resultados),
+                mensagem=f"Ok, tudo certo: {len(lentos)} projetos ativos ✅ · {tempos}",
+                qtd_itens=len(resultados),
             )
 
         dl.log(f"[ROBO{IDCARGA:03d}] ✅ RESULTADO FINAL: SUCESSO")

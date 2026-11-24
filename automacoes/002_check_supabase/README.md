@@ -10,7 +10,10 @@ Roda no **GitHub Actions**, todo dia às 08:00 de São Paulo (11:00 UTC),
 disparado pelo `pg_cron` do Supabase
 ([workflow](../../.github/workflows/robo_002_check_supabase.yml)).
 
-> Projeto alvo: **DMP** (`mthipdxpedlfnkzddlar`, sa-east-1; chamava-se financas-pipeline até 24/11/2026).
+> Projetos: **DMP** (`mthipdxpedlfnkzddlar`, pessoal; chamava-se financas-pipeline até
+> 24/11/2026) e **DMC** (`oaqhgdewlfjtepjfaiml`, apps de clientes). Os dois em sa-east-1.
+> Cada um recebe os dois pings; um projeto com falha não impede os outros, e a
+> carga vira ERROR no fim. Lista em `PROJETOS` ([config_robo.py](config_robo.py)).
 
 ## Por que dois pings
 
@@ -49,6 +52,9 @@ Secrets do Actions (*Settings → Secrets and variables → Actions*) e, no PC, 
 | `SUPABASE_URL` | `https://mthipdxpedlfnkzddlar.supabase.co` |
 | `SUPABASE_KEY` | **`service_role`** (Settings → API). A `anon` esbarra na RLS, que não tem policy de escrita de propósito |
 | `SUPABASE_DB_URL` | connection string do *Transaction pooler* (porta 6543). A senha vai **percent-encoded** (`!` vira `%21`) |
+| `SUPABASE_DMC_URL` | `https://oaqhgdewlfjtepjfaiml.supabase.co` |
+| `SUPABASE_DMC_KEY` | secret key / `service_role` do DMC (o ping REST lê `estoque.estoques`, sem policy para `anon`) |
+| `SUPABASE_DMC_DB_URL` | connection string do pooler do DMC, senha percent-encoded |
 | `TELEGRAM_TOKEN` / `TELEGRAM_CHAT_ID` | opcionais; sem eles a falha só avisa pelo e-mail do GitHub |
 
 Tabelas e view (`controle_cargas`, `historico_cargas`, `vw_saude_robos`)
@@ -81,6 +87,13 @@ tratando um problema e não pode trocar a causa real por uma falha de
 notificação. Implementação em `lib_dscs/notificacao.py` (`dl.alertar_erro_robo`).
 
 ## Histórico
+
+### DMC entra, com reserva pelo GitHub (24/11/2026)
+
+O app do estoque (terceiros) mudou para o projeto DMC, que também é grátis e
+também pausa em ~7 dias sem uso. O robô passou a pingar os dois. Como o disparo
+diário depende do pg_cron do DMP, o workflow ganhou um `schedule` de reserva
+(segunda e quinta, 15:00 UTC): se o DMP cair, o DMC continua acordado.
 
 ### O projeto pausou com o robô "funcionando" (21/09/2026)
 
