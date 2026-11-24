@@ -6,6 +6,23 @@ esqueleto que o hub, o vigia e a `vw_saude_robos` esperam.
 
 Ponto de partida: a pasta [`_modelo/`](_modelo).
 
+## 0. Que tipo de processo é
+
+Decisão de 24/11/2026: nada feito do lado pessoal (DMP) pode prejudicar cliente
+(DMC). Ler o DMC é livre; **alterar** o DMC é só para processo de cliente. Todo
+processo novo é de um destes três tipos, e o tipo decide onde ele mora:
+
+| Tipo | Onde roda | Pode tocar | Exemplos |
+|---|---|---|---|
+| **Pessoal** | armazém (este repo, Actions) | só o DMP e os seus serviços | 001, 003, sites no ar, fim do Minecraft |
+| **Neutro** | armazém (este repo, Actions) | lê os dois bancos; no DMC **só lê** (manter acordado, copiar, conferir) | 002, 005, vigia, sites no ar, limites, segurança, migrations |
+| **De clientes** | **dentro do DMC** (pg_cron do DMC) | só o DMC | monitor dos apps, teste de isolamento, avisos ao cliente |
+
+- Robô do armazém **não altera** o DMC. Mudança no DMC só por migration, com o
+  backup do dia e o teste de isolamento do app antes e depois.
+- Processo de clientes não depende do DMP: se o DMP cair, ele continua.
+- O tipo vai no README do robô e na página central (Mapa do ambiente_dev).
+
 ## 1. Onde roda
 
 - **GitHub Actions, modo `CLOUD`, é o padrão.** O PC não é agendador: se o robô
@@ -77,6 +94,11 @@ Copie [`_modelo/robo_NNN_nome_robo.yml`](_modelo/robo_NNN_nome_robo.yml). O que 
   `private.disparar_workflow('diegoscs/ambiente_dev', 'robo_NNN_nome_robo.yml')`
   ([exemplo](../supabase/migrations/20261027233340_robos_disparo_pg_cron.sql)).
   O mesmo `workflow_dispatch` é o que o botão "Rodar agora" usa.
+- **Exceção: reserva.** Robô que protege os outros pode ter um `schedule`
+  *a mais*, independente do pg_cron do DMP, para o caso de o próprio DMP ou o
+  token do Vault falharem. Hoje: o vigia (todo dia, `--reserva`) e o keepalive
+  002 (seg/qui, porque o DMC não pode dormir). Rodar a mais não pode fazer mal
+  (trava diária ou trabalho idempotente) e o motivo fica num comentário no yml.
 - `concurrency` por robô, `timeout-minutes`, `MODO_EXECUCAO: CLOUD`.
 - Upload do log de erro com `if: failure()`.
 - **Hora cheia** de São Paulo (o cron do `pg_cron` é em UTC: SP + 3), sem

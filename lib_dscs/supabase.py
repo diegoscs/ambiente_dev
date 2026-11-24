@@ -400,3 +400,15 @@ def supabase_apagar(tabela: str, filtro: str) -> None:
         cabecalhos=_cabecalhos({"Prefer": "return=minimal"}), timeout=TIMEOUT_SEGUNDOS,
     )
     _checar(status_http, payload, f"delete {tabela}")
+
+
+def supabase_rpc(funcao: str, argumentos: dict[str, Any] | None = None) -> Any:
+    """Chama uma funcao do banco exposta na API (POST /rest/v1/rpc/<funcao>).
+    Devolve o resultado (lista de linhas, valor ou None). Levanta se falhar."""
+    status_http, payload = chamar_api_json(
+        _url(f"rpc/{funcao}"), "POST", corpo=argumentos or {},
+        cabecalhos=_cabecalhos(), timeout=TIMEOUT_SEGUNDOS,
+    )
+    _checar(status_http, payload, f"rpc {funcao}")
+    return payload
+

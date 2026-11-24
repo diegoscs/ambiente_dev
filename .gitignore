@@ -28,3 +28,6 @@ arquivo/
 # Repositorio publico - nada dele entra. O script do KubeJS que o monitor usa
 # tem copia versionada em apps/minecraft/monitor/kubejs/.
 apps/minecraft/local/
+
+# Ligacao local com a Vercel (vercel link): ids do projeto, nunca no repo
+.vercel/

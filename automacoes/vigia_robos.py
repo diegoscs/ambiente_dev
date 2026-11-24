@@ -10,13 +10,17 @@
 #                  Existe porque robo que nao roda nao avisa nada - o silencio
 #                  dele e identico ao do sucesso. O vigia transforma "nao rodou"
 #                  em uma falha que alguem recebe, sem precisar abrir o hub.
+#
+#                  24/11/2026: confere tambem o que faria TODOS pararem juntos:
+#                  disparos do pg_cron recusados pelo GitHub (token do Vault) e
+#                  tokens dos secrets vencidos ou perto de vencer.
 # =============================================
 from __future__ import annotations
 
 import os
 import re
 import sys
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -29,6 +33,13 @@ import lib_dscs as dl
 
 
 RESERVA = "--reserva" in sys.argv
+
+# Tokens dos secrets que, vencidos, param robos. Nome da variavel -> quem usa.
+TOKENS = {
+    "GH_PAT": "robô 001 (commits no daily-log)",
+    "FINANCAS_DISPATCH_TOKEN": "disparo do sync e do backup",
+}
+AVISAR_DIAS_ANTES = 15
 
 TZ = ZoneInfo("America/Sao_Paulo")
 SEMANA = ["seg", "ter", "qua", "qui", "sex", "sáb", "dom"]
@@ -77,6 +88,48 @@ def descrever_problema(r: dict) -> str:
     return f"{nome(r)}: {saude}"
 
 
+def conferir_disparos() -> list[str]:
+    """Disparos do pg_cron nas ultimas 24 h recusados pelo GitHub (401/403/404:
+    token do Vault vencido, revogado ou sem permissao). Sem a funcao no banco,
+    so avisa no log: o vigia continua valendo para o resto."""
+    try:
+        disparos = dl.supabase_rpc("disparos_github_recentes") or []
+    except Exception as e:  # noqa: BLE001
+        print(f"(nao consegui ler os disparos do pg_cron: {e})", file=sys.stderr)
+        return []
+    ruins = [d for d in disparos if not (d.get("status_http") and 200 <= d["status_http"] < 300)]
+    if not ruins:
+        return []
+    codigos = sorted({str(d.get("status_http") or "sem resposta") for d in ruins})
+    return [f"🔑 {len(ruins)} disparo(s) do pg_cron recusado(s) pelo GitHub (HTTP {', '.join(codigos)}): "
+            "confira o token github_dispatch_token no Vault do DMP"]
+
+
+def conferir_tokens() -> list[str]:
+    """Tokens dos secrets: invalido ou vencendo em ate AVISAR_DIAS_ANTES dias.
+    Token sem data de validade passa direto. Ausente (rodando no PC) e ignorado."""
+    problemas = []
+    env = dl.ler_env()
+    for nome_var, uso in TOKENS.items():
+        valor = env.get(nome_var)
+        if not valor:
+            continue
+        try:
+            info = dl.validade_token_github(valor)
+        except Exception as e:  # noqa: BLE001 - GitHub fora do ar nao e problema do token
+            print(f"(nao consegui conferir {nome_var}: {e})", file=sys.stderr)
+            continue
+        if not info["valido"]:
+            problemas.append(f"🔑 Token {nome_var} recusado pelo GitHub (HTTP {info['status']}): {uso} vai parar")
+        elif info["expira"]:
+            dias = (info["expira"] - datetime.now(timezone.utc)).days
+            if dias <= AVISAR_DIAS_ANTES:
+                data = info["expira"].astimezone(TZ).strftime("%d/%m/%Y")
+                problemas.append(f"🔑 Token {nome_var} vence em {max(dias, 0)} dia(s), {data}: {uso}")
+        print(f"{nome_var:<24} HTTP {info['status']} | validade: {info['expira'] or 'sem vencimento'}")
+    return problemas
+
+
 def main() -> int:
     # Uma notificacao por verificacao, para o hub mostrar que o vigia passou.
     # "resolvido" quando a anterior era de atencao e agora esta tudo em dia.
@@ -101,6 +154,9 @@ def main() -> int:
             "pode ter falhado. Confira o token github_dispatch_token no Vault."
         )
 
+    problemas += conferir_disparos()
+    problemas += conferir_tokens()
+
     robos = dl.ler_saude_robos()
     if not robos and not problemas:
         print("Nenhum robo ativo em vw_saude_robos - nada a vigiar.")
@@ -123,7 +179,7 @@ def main() -> int:
 
     if problemas:
         n = len(problemas)
-        titulo = f"⚠️ {robos_txt(n)} {'precisa' if n == 1 else 'precisam'} de atenção"
+        titulo = f"⚠️ {n} {'ponto precisa' if n == 1 else 'pontos precisam'} de atenção"
         detalhe = "\n".join(problemas) + (f"\n\nEm dia:\n{em_dia}" if em_dia else "")
         dl.notificar_hub("atencao", titulo, detalhe)
         print(f"\nATENCAO: {'; '.join(problemas)}", file=sys.stderr)
