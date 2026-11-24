@@ -157,3 +157,12 @@ select cron.schedule('robo_005_backup_supabase', '0 7 * * *',
 - **24/11/2026 (tarde)**: alvos passam a ser DM e clientes (OpenFinance
   pausado). No repo privado faltam o secret `SUPABASE_DMC_DB_URL` e a
   linha dele no workflow; o `SUPABASE_DUMP_URL_OPENFINANCE` pode sair.
+- **24/11/2026 (20:16 UTC)**: no ar. Secrets do DMC nos dois repos, PRs juntados
+  (ambiente_dev #10 a #15, backups-supabase #1). Execução direta no repo privado:
+  DMP 25 tabelas/3.746 linhas e DMC 16 tabelas/302 linhas restauradas e
+  conferidas; fica só o backup mais recente (o anterior foi apagado). Cadastro
+  `id_carga = 5` e horário 04:00 SP pela migration
+  `20261124201500_robos_cadastro_robo_005`; saúde OK no hub.
+  - **Falta 1 coisa:** o disparo pelo `robo_005_backup_supabase.yml` (pg_cron e
+    botão do hub) deu 404: o `FINANCAS_DISPATCH_TOKEN` ainda não alcança o repo
+    privado. Incluir o `backups-supabase` no PAT (Actions: Read and write).
