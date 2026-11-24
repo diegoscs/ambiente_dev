@@ -8,17 +8,18 @@ Ponto de partida: a pasta [`_modelo/`](_modelo).
 
 ## 0. Que tipo de processo é
 
-Decisão de 24/11/2026: o DMP (pessoal) e o DMC (clientes) são isolados. Todo
+Decisão de 24/11/2026: nada feito do lado pessoal (DMP) pode prejudicar cliente
+(DMC). Ler o DMC é livre; **alterar** o DMC é só para processo de cliente. Todo
 processo novo é de um destes três tipos, e o tipo decide onde ele mora:
 
 | Tipo | Onde roda | Pode tocar | Exemplos |
 |---|---|---|---|
 | **Pessoal** | armazém (este repo, Actions) | só o DMP e os seus serviços | 001, 003, sites no ar, fim do Minecraft |
-| **Neutro** | armazém (este repo, Actions) | os dois bancos, só para integridade: manter acordado, copiar, conferir, limpar | 002, 005, vigia, limites, segurança, migrations |
+| **Neutro** | armazém (este repo, Actions) | lê os dois bancos; no DMC **só lê** (manter acordado, copiar, conferir) | 002, 005, vigia, sites no ar, limites, segurança, migrations |
 | **De clientes** | **dentro do DMC** (pg_cron do DMC) | só o DMC | monitor dos apps, teste de isolamento, avisos ao cliente |
 
-- Neutro **nunca** grava dado de cliente no DMP; no DMP fica só o registro de
-  que o robô rodou.
+- Robô do armazém **não altera** o DMC. Mudança no DMC só por migration, com o
+  backup do dia e o teste de isolamento do app antes e depois.
 - Processo de clientes não depende do DMP: se o DMP cair, ele continua.
 - O tipo vai no README do robô e na página central (Mapa do ambiente_dev).
 
