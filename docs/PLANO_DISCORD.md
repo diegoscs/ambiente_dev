@@ -46,8 +46,8 @@ Erro de um robô de cliente vai para `#alertas` **e** para o canal do cliente.
 
 1. Você cria o servidor, os 3 canais e um webhook em cada (Configurações do
    canal → Integrações → Webhooks) e cadastra as URLs como secrets.
-2. `#alertas`: função na `lib_dscs` + vigia avisando atrasos. Teste forçando um
-   erro com `--dry-run`… e um ERROR de verdade num robô de teste.
+2. `#alertas`: função na `lib_dscs` + vigia avisando atrasos. Teste com um robô
+   de teste que termina em ERROR de propósito (o `--dry-run` não registra nem avisa).
 3. `#resumo-diario` pelo vigia.
 4. Robô 006 (saúde do DMC) + `#cliente-estoque` + trigger dos eventos do estoque.
 5. Cliente novo = canal + webhook + secret + `canal_discord` no cadastro.
