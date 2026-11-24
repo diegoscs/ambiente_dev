@@ -9,7 +9,7 @@ backup, e o plano grátis não inclui.
 
 | | |
 |---|---|
-| Origem | DM (`mthipdxpedlfnkzddlar`) e clientes (`oaqhgdewlfjtepjfaiml`) (`ALVOS` no robô). O OpenFinance saiu em 24/11/2026, quando foi pausado |
+| Origem | DMP (`mthipdxpedlfnkzddlar`) e clientes (`oaqhgdewlfjtepjfaiml`) (`ALVOS` no robô). O OpenFinance saiu em 24/11/2026, quando foi pausado |
 | Onde roda | repo **privado** `diegoscs/backups-supabase` (workflow `backup_supabase.yml`), com o código deste repo |
 | Destino | artifact da execução no repo privado, **30 dias** |
 | Quando | 04:00 de São Paulo: `pg_cron` → [`robo_005_backup_supabase.yml`](../../.github/workflows/robo_005_backup_supabase.yml) (disparador) → repo privado |
