@@ -11,7 +11,7 @@ backup, e o plano grátis não inclui.
 |---|---|
 | Origem | DMP (`mthipdxpedlfnkzddlar`) e clientes (`oaqhgdewlfjtepjfaiml`) (`ALVOS` no robô). O OpenFinance saiu em 24/11/2026, quando foi pausado |
 | Onde roda | repo **privado** `diegoscs/backups-supabase` (workflow `backup_supabase.yml`), com o código deste repo |
-| Destino | artifact da execução no repo privado, **30 dias** |
+| Destino | artifact no repo privado: **fica só o mais recente** de cada banco (90 dias de teto se o robô parar) |
 | Quando | 04:00 de São Paulo: `pg_cron` → [`robo_005_backup_supabase.yml`](../../.github/workflows/robo_005_backup_supabase.yml) (disparador) → repo privado |
 | `id_carga` | 5 (só a execução na nuvem registra) |
 
@@ -26,7 +26,9 @@ backup, e o plano grátis não inclui.
    tabelas do mesmo instante), confere o zip contra o banco, **restaura** no
    container e confere linhas por tabela e objetos por tipo. O restore é
    desfeito no fim.
-4. Os zips sobem como artifact (30 dias). Se o envio falhar, o registro vira ERROR.
+4. Os zips sobem como artifact. Só depois disso os backups anteriores são
+   apagados: fica sempre um só, o mais recente. Se o envio falhar, o registro
+   vira ERROR e os anteriores continuam lá.
 
 ## O que vai em cada zip
 
@@ -100,6 +102,9 @@ na string de conexão vai codificada (`%40`, `%2F`).
   faz o teste de restore falhar, e aí a exportação precisa aprender o tipo.
 - **Teste de restore todo dia.** Backup que não restaura não serve. O container
   é a imagem oficial da Supabase, com os papéis e o schema `auth`.
+- **Só o mais recente (24/11/2026).** Decisão do usuário: um backup por banco,
+  o do dia anterior. O antigo só sai depois de o novo passar no restore.
+  Risco aceito: um erro percebido depois de um dia não tem cópia anterior.
 - **Repo privado em vez de Google Drive (23/11/2026).** O Drive exigia app
   próprio no Google Cloud (o client_id compartilhado do rclone sai em 2026). O
   artifact do Actions já tem retenção de 30 dias e não precisa de credencial nova.
