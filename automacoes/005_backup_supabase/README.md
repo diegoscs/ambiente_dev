@@ -121,3 +121,14 @@ select cron.schedule('robo_005_backup_supabase', '0 7 * * *',
   OpenFinance (14 tabelas, 2.626 linhas) em `D:\backups\supabase`, conferidos.
   Execução diária pronta no código; faltam criar o repo privado, os secrets dele,
   o primeiro teste de restore na nuvem, o cadastro e o horário.
+- **23/11/2026 (02:42 UTC)**: repo privado `backups-supabase` criado, com os
+  4 secrets. Primeira execução na nuvem (disparada lá, com o código da branch)
+  passou: DM 47 tabelas/2.539 linhas e OpenFinance 12 tabelas/2.620 linhas
+  restauradas e conferidas; artifact de 0,4 MB. O registro no hub falhou
+  (sem `id_carga = 5`), como esperado.
+  - O container `supabase/postgres` não tem o Auth completo: `auth.identities`,
+    `cron.job` e `schema_migrations` são puladas no teste e `auth.users` entra só
+    com as colunas básicas. Essas tabelas estão no zip; o teste só não as confere.
+- **24/11/2026**: falta, nesta ordem: juntar o PR; conferir se o
+  `FINANCAS_DISPATCH_TOKEN` alcança o `backups-supabase` (primeiro "Rodar agora"
+  pelo `robo_005_backup_supabase.yml`); aplicar o cadastro e o horário.
