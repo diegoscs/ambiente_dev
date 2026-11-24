@@ -295,3 +295,36 @@ Ficam no DM (não são legado): `controle_cargas`, `historico_cargas`,
    - Falta o Storage: bucket `openfinance-bronze` vem para o DM; bucket `bronze`
      sai.
 7. **Bot do Discord por último**, já lendo `robos.*`, para não ser reescrito.
+
+---
+
+## 7. Decisões e cronograma (24/11/2026)
+
+Respostas às perguntas da seção 5 e ajustes aceitos da seção 6.
+
+| # | Decisão |
+|---|---|
+| 1 | Senha da conta do hub: o dono troca e grava direto no secret `FINANCAS_SENHA` do financas-app |
+| 2 | 4ª conta do Auth do FP (11/08, sem uso): apagar só depois do backup da etapa 0 restaurado com sucesso |
+| 3 | Bucket `openfinance-bronze` do OF (573 arquivos): descartar; não vai para o DM nem para o backup. O sync volta a gravar no DM |
+| 4 | Openfinance antigo do FP: comparado em 24/11 — as 16 categorias são iguais e as 96 regras estão todas no novo (que tem 122). Vai no backup e é descartado |
+| 5 | Migrations com o schema na frente do nome (`robos_...`, `estoque_...`), sempre aplicadas pelo mesmo caminho. O CL já nasce assim |
+| 6 | Auth do CL: e-mails com a marca neutra "Candido Digital" |
+| 7 | Schema `plataforma` (clientes, produtos, assinaturas): fora da migração, só quando houver cobrança |
+| 8 | Robôs e Minecraft saem de `public` só depois de 16/01/2027, num PR único |
+| 9 | Token de disparo do pg_cron: conferir validade, aviso no vigia e reserva do keepalive pelo `schedule` do GitHub |
+| 10 | Alertas: sem Telegram. Durante a migração, e-mail do GitHub; depois, só Discord |
+| 11 | Cliente do estoque já avisado da troca |
+| 12 | Backup: artifact de 30 dias no repo privado `backups-supabase`, sem criptografia, restore testado todo dia (ver o [README do 005](../automacoes/005_backup_supabase/README.md); substitui o plano de Drive + age) |
+
+Ordem: limpeza do openfinance antigo no começo da etapa 1; schemas recriados a
+partir do dump, não das migrations.
+
+| Etapa | Previsto |
+|---|---|
+| 0 · Backup | 23 a 29/11 |
+| 1 · OpenFinance → DM | 02 a 08/12 |
+| Pausa (nenhuma mudança nos bancos) | 12 a 19/12 |
+| 2 · Estoque → Clientes | 20 a 28/12 |
+| 3 · Robôs cobrindo os dois | 04 a 06/01 |
+| 4 · Limpeza (schemas depois de 16/01) | 09 a 23/01 |
