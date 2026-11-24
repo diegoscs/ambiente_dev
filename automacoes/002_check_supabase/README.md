@@ -10,7 +10,7 @@ Roda no **GitHub Actions**, todo dia às 08:00 de São Paulo (11:00 UTC),
 disparado pelo `pg_cron` do Supabase
 ([workflow](../../.github/workflows/robo_002_check_supabase.yml)).
 
-> Projeto alvo: **financas-pipeline** (`mthipdxpedlfnkzddlar`, sa-east-1).
+> Projeto alvo: **DM** (`mthipdxpedlfnkzddlar`, sa-east-1; chamava-se financas-pipeline até 24/11/2026).
 
 ## Por que dois pings
 

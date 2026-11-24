@@ -50,4 +50,7 @@ $env:MODO_EXECUCAO = "CLOUD"; & $py automacoes\NNN_robo\NNN_robo.py
   funciona mais: republicar é pelo Redeploy no painel.
 - Mudou `apps/minecraft/monitor/` ou `apps/minecraft/gcp/vm/`? Só chega na VM
   com o `publicar_vm.ps1` (VM ligada).
-- Supabase do projeto: `mthipdxpedlfnkzddlar` (financas-pipeline, sa-east-1).
+- Supabase: **DM** `mthipdxpedlfnkzddlar` (sa-east-1; hub, robôs, Minecraft e
+  o `openfinance` do financas-app; chamava-se financas-pipeline até 24/11/2026)
+  e **clientes** `oaqhgdewlfjtepjfaiml` (sa-east-1; só apps de clientes, hoje o
+  estoque, com migrations no repo de cada app).
