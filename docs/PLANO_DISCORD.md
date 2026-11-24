@@ -20,7 +20,7 @@ configurado (os workflows passam `TELEGRAM_*`, mas os secrets não existem).
 |---|---|---|
 | `#alertas` | qualquer robô em ERROR, robô ATRASADO, token de disparo perto de vencer | robôs (pela `lib_dscs`) e vigia |
 | `#resumo-diario` | um resumo por dia: robôs ok/erro/atrasados, última execução de cada um | vigia (já roda todo dia) |
-| `#cliente-estoque` | falha que afeta o app do estoque (keepalive/backup do DMC, Edge Function), cliente novo, Pix registrado, assinatura vencendo ou vencida | robôs do DMC e o próprio DMC |
+| `#cliente-estoque` | falha que afeta o app do estoque (keepalive/backup do DMC, Edge Function), cliente novo, Pix registrado, assinatura vencendo ou vencida | o monitor do próprio DMC ([kit de cliente novo](KIT_CLIENTE_NOVO.md)) |
 | `#cliente-<nome>` | o mesmo, para cada cliente novo | idem |
 
 Erro de um robô de cliente vai para `#alertas` **e** para o canal do cliente.
@@ -40,7 +40,8 @@ Erro de um robô de cliente vai para `#alertas` **e** para o canal do cliente.
   `vw_saude_robos` e manda para `#resumo-diario`.
 - **Eventos do estoque:** no DMC, trigger em `estoque.admin_eventos` (cliente
   criado, Pix, senha provisória) chama o webhook pelo `pg_net`, com a URL no
-  Vault do DMC. Assinatura vencendo: robô de saúde do DMC (006), uma vez por dia.
+  Vault do DMC. Assinatura vencendo e app fora do ar: o monitor do DMC
+  (`plataforma.saude`), sem passar pelo DMP.
 
 ## Ordem de implementação
 
@@ -49,7 +50,7 @@ Erro de um robô de cliente vai para `#alertas` **e** para o canal do cliente.
 2. `#alertas`: função na `lib_dscs` + vigia avisando atrasos. Teste com um robô
    de teste que termina em ERROR de propósito (o `--dry-run` não registra nem avisa).
 3. `#resumo-diario` pelo vigia.
-4. Robô 006 (saúde do DMC) + `#cliente-estoque` + trigger dos eventos do estoque.
+4. Monitor do DMC (`plataforma`) + `#cliente-estoque` + trigger dos eventos do estoque.
 5. Cliente novo = canal + webhook + secret + `canal_discord` no cadastro.
 
 ## Cuidados
