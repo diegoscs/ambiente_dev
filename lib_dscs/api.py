@@ -70,6 +70,29 @@ def chamar_api_json(
         return e.code, payload
 
 
+def conferir_site(url: str, timeout: int = TIMEOUT_PADRAO) -> dict[str, Any]:
+    """GET num site (resposta HTML, nao JSON): ele abre e em quanto tempo.
+
+    Devolve {"status": int | None, "ms": float, "erro": str | None}. Nunca
+    levanta: site fora do ar e um resultado, nao uma excecao. status None =
+    nem respondeu (DNS, timeout, certificado).
+    """
+    import time
+
+    requisicao = urllib.request.Request(url, method="GET")
+    requisicao.add_header("User-Agent", "lib_dscs (conferir_site)")
+    inicio = time.perf_counter()
+    try:
+        with urllib.request.urlopen(requisicao, timeout=timeout) as resposta:
+            resposta.read(2048)
+            status, erro = resposta.status, None
+    except urllib.error.HTTPError as e:
+        status, erro = e.code, f"HTTP {e.code}"
+    except Exception as e:  # noqa: BLE001 - qualquer falha de rede vira resultado
+        status, erro = None, f"{type(e).__name__}: {str(e)[:150]}"
+    return {"status": status, "ms": round((time.perf_counter() - inicio) * 1000, 1), "erro": erro}
+
+
 def validade_token_github(token: str, timeout: int = TIMEOUT_PADRAO) -> dict[str, Any]:
     """Confere um token do GitHub sem gastar cota (GET /rate_limit).
 

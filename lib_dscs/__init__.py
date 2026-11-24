@@ -16,7 +16,7 @@
 # =============================================
 from __future__ import annotations
 
-from .api import chamar_api_json, validade_token_github
+from .api import chamar_api_json, conferir_site, validade_token_github
 from .config import (
     ENV_FILE,
     RAIZ,
@@ -74,7 +74,8 @@ from .supabase import (
 # 2.2.0 (23/11/2026): prefixo BACKUP_ em PREFIXOS_AMBIENTE (robo 005).
 # 2.3.0 (24/11/2026): supabase_rpc, validade_token_github e prefixo FINANCAS_
 # (o vigia confere os tokens de disparo).
-__version__ = "2.3.0"
+# 2.4.0 (24/11/2026): conferir_site (robo 006, saude do DMC).
+__version__ = "2.4.0"
 
 __all__ = [
     # config
@@ -98,6 +99,7 @@ __all__ = [
     "executar_com_retry",
     # api
     "chamar_api_json",
+    "conferir_site",
     "validade_token_github",
     # supabase (controle de cargas)
     "MODO_LOCAL",

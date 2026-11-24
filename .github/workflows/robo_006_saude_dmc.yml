@@ -1,0 +1,55 @@
+# =============================================
+# Robo 006 - saude do DMC (banco dos apps de clientes), so leitura.
+# Regras em automacoes/PADRAO_ROBOS.md; detalhes em automacoes/006_saude_dmc/README.md.
+#
+# O log deste repo e publico: o robo so escreve contagens, nunca nome de cliente.
+# =============================================
+name: robo_006_saude_dmc
+
+on:
+  # 05:00 de Sao Paulo (08:00 UTC), disparado pelo pg_cron do Supabase
+  # (migration 20261124210000_robos_cadastro_robo_006). Antes do vigia (09:00).
+  # Nada de schedule aqui: o do GitHub atrasa 2 a 7 h.
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: robo-006
+  cancel-in-progress: false
+
+jobs:
+  saude:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    env:
+      MODO_EXECUCAO: CLOUD
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+      SUPABASE_DMC_URL: ${{ secrets.SUPABASE_DMC_URL }}
+      SUPABASE_DMC_KEY: ${{ secrets.SUPABASE_DMC_KEY }}
+      SUPABASE_DMC_DB_URL: ${{ secrets.SUPABASE_DMC_DB_URL }}
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Instalar dependencias
+        run: pip install -r requirements.txt
+
+      - name: Saude do DMC
+        run: python automacoes/006_saude_dmc/006_saude_dmc.py
+
+      - name: Guardar o log do erro
+        if: failure()
+        uses: actions/upload-artifact@v5
+        with:
+          name: log-erro-006
+          path: automacoes/006_saude_dmc/temp/erro_*.txt
+          if-no-files-found: ignore
