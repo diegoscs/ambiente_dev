@@ -2,8 +2,9 @@
 # =============================================
 # AUTOR          : Diego Candido
 # DATA CRIACAO   : 15/09/2026
-# DESCRICAO      : Os dois pings que mantem o projeto Supabase acordado:
+# DESCRICAO      : Os dois pings que mantem cada projeto Supabase acordado:
 #                  conexao Postgres direta e REST (PostgREST).
+#                  24/11/2026: um par de pings por projeto (DMP e DMC).
 # =============================================
 from __future__ import annotations
 
@@ -13,12 +14,16 @@ import psycopg
 
 import lib_dscs as dl
 from config_robo import (
+    PROJETOS,
+    SEGUNDOS_ENTRE_TENTATIVAS,
     SQL_PING,
-    TABELA_SUPABASE,
+    TENTATIVAS,
     TIMEOUT_SEGUNDOS,
+    Projeto,
     cabecalhos_rest,
-    url_banco_supabase,
+    faltando,
     url_supabase,
+    valor,
 )
 
 # Os dois caminhos existem de proposito. O Supabase mede atividade por
@@ -27,37 +32,38 @@ from config_robo import (
 # custa dois segundos e tira a duvida.
 
 
-def ping_postgres() -> dict[str, object]:
-    """SELECT direto no Postgres do Supabase. Devolve metodo, latencia e amostra."""
+def ping_postgres(projeto: Projeto) -> dict[str, object]:
+    """SELECT direto no Postgres do projeto. Devolve metodo, latencia e amostra.
+    prepare_threshold=None: funciona tambem no Transaction pooler (6543)."""
     inicio = time.perf_counter()
 
-    with psycopg.connect(url_banco_supabase(), connect_timeout=TIMEOUT_SEGUNDOS) as con:
+    with psycopg.connect(valor(projeto.var_banco), connect_timeout=TIMEOUT_SEGUNDOS,
+                         prepare_threshold=None) as con:
         linha = con.execute(SQL_PING).fetchone()
 
     latencia_ms = round((time.perf_counter() - inicio) * 1000, 1)
     agora, banco, versao = linha
 
     resultado = {
+        "projeto": projeto.nome,
         "metodo": "postgres",
         "latencia_ms": latencia_ms,
         "detalhe": f"{banco} | {versao.split(',')[0]} | now()={agora.isoformat()}",
     }
-    dl.log(f"[PING] postgres OK em {latencia_ms} ms - {resultado['detalhe']}")
+    dl.log(f"[PING] {projeto.nome} postgres OK em {latencia_ms} ms - {resultado['detalhe']}")
     return resultado
 
 
-def ping_rest() -> dict[str, object]:
-    """SELECT via PostgREST na tabela de controle.
-
-    Usa a tabela de controle porque ela sempre existe no projeto (o proprio robo
-    a mantem) e e pequena: limit=1 com uma coluna so. Tabela vazia devolve []
-    com HTTP 200 - isso e sucesso, o que importa e a API ter respondido.
+def ping_rest(projeto: Projeto) -> dict[str, object]:
+    """SELECT via PostgREST numa tabela pequena que sempre existe no projeto
+    (limit=1, uma coluna). Tabela vazia devolve [] com HTTP 200 - isso e
+    sucesso, o que importa e a API ter respondido.
     """
-    url = f"{url_supabase()}/rest/v1/{TABELA_SUPABASE}?select=id_carga&limit=1"
+    url = f"{url_supabase(projeto)}/rest/v1/{projeto.tabela}?select={projeto.coluna}&limit=1"
 
     inicio = time.perf_counter()
     status, payload = dl.chamar_api_json(
-        url, "GET", cabecalhos=cabecalhos_rest(), timeout=TIMEOUT_SEGUNDOS
+        url, "GET", cabecalhos=cabecalhos_rest(projeto), timeout=TIMEOUT_SEGUNDOS
     )
     latencia_ms = round((time.perf_counter() - inicio) * 1000, 1)
 
@@ -66,37 +72,47 @@ def ping_rest() -> dict[str, object]:
     # carga fecharia como SUCCESS com a API recusando a chave.
     if status != 200:
         raise RuntimeError(
-            f"REST respondeu HTTP {status}: "
+            f"{projeto.nome}: REST respondeu HTTP {status}: "
             f"{payload.get('message') or payload.get('hint') or payload}"
         )
 
     resultado = {
+        "projeto": projeto.nome,
         "metodo": "rest",
         "latencia_ms": latencia_ms,
         "detalhe": f"HTTP {status} | {len(payload) if isinstance(payload, list) else 1} linha(s)",
     }
-    dl.log(f"[PING] rest OK em {latencia_ms} ms - {resultado['detalhe']}")
+    dl.log(f"[PING] {projeto.nome} rest OK em {latencia_ms} ms - {resultado['detalhe']}")
     return resultado
 
 
 def executar_pings() -> list[dict[str, object]]:
-    """Os dois pings, cada um com retry proprio.
+    """Os dois pings de cada projeto, cada um com retry proprio.
 
     Retry separado de proposito: se o Postgres cair e o REST estiver de pe, o
-    REST nao paga as tentativas do outro - e vice-versa. Qualquer um dos dois
-    falhando apos as tentativas derruba a carga para ERROR, porque metade da
-    atividade nao garante o projeto acordado.
+    REST nao paga as tentativas do outro - e vice-versa. Um projeto com falha
+    (ou sem variavel) nao impede os outros de serem pingados; no fim, qualquer
+    falha derruba a carga para ERROR, porque metade da atividade nao garante o
+    projeto acordado.
     """
-    from config_robo import SEGUNDOS_ENTRE_TENTATIVAS, TENTATIVAS
+    resultados: list[dict[str, object]] = []
+    erros: list[str] = []
+    for projeto in PROJETOS:
+        if faltando(projeto):
+            erros.append(f"{projeto.nome}: faltam {', '.join(faltando(projeto))}")
+            continue
+        for nome, funcao in (("postgres", ping_postgres), ("rest", ping_rest)):
+            try:
+                resultados.append(dl.executar_com_retry(
+                    f"ping {projeto.nome} {nome}", lambda f=funcao: f(projeto),
+                    tentativas=TENTATIVAS, espera=SEGUNDOS_ENTRE_TENTATIVAS,
+                ))
+            except Exception as e:  # segue para os outros; vira erro no fim
+                erros.append(f"{projeto.nome} {nome}: {e}")
 
-    resultados = []
-    for nome, funcao in (("ping postgres", ping_postgres), ("ping rest", ping_rest)):
-        resultados.append(
-            dl.executar_com_retry(
-                nome, funcao, tentativas=TENTATIVAS, espera=SEGUNDOS_ENTRE_TENTATIVAS
-            )
-        )
+    if erros:
+        raise RuntimeError(" · ".join(erros))
 
-    resumo = " | ".join(f"{r['metodo']}={r['latencia_ms']}ms" for r in resultados)
-    dl.log(f"[PING] ✅ ambos responderam: {resumo}")
+    resumo = " | ".join(f"{r['projeto']} {r['metodo']}={r['latencia_ms']}ms" for r in resultados)
+    dl.log(f"[PING] ✅ todos responderam: {resumo}")
     return resultados

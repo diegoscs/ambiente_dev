@@ -9,7 +9,7 @@ backup, e o plano grátis não inclui.
 
 | | |
 |---|---|
-| Origem | financas-pipeline/DM e OpenFinance (`ALVOS` no robô). O Clientes entra na etapa 3; o OpenFinance sai quando for pausado |
+| Origem | DMP (`mthipdxpedlfnkzddlar`) e clientes (`oaqhgdewlfjtepjfaiml`) (`ALVOS` no robô). O OpenFinance saiu em 24/11/2026, quando foi pausado |
 | Onde roda | repo **privado** `diegoscs/backups-supabase` (workflow `backup_supabase.yml`), com o código deste repo |
 | Destino | artifact da execução no repo privado, **30 dias** |
 | Quando | 04:00 de São Paulo: `pg_cron` → [`robo_005_backup_supabase.yml`](../../.github/workflows/robo_005_backup_supabase.yml) (disparador) → repo privado |
@@ -51,7 +51,7 @@ $r  = "automacoes\005_backup_supabase\005_backup_supabase.py"
 & $py $r --status                              # o que está configurado
 & $py $r --dry-run                             # gera e confere numa pasta temporária, não grava nada
 & $py $r --pasta D:\backups\supabase           # backup na mão (pasta FORA do repositório)
-& $py $r --pasta D:\backups\supabase --alvo dm # só um banco
+& $py $r --pasta D:\backups\supabase --alvo dmp # só um banco
 & $py $r --conferir D:\backups\supabase\dm_<data>.zip   # confere um zip, sem banco
 ```
 
@@ -61,8 +61,8 @@ Postgres). Baixar um backup do repo privado:
 
 | Variável | O que é |
 |---|---|
-| `SUPABASE_DUMP_URL_DM` | string de conexão do DM. Opcional: sem ela, vale o `SUPABASE_DB_URL` |
-| `SUPABASE_DUMP_URL_OPENFINANCE` | string de conexão do OpenFinance (`aws-0-us-east-2.pooler.supabase.com`) |
+| `SUPABASE_DUMP_URL_DMP` | string de conexão do DMP. Opcional: sem ela, vale o `SUPABASE_DB_URL` |
+| `SUPABASE_DMC_DB_URL` | string de conexão do DMC (`aws-1-sa-east-1.pooler.supabase.com`) |
 | `BACKUP_RESTORE_URL` | Postgres do teste de restore (no Actions, o container) |
 
 ## Restore de verdade
@@ -73,6 +73,23 @@ antes das tabelas que apontam para elas) → `estrutura_2`. As triggers só nasc
 no fim, então carregar os dados não dispara nada (as quantidades do estoque não
 são somadas de novo). O `restaurar.py` faz isso com `confirmar=True`; é o
 caminho da etapa 1 da migração.
+
+## Copiar um schema entre projetos
+
+`copiar_schema.py` (24/11/2026) leva **um** schema de um projeto para outro:
+estrutura do catálogo (mesmo gerador do backup), dados por `COPY` direto entre
+os bancos e, se pedido, as contas do Auth. Tudo numa transação no destino,
+conferida (linhas por tabela e objetos por tipo); sem `--confirmar` é ensaio.
+
+```powershell
+& $py automacoes\005_backup_supabase\copiar_schema.py --origem VAR --destino VAR --schema NOME `
+    [--trocar-usuario ID_ORIGEM=ID_DESTINO] [--copiar-contas] [--substituir] [--confirmar]
+```
+
+Usado na migração: `openfinance` OpenFinance → DM com `--trocar-usuario` (mesmo
+e-mail, outro ID) e `--substituir` (o antigo de 30/09 saiu); `estoque` DM →
+clientes com `--copiar-contas` (mesmos IDs e senhas). Senha com `@` ou `/`
+na string de conexão vai codificada (`%40`, `%2F`).
 
 ## Decisões
 
@@ -132,3 +149,6 @@ select cron.schedule('robo_005_backup_supabase', '0 7 * * *',
 - **24/11/2026**: falta, nesta ordem: juntar o PR; conferir se o
   `FINANCAS_DISPATCH_TOKEN` alcança o `backups-supabase` (primeiro "Rodar agora"
   pelo `robo_005_backup_supabase.yml`); aplicar o cadastro e o horário.
+- **24/11/2026 (tarde)**: alvos passam a ser DM e clientes (OpenFinance
+  pausado). No repo privado faltam o secret `SUPABASE_DMC_DB_URL` e a
+  linha dele no workflow; o `SUPABASE_DUMP_URL_OPENFINANCE` pode sair.
