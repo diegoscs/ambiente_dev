@@ -3,8 +3,9 @@
 #
 # O backup roda no repo PRIVADO diegoscs/backups-supabase (backup_supabase.yml),
 # que guarda os zips por 30 dias: este repo e publico e nenhum backup pode
-# passar por ele. Este workflow existe porque o pg_cron e o botao do hub so
-# disparam workflows deste repo: ele aciona o backup de la e acompanha ate o fim.
+# passar por ele. Desde 24/11/2026 o pg_cron dispara o de la DIRETO (token do
+# Vault). Este workflow fica para o botao "Rodar agora" do hub, que so dispara
+# workflows deste repo: ele aciona o backup de la e acompanha ate o fim.
 # O codigo do robo continua aqui (automacoes/005_backup_supabase).
 #
 # Secret: FINANCAS_DISPATCH_TOKEN (PAT com Actions read/write no financas-app
@@ -13,7 +14,7 @@
 name: robo_005_backup_supabase
 
 on:
-  # 04:00 de Sao Paulo (07:00 UTC), disparado pelo pg_cron do Supabase.
+  # So o botao do hub (o pg_cron dispara o repo privado direto, 04:00 SP).
   # Nada de schedule aqui: o do GitHub atrasa 2 a 7 h.
   workflow_dispatch:
 

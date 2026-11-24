@@ -12,12 +12,12 @@ backup, e o plano grátis não inclui.
 | Origem | DMP (`mthipdxpedlfnkzddlar`) e clientes (`oaqhgdewlfjtepjfaiml`) (`ALVOS` no robô). O OpenFinance saiu em 24/11/2026, quando foi pausado |
 | Onde roda | repo **privado** `diegoscs/backups-supabase` (workflow `backup_supabase.yml`), com o código deste repo |
 | Destino | artifact no repo privado: **fica só o mais recente** de cada banco (90 dias de teto se o robô parar) |
-| Quando | 04:00 de São Paulo: `pg_cron` → [`robo_005_backup_supabase.yml`](../../.github/workflows/robo_005_backup_supabase.yml) (disparador) → repo privado |
+| Quando | 04:00 de São Paulo: o `pg_cron` dispara direto o `backup_supabase.yml` do repo privado (token do Vault). O botão do hub usa o [`robo_005_backup_supabase.yml`](../../.github/workflows/robo_005_backup_supabase.yml) (disparador) |
 | `id_carga` | 5 (só a execução na nuvem registra) |
 
 ## Fluxo da execução diária
 
-1. O `pg_cron` (ou o botão do hub) dispara o `robo_005_backup_supabase.yml`
+1. O `pg_cron` dispara direto o `backup_supabase.yml` do repo privado. O botão do hub dispara o `robo_005_backup_supabase.yml`
    deste repo, que dispara o `backup_supabase.yml` do repo privado e acompanha.
 2. O repo privado baixa este código, sobe um Postgres da Supabase
    (`supabase/postgres`, mesma versão do DM) num container e roda
@@ -157,3 +157,19 @@ select cron.schedule('robo_005_backup_supabase', '0 7 * * *',
 - **24/11/2026 (tarde)**: alvos passam a ser DM e clientes (OpenFinance
   pausado). No repo privado faltam o secret `SUPABASE_DMC_DB_URL` e a
   linha dele no workflow; o `SUPABASE_DUMP_URL_OPENFINANCE` pode sair.
+- **24/11/2026 (20:16 UTC)**: no ar. Secrets do DMC nos dois repos, PRs juntados
+  (ambiente_dev #10 a #15, backups-supabase #1). Execução direta no repo privado:
+  DMP 25 tabelas/3.746 linhas e DMC 16 tabelas/302 linhas restauradas e
+  conferidas; fica só o backup mais recente (o anterior foi apagado). Cadastro
+  `id_carga = 5` e horário 04:00 SP pela migration
+  `20261124201500_robos_cadastro_robo_005`; saúde OK no hub.
+  - **Falta 1 coisa:** o disparo pelo `robo_005_backup_supabase.yml` (pg_cron e
+    botão do hub) deu 404: o `FINANCAS_DISPATCH_TOKEN` ainda não alcança o repo
+    privado. Incluir o `backups-supabase` no PAT (Actions: Read and write).
+- **24/11/2026 (20:35 UTC)**: o token do pg_cron (Vault) passou a alcançar o
+  repo privado; o do `FINANCAS_DISPATCH_TOKEN` ainda não. Decisão: o pg_cron
+  dispara o backup **direto** no repo privado (migration
+  `20261124203500_robos_backup_disparo_direto`), com um token só no caminho.
+  Disparo de teste pelo pg_cron: DMP e DMC restaurados e conferidos. O botão
+  "Rodar agora" do hub para o 005 só funciona quando o `FINANCAS_DISPATCH_TOKEN`
+  também alcançar o `backups-supabase`.
