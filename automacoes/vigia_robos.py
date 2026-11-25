@@ -10,9 +10,10 @@
 #                  de manha (09:00) e a tarde (16:00, depois do sync das 15:00),
 #                  e repassa os avisos do sync do financas-app.
 #
-#                  25/11/2026: avisos do sync separados por peso. So vai ao
-#                  #alertas o que pede acao (reconectar, falha, pendencia nova);
-#                  o informativo e a pendencia repetida entram no resumo.
+#                  25/11/2026: do Open Finance o Discord so ouve o status -
+#                  "Ok, tudo em dia" no resumo ou "nao sincroniza desde <dia>"
+#                  no #alertas. Movimentacao nova, lancamento para conferir e
+#                  os demais avisos do sync ficam so no banco.
 #
 #                  Existe porque robo que nao roda nao avisa nada - o silencio
 #                  dele e identico ao do sucesso. O vigia transforma "nao rodou"
@@ -47,6 +48,10 @@ TOKENS = {
     "FINANCAS_DISPATCH_TOKEN": "disparo do sync e do backup",
 }
 AVISAR_DIAS_ANTES = 15
+
+# Open Finance: o Pluggy atualiza cada banco 1x por dia e o sync roda 2x.
+# Mais que isso sem dado novo = "nao sincroniza desde".
+OF_LIMITE_HORAS = 36
 
 TZ = ZoneInfo("America/Sao_Paulo")
 SEMANA = ["seg", "ter", "qua", "qui", "sex", "sáb", "dom"]
@@ -140,18 +145,54 @@ def conferir_tokens() -> list[str]:
 ICONE_SAUDE = {"OK": "✅", "RODANDO": "🔄", "ERRO": "❌", "ATRASADO": "⏰", "TRAVADO": "🧊", "NUNCA_RODOU": "❔"}
 
 
-def enviar_resumo_diario(robos: list[dict], problemas: list[str], externos: list[str] | None = None) -> bool:
+def eh_open_finance(r: dict) -> bool:
+    return "open finance" in r["nome_carga"].lower()
+
+
+def status_open_finance() -> tuple[str, str | None] | None:
+    """(linha do resumo, alerta ou None) a partir da ultima sincronizacao de
+    cada conta. Vale a mais antiga entre o sync que deu certo e a atualizacao
+    do banco no Pluggy. None = nao consegui ler (fica a linha normal do robo)."""
+    try:
+        contas = dl.supabase_rpc("status_openfinance") or []
+    except Exception as e:  # noqa: BLE001
+        print(f"(nao consegui ler o status do Open Finance: {e})", file=sys.stderr)
+        return None
+    if not contas:
+        return None
+
+    def ultima(c: dict) -> datetime | None:
+        datas = [datetime.fromisoformat(c[k].replace("Z", "+00:00"))
+                 for k in ("ultimo_sync", "pluggy_atualizado") if c.get(k)]
+        return min(datas) if c.get("ultimo_sync") else None
+
+    agora = datetime.now(timezone.utc)
+    paradas = [(c, ultima(c)) for c in contas]
+    paradas = [(c, d) for c, d in paradas if d is None or (agora - d).total_seconds() > OF_LIMITE_HORAS * 3600]
+    if not paradas:
+        return "✅ **Open Finance** · Ok, tudo em dia", None
+
+    datas = [d for _, d in paradas if d]
+    desde = min(datas).astimezone(TZ).strftime("%d/%m") if datas else "sempre"
+    bancos = sorted({c["conta"].split()[0] for c, _ in paradas})
+    quais = "" if len(paradas) == len(contas) else f" ({', '.join(bancos)})"
+    texto = f"Open Finance não sincroniza desde {desde}{quais}"
+    return f"⚠️ **{texto}**", f"⚠️ {texto}"
+
+
+def enviar_resumo_diario(robos: list[dict], problemas: list[str], linha_of: str | None = None) -> bool:
     """Uma mensagem por dia em #resumo-diario: cada robo com a ultima execucao e
-    a mensagem dela, os avisos informativos dos robos de fora e o que precisa
-    de atencao. Chega sem apitar. Devolve True se chegou."""
+    a mensagem dela, mais o que precisa de atencao. O robo do Open Finance
+    aparece so com o status. Chega sem apitar. Devolve True se chegou."""
     linhas = []
     for r in robos:
+        if linha_of and eh_open_finance(r):
+            linhas.append(linha_of)
+            continue
         msg = re.sub(r"\s+", " ", (r.get("mensagem") or "").strip())
         msg = msg[:110] + "…" if len(msg) > 110 else msg
         linhas.append(f"{ICONE_SAUDE.get(r['saude'], '•')} **{nome(r)}** · {quando(r.get('dta_fim') or r.get('dta_ini'))}"
                       + (f"\n  {msg}" if msg else ""))
-    if externos:
-        linhas += ["", "**Open Finance:**", *externos]
     if problemas:
         linhas += ["", "**Precisa de atenção:**", *problemas]
     titulo = f"📋 Resumo da {turno()} de {datetime.now(TZ).strftime('%d/%m')}: " + (
@@ -189,76 +230,36 @@ def execucoes_do_vigia() -> list[dict] | None:
     return [r for r in dados.get("workflow_runs", []) if str(r.get("id")) != atual]
 
 
-# Avisos de fora que pedem acao na hora: vao ao #alertas sempre (o anti-spam de
-# 24 h do notificar_hub_externo ja segura a repeticao no mesmo dia).
-URGENTES = ("🔌", "❌", "Open Finance: o sync não rodou")
+# Avisos de fora que o Discord nao recebe: o Open Finance aparece so pelo
+# status (status_open_finance). Sao marcados como lidos para nao acumular.
+ORIGENS_SO_NO_BANCO = ("sync_openfinance",)
 
 
-def _linha_aviso(n: dict, prefixo: str = "") -> str:
-    detalhe = (n.get("detalhe") or "").strip()
-    return f"• {prefixo}**{n['titulo']}**" + (f"\n  {detalhe[:300]}" if detalhe else "")
-
-
-def separar_avisos_externos(pendentes: list[dict], ja_enviados: list[dict]) -> tuple[list[dict], list[dict]]:
-    """Divide os avisos pendentes dos robos de fora em (alertas, resumo).
-
-    - urgente (reconectar, falha, sync parado): #alertas
-    - outro 'atencao' (ex.: lancamentos para conferir): #alertas so quando o
-      texto muda em relacao ao ultimo ja enviado; igual = resumo, marcado como
-      ainda pendente
-    - 'info' (movimentacoes novas, data mudada): resumo
-    """
-    ultimo: dict[tuple, str | None] = {}
-    for n in ja_enviados:  # mais novo primeiro: fica o ultimo enviado de cada aviso
-        ultimo.setdefault((n["origem"], n["titulo"]), n.get("detalhe"))
-
-    alertas, resumo = [], []
-    for n in pendentes:  # mais antigo primeiro
-        chave = (n["origem"], n["titulo"])
-        if n.get("nivel") != "atencao":
-            resumo.append(n)
-        elif n["titulo"].startswith(URGENTES):
-            alertas.append(n)
-        elif chave in ultimo and ultimo[chave] == n.get("detalhe"):
-            resumo.append({**n, "repetido": True})
-        else:
-            alertas.append(n)
-        if n.get("nivel") == "atencao":
-            ultimo[chave] = n.get("detalhe")  # dois iguais no mesmo lote = um alerta so
-    return alertas, resumo
-
-
-def repassar_avisos_externos() -> tuple[list[str], list[int]]:
-    """Avisos que robos de fora (o sync do financas-app, via notificar_hub_externo)
-    deixam em notificacoes_hub. O que pede acao vai agora ao #alertas (e e
-    marcado como lido); o resto volta como linhas para o resumo, com os ids a
-    marcar depois que o resumo chegar."""
+def repassar_avisos_externos() -> int:
+    """Avisos que robos de fora deixam em notificacoes_hub (via
+    notificar_hub_externo). Os do sync do Open Finance so sao marcados como
+    lidos; os de outra origem vao ao #alertas. Devolve quantos repassou."""
     try:
         pendentes = dl.supabase_ler(
             "notificacoes_hub?select=id,origem,nivel,titulo,detalhe&lida=is.false&order=dta_add")
-        ja_enviados = dl.supabase_ler(
-            "notificacoes_hub?select=origem,titulo,detalhe&lida=is.true&nivel=eq.atencao"
-            "&order=dta_add.desc&limit=200")
     except Exception as e:  # noqa: BLE001
         print(f"(nao consegui ler os avisos pendentes: {e})", file=sys.stderr)
-        return [], []
+        return 0
     pendentes = [n for n in pendentes if n.get("origem") not in ORIGENS_PROPRIAS]
-    ja_enviados = [n for n in ja_enviados if n.get("origem") not in ORIGENS_PROPRIAS]
-    if not pendentes:
-        return [], []
+    silenciosos = [n for n in pendentes if n.get("origem") in ORIGENS_SO_NO_BANCO]
+    repassar = [n for n in pendentes if n.get("origem") not in ORIGENS_SO_NO_BANCO]
 
-    alertas, resumo = separar_avisos_externos(pendentes, ja_enviados)
-
-    if alertas:
-        titulo = alertas[0]["titulo"] if len(alertas) == 1 else f"📨 {len(alertas)} avisos do Open Finance"
-        texto = (alertas[0].get("detalhe") or "") if len(alertas) == 1 else "\n".join(_linha_aviso(n) for n in alertas)
-        if dl.notificar_discord("alertas", titulo, texto, nivel="atencao"):
-            dl.supabase_atualizar("notificacoes_hub", f"id=in.({','.join(str(n['id']) for n in alertas)})",
-                                  {"lida": True})
-            print(f"{len(alertas)} aviso(s) de robos de fora enviado(s) ao #alertas.")
-
-    linhas = [_linha_aviso(n, "ainda pendente: " if n.get("repetido") else "") for n in resumo]
-    return linhas, [n["id"] for n in resumo]
+    if silenciosos:
+        dl.supabase_atualizar("notificacoes_hub", f"id=in.({','.join(str(n['id']) for n in silenciosos)})",
+                              {"lida": True})
+    if not repassar:
+        return 0
+    texto = "\n".join(f"• **{n['titulo']}**" + (f"\n  {n['detalhe'][:300]}" if n.get("detalhe") else "")
+                      for n in repassar)
+    if dl.notificar_discord("alertas", f"📨 {len(repassar)} aviso(s) dos robôs de fora", texto, nivel="atencao"):
+        dl.supabase_atualizar("notificacoes_hub", f"id=in.({','.join(str(n['id']) for n in repassar)})",
+                              {"lida": True})
+    return len(repassar)
 
 
 def main() -> int:
@@ -284,7 +285,12 @@ def main() -> int:
 
     problemas += conferir_disparos()
     problemas += conferir_tokens()
-    externos, ids_externos = repassar_avisos_externos()
+    repassados = repassar_avisos_externos()
+    if repassados:
+        print(f"{repassados} aviso(s) de robos de fora repassado(s) ao Discord.")
+    of = status_open_finance()
+    if of and of[1]:
+        problemas.append(of[1])
 
     robos = dl.ler_saude_robos()
     if not robos and not problemas:
@@ -297,17 +303,17 @@ def main() -> int:
             f"{r['nome_carga']:<24} {r['saude']:<12} "
             f"ha {horas} h | {r.get('ambiente') or '-'} | {r.get('mensagem') or ''}"
         )
-        if r["saude"] not in dl.SAUDE_BOA:
+        # Open Finance: o alerta e o "nao sincroniza desde", nao o estado do robo
+        if r["saude"] not in dl.SAUDE_BOA and not (of and eh_open_finance(r)):
             problemas.append(descrever_problema(r))
 
-    if enviar_resumo_diario(robos, problemas, externos) and ids_externos:
-        dl.supabase_atualizar("notificacoes_hub", f"id=in.({','.join(map(str, ids_externos))})", {"lida": True})
+    enviar_resumo_diario(robos, problemas, of[0] if of else None)
 
     if problemas:
         n = len(problemas)
-        titulo = f"⚠️ {n} {'ponto precisa' if n == 1 else 'pontos precisam'} de atenção"
+        titulo = problemas[0] if n == 1 else f"⚠️ {n} pontos precisam de atenção"
         print(f"\nATENCAO: {'; '.join(problemas)}", file=sys.stderr)
-        dl.notificar_discord("alertas", titulo, "\n".join(problemas), nivel="atencao")
+        dl.notificar_discord("alertas", titulo, "\n".join(problemas) if n > 1 else None, nivel="atencao")
         return 1
 
     # "Voltou ao normal": a execucao anterior do vigia tinha falhado (achou problema).
