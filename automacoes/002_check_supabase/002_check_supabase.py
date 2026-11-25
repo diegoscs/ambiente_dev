@@ -55,7 +55,7 @@ def mostrar_status(modo: str) -> None:
         falta = faltando(projeto)
         dl.log(f"[STATUS] {projeto.nome:<12} : {url_supabase(projeto) or '(sem url)'}"
                f"{' | faltam ' + ', '.join(falta) if falta else ' | ok'}")
-    dl.log(f"[STATUS] telegram     : {'configurado' if dl.telegram_configurado() else 'AUSENTE'}")
+    dl.log(f"[STATUS] discord      : {'configurado' if dl.discord_configurado() else 'AUSENTE'}")
 
 
 def main() -> None:

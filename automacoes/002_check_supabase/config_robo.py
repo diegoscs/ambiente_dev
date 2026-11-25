@@ -97,7 +97,7 @@ def validar_configuracao(modo: str) -> None:
         if faltando(projeto):
             dl.log(f"[CONFIG] ⚠ {projeto.nome} sem {', '.join(faltando(projeto))}: nao sera pingado")
 
-    if not dl.telegram_configurado():
-        dl.log("[CONFIG] ⚠ TELEGRAM_TOKEN/TELEGRAM_CHAT_ID ausentes: sem alerta de falha")
+    if not dl.discord_configurado():
+        dl.log("[CONFIG] ⚠ DISCORD_WEBHOOK_ALERTAS ausente: sem alerta de falha")
 
     dl.log(f"[CONFIG] modo={modo} | projetos={', '.join(p.nome for p in PROJETOS)}")

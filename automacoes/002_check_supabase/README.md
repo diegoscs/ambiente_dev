@@ -34,7 +34,7 @@ bem antes disso.
 3. Ping Postgres (`select now()`) e ping REST — 3 tentativas cada, 20 s de espera
 4. `SUCCESS` + uma linha em `historico_cargas`, com `mensagem` = latências
    (`ping ok: postgres 180 ms | rest 95 ms`) e o link do run
-5. Na falha: `ERROR` + histórico + alerta no Telegram + `erro_*.txt` como
+5. Na falha: `ERROR` + histórico + aviso no Discord (#alertas) + `erro_*.txt` como
    artifact `log-erro-002`
 
 **Falha ao registrar nunca derruba o robô**: vira linha de log. Se o Supabase
@@ -55,7 +55,7 @@ Secrets do Actions (*Settings → Secrets and variables → Actions*) e, no PC, 
 | `SUPABASE_DMC_URL` | `https://oaqhgdewlfjtepjfaiml.supabase.co` |
 | `SUPABASE_DMC_KEY` | secret key / `service_role` do DMC (o ping REST lê `estoque.estoques`, sem policy para `anon`) |
 | `SUPABASE_DMC_DB_URL` | connection string do pooler do DMC, senha percent-encoded |
-| `TELEGRAM_TOKEN` / `TELEGRAM_CHAT_ID` | opcionais; sem eles a falha só avisa pelo e-mail do GitHub |
+| `DISCORD_WEBHOOK_ALERTAS` | webhook do #alertas; sem ele a falha só avisa pelo e-mail do GitHub |
 
 Tabelas e view (`controle_cargas`, `historico_cargas`, `vw_saude_robos`)
 versionadas em [`supabase/migrations`](../../supabase/migrations).
@@ -79,10 +79,10 @@ As linhas ficam em memória e só viram arquivo se a execução falhar:
 `temp\erro_002_check_supabase_<AAAAMMDD_HHMMSS>.txt`. **Execução bem-sucedida não
 deixa rastro em disco.**
 
-## Alerta no Telegram
+## Aviso no Discord
 
 Só em falha, e só quando a execução registra status. O envio **nunca levanta
-exceção**: se o Telegram estiver fora, vira linha de log — o robô já está
+exceção**: se o Discord estiver fora, vira linha de log — o robô já está
 tratando um problema e não pode trocar a causa real por uma falha de
 notificação. Implementação em `lib_dscs/notificacao.py` (`dl.alertar_erro_robo`).
 

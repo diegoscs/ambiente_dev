@@ -5,7 +5,8 @@
 # DESCRICAO      : Vigia dos robos. Le a vw_saude_robos no Supabase e FALHA
 #                  (exit 1) se algum robo estiver com ERRO, ATRASADO, TRAVADO
 #                  ou NUNCA_RODOU. Roda no GitHub Actions: run vermelho = e-mail
-#                  do GitHub, mais o alerta no Telegram quando configurado.
+#                  do GitHub, mais o aviso no Discord (#alertas). Todo dia
+#                  manda tambem o resumo de todos os robos em #resumo-diario.
 #
 #                  Existe porque robo que nao roda nao avisa nada - o silencio
 #                  dele e identico ao do sucesso. O vigia transforma "nao rodou"
@@ -130,6 +131,26 @@ def conferir_tokens() -> list[str]:
     return problemas
 
 
+ICONE_SAUDE = {"OK": "✅", "RODANDO": "🔄", "ERRO": "❌", "ATRASADO": "⏰", "TRAVADO": "🧊", "NUNCA_RODOU": "❔"}
+
+
+def enviar_resumo_diario(robos: list[dict], problemas: list[str]) -> None:
+    """Uma mensagem por dia em #resumo-diario: cada robo com a ultima execucao e
+    a mensagem dela, mais o que precisa de atencao. Chega sem apitar."""
+    linhas = []
+    for r in robos:
+        msg = re.sub(r"\s+", " ", (r.get("mensagem") or "").strip())
+        msg = msg[:110] + "…" if len(msg) > 110 else msg
+        linhas.append(f"{ICONE_SAUDE.get(r['saude'], '•')} **{nome(r)}** · {quando(r.get('dta_fim') or r.get('dta_ini'))}"
+                      + (f"\n  {msg}" if msg else ""))
+    if problemas:
+        linhas += ["", "**Precisa de atenção:**", *problemas]
+    titulo = f"📋 Resumo de {datetime.now(TZ).strftime('%d/%m')}: " + (
+        f"{len(problemas)} ponto(s) de atenção" if problemas else f"{robos_txt(len(robos))} em dia")
+    dl.notificar_discord("resumo", titulo, "\n".join(linhas), nivel="atencao" if problemas else "ok",
+                         silencioso=True)
+
+
 def main() -> int:
     # Uma notificacao por verificacao, para o hub mostrar que o vigia passou.
     # "resolvido" quando a anterior era de atencao e agora esta tudo em dia.
@@ -171,6 +192,8 @@ def main() -> int:
         if r["saude"] not in dl.SAUDE_BOA:
             problemas.append(descrever_problema(r))
 
+    enviar_resumo_diario(robos, problemas)
+
     # Detalhe das notificacoes: um robo por linha, com a ultima execucao.
     em_dia = "\n".join(
         f"• {nome(r)} · {quando(r.get('dta_fim') or r.get('dta_ini'))}"
@@ -183,12 +206,13 @@ def main() -> int:
         detalhe = "\n".join(problemas) + (f"\n\nEm dia:\n{em_dia}" if em_dia else "")
         dl.notificar_hub("atencao", titulo, detalhe)
         print(f"\nATENCAO: {'; '.join(problemas)}", file=sys.stderr)
-        dl.alertar_telegram(f"{titulo}\n\n" + "\n".join(problemas))
+        dl.notificar_discord("alertas", titulo, "\n".join(problemas), nivel="atencao")
         return 1
 
     if anterior and anterior.get("nivel") == "atencao":
         dl.notificar_hub("resolvido", f"✅ Voltou ao normal: {robos_txt(len(robos))} em dia", em_dia)
-        dl.alertar_telegram(f"✅ Voltou ao normal: {robos_txt(len(robos))} em dia", silencioso=True)
+        dl.notificar_discord("alertas", f"✅ Voltou ao normal: {robos_txt(len(robos))} em dia", em_dia,
+                             nivel="ok", silencioso=True)
     else:
         dl.notificar_hub("info", f"✅ Tudo certo: {robos_txt(len(robos))} em dia", em_dia)
     print(f"\nOK: {len(robos)} robo(s) em dia.")

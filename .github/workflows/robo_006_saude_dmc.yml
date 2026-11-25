@@ -31,6 +31,8 @@ jobs:
       SUPABASE_DMC_URL: ${{ secrets.SUPABASE_DMC_URL }}
       SUPABASE_DMC_KEY: ${{ secrets.SUPABASE_DMC_KEY }}
       SUPABASE_DMC_DB_URL: ${{ secrets.SUPABASE_DMC_DB_URL }}
+      DISCORD_WEBHOOK_ALERTAS: ${{ secrets.DISCORD_WEBHOOK_ALERTAS }}
+      DISCORD_WEBHOOK_ESTOQUE: ${{ secrets.DISCORD_WEBHOOK_ESTOQUE }}
 
     steps:
       - uses: actions/checkout@v5

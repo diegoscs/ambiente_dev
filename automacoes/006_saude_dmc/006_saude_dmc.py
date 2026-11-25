@@ -4,8 +4,8 @@
 # DATA CRIACAO   : 24/11/2026
 # DESCRICAO      : Saude do DMC (banco dos apps de clientes), so LENDO: site
 #                  de cada app, API, Auth, Edge Function, RLS, tamanho do banco
-#                  e assinaturas. Erro = run vermelho e ERROR no hub; aviso =
-#                  notificacao no hub. Regras em automacoes\PADRAO_ROBOS.md.
+#                  e assinaturas. Erro = run vermelho, ERROR no hub e aviso em
+#                  #alertas + #cliente-estoque; aviso = hub + #cliente-estoque. Regras em automacoes\PADRAO_ROBOS.md.
 # =============================================
 from __future__ import annotations
 
@@ -35,6 +35,7 @@ STATUS = "--status" in sys.argv
 IDCARGA = 6  # ★ mesmo numero da pasta e do id_carga em public.controle_cargas
 NOME_ROBO = "saude_dmc"
 ORIGEM_AVISO = "saude_dmc"  # origem das notificacoes no hub
+CANAL_DISCORD = "estoque"   # #cliente-estoque (erro vai tambem para #alertas)
 
 BASE = Path(__file__).resolve().parent
 
@@ -209,8 +210,10 @@ def avisar_no_hub(avisos: list[str]) -> None:
         return
     if titulo and (not anterior or anterior.get("titulo") != titulo):
         dl.notificar_hub("atencao", titulo, None, origem=ORIGEM_AVISO)
+        dl.notificar_discord(CANAL_DISCORD, titulo, "\n".join(f"• {a}" for a in avisos), nivel="atencao")
     elif not titulo and anterior and anterior.get("nivel") == "atencao":
         dl.notificar_hub("resolvido", "✅ DMC: avisos resolvidos", None, origem=ORIGEM_AVISO)
+        dl.notificar_discord(CANAL_DISCORD, "✅ DMC: avisos resolvidos", None, nivel="ok", silencioso=True)
 
 
 def processar() -> tuple[int, str]:
@@ -277,7 +280,7 @@ def main() -> None:
         if registrar:
             dl.registrar_carga_supabase(IDCARGA, dl.STATUS_ERRO, dta_ini, fechar=True,
                                         mensagem=str(e)[:500], qtd_itens=ITENS_FEITOS)
-            dl.alertar_erro_robo(IDCARGA, NOME_ROBO, str(e))
+            dl.alertar_erro_robo(IDCARGA, NOME_ROBO, str(e), canal_cliente=CANAL_DISCORD)
         dl.log(f"[ROBO{IDCARGA:03d}] ❌ RESULTADO FINAL: ERRO")
         dl.log("=" * 70)
         arquivo = dl.salvar_log_erro()

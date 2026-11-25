@@ -27,8 +27,7 @@ jobs:
       MODO_EXECUCAO: CLOUD
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
-      TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
-      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      DISCORD_WEBHOOK_ALERTAS: ${{ secrets.DISCORD_WEBHOOK_ALERTAS }}
       # Segredos proprios do robo. Nome de secret NAO pode comecar com GITHUB_,
       # e o prefixo precisa estar em PREFIXOS_AMBIENTE (lib_dscs/config.py).
       # MINHA_API_TOKEN: ${{ secrets.MINHA_API_TOKEN }}
