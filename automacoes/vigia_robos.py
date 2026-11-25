@@ -8,7 +8,11 @@
 #                  do GitHub, mais o aviso no Discord (#alertas). Todo dia
 #                  manda tambem o resumo de todos os robos em #resumo-diario,
 #                  de manha (09:00) e a tarde (16:00, depois do sync das 15:00),
-#                  e repassa ao #alertas os avisos do sync do financas-app.
+#                  e repassa os avisos do sync do financas-app.
+#
+#                  25/11/2026: avisos do sync separados por peso. So vai ao
+#                  #alertas o que pede acao (reconectar, falha, pendencia nova);
+#                  o informativo e a pendencia repetida entram no resumo.
 #
 #                  Existe porque robo que nao roda nao avisa nada - o silencio
 #                  dele e identico ao do sucesso. O vigia transforma "nao rodou"
@@ -136,21 +140,24 @@ def conferir_tokens() -> list[str]:
 ICONE_SAUDE = {"OK": "✅", "RODANDO": "🔄", "ERRO": "❌", "ATRASADO": "⏰", "TRAVADO": "🧊", "NUNCA_RODOU": "❔"}
 
 
-def enviar_resumo_diario(robos: list[dict], problemas: list[str]) -> None:
+def enviar_resumo_diario(robos: list[dict], problemas: list[str], externos: list[str] | None = None) -> bool:
     """Uma mensagem por dia em #resumo-diario: cada robo com a ultima execucao e
-    a mensagem dela, mais o que precisa de atencao. Chega sem apitar."""
+    a mensagem dela, os avisos informativos dos robos de fora e o que precisa
+    de atencao. Chega sem apitar. Devolve True se chegou."""
     linhas = []
     for r in robos:
         msg = re.sub(r"\s+", " ", (r.get("mensagem") or "").strip())
         msg = msg[:110] + "…" if len(msg) > 110 else msg
         linhas.append(f"{ICONE_SAUDE.get(r['saude'], '•')} **{nome(r)}** · {quando(r.get('dta_fim') or r.get('dta_ini'))}"
                       + (f"\n  {msg}" if msg else ""))
+    if externos:
+        linhas += ["", "**Open Finance:**", *externos]
     if problemas:
         linhas += ["", "**Precisa de atenção:**", *problemas]
     titulo = f"📋 Resumo da {turno()} de {datetime.now(TZ).strftime('%d/%m')}: " + (
         f"{len(problemas)} ponto(s) de atenção" if problemas else f"{robos_txt(len(robos))} em dia")
-    dl.notificar_discord("resumo", titulo, "\n".join(linhas), nivel="atencao" if problemas else "ok",
-                         silencioso=True)
+    return dl.notificar_discord("resumo", titulo, "\n".join(linhas), nivel="atencao" if problemas else "ok",
+                                silencioso=True)
 
 
 REPO = "diegoscs/ambiente_dev"
@@ -182,25 +189,76 @@ def execucoes_do_vigia() -> list[dict] | None:
     return [r for r in dados.get("workflow_runs", []) if str(r.get("id")) != atual]
 
 
-def repassar_avisos_externos() -> int:
+# Avisos de fora que pedem acao na hora: vao ao #alertas sempre (o anti-spam de
+# 24 h do notificar_hub_externo ja segura a repeticao no mesmo dia).
+URGENTES = ("🔌", "❌", "Open Finance: o sync não rodou")
+
+
+def _linha_aviso(n: dict, prefixo: str = "") -> str:
+    detalhe = (n.get("detalhe") or "").strip()
+    return f"• {prefixo}**{n['titulo']}**" + (f"\n  {detalhe[:300]}" if detalhe else "")
+
+
+def separar_avisos_externos(pendentes: list[dict], ja_enviados: list[dict]) -> tuple[list[dict], list[dict]]:
+    """Divide os avisos pendentes dos robos de fora em (alertas, resumo).
+
+    - urgente (reconectar, falha, sync parado): #alertas
+    - outro 'atencao' (ex.: lancamentos para conferir): #alertas so quando o
+      texto muda em relacao ao ultimo ja enviado; igual = resumo, marcado como
+      ainda pendente
+    - 'info' (movimentacoes novas, data mudada): resumo
+    """
+    ultimo: dict[tuple, str | None] = {}
+    for n in ja_enviados:  # mais novo primeiro: fica o ultimo enviado de cada aviso
+        ultimo.setdefault((n["origem"], n["titulo"]), n.get("detalhe"))
+
+    alertas, resumo = [], []
+    for n in pendentes:  # mais antigo primeiro
+        chave = (n["origem"], n["titulo"])
+        if n.get("nivel") != "atencao":
+            resumo.append(n)
+        elif n["titulo"].startswith(URGENTES):
+            alertas.append(n)
+        elif chave in ultimo and ultimo[chave] == n.get("detalhe"):
+            resumo.append({**n, "repetido": True})
+        else:
+            alertas.append(n)
+        if n.get("nivel") == "atencao":
+            ultimo[chave] = n.get("detalhe")  # dois iguais no mesmo lote = um alerta so
+    return alertas, resumo
+
+
+def repassar_avisos_externos() -> tuple[list[str], list[int]]:
     """Avisos que robos de fora (o sync do financas-app, via notificar_hub_externo)
-    deixam em notificacoes_hub: o hub nao mostra mais, entao o vigia leva ao
-    #alertas e marca como lidos. Devolve quantos repassou."""
+    deixam em notificacoes_hub. O que pede acao vai agora ao #alertas (e e
+    marcado como lido); o resto volta como linhas para o resumo, com os ids a
+    marcar depois que o resumo chegar."""
     try:
         pendentes = dl.supabase_ler(
             "notificacoes_hub?select=id,origem,nivel,titulo,detalhe&lida=is.false&order=dta_add")
+        ja_enviados = dl.supabase_ler(
+            "notificacoes_hub?select=origem,titulo,detalhe&lida=is.true&nivel=eq.atencao"
+            "&order=dta_add.desc&limit=200")
     except Exception as e:  # noqa: BLE001
         print(f"(nao consegui ler os avisos pendentes: {e})", file=sys.stderr)
-        return 0
+        return [], []
     pendentes = [n for n in pendentes if n.get("origem") not in ORIGENS_PROPRIAS]
+    ja_enviados = [n for n in ja_enviados if n.get("origem") not in ORIGENS_PROPRIAS]
     if not pendentes:
-        return 0
-    texto = "\n".join(f"• **{n['titulo']}**" + (f"\n  {n['detalhe'][:300]}" if n.get("detalhe") else "")
-                      for n in pendentes)
-    if dl.notificar_discord("alertas", f"📨 {len(pendentes)} aviso(s) dos robôs de fora", texto, nivel="atencao"):
-        ids = ",".join(str(n["id"]) for n in pendentes)
-        dl.supabase_atualizar("notificacoes_hub", f"id=in.({ids})", {"lida": True})
-    return len(pendentes)
+        return [], []
+
+    alertas, resumo = separar_avisos_externos(pendentes, ja_enviados)
+
+    if alertas:
+        titulo = alertas[0]["titulo"] if len(alertas) == 1 else f"📨 {len(alertas)} avisos do Open Finance"
+        texto = (alertas[0].get("detalhe") or "") if len(alertas) == 1 else "\n".join(_linha_aviso(n) for n in alertas)
+        if dl.notificar_discord("alertas", titulo, texto, nivel="atencao"):
+            dl.supabase_atualizar("notificacoes_hub", f"id=in.({','.join(str(n['id']) for n in alertas)})",
+                                  {"lida": True})
+            print(f"{len(alertas)} aviso(s) de robos de fora enviado(s) ao #alertas.")
+
+    linhas = [_linha_aviso(n, "ainda pendente: " if n.get("repetido") else "") for n in resumo]
+    return linhas, [n["id"] for n in resumo]
 
 
 def main() -> int:
@@ -226,9 +284,7 @@ def main() -> int:
 
     problemas += conferir_disparos()
     problemas += conferir_tokens()
-    repassados = repassar_avisos_externos()
-    if repassados:
-        print(f"{repassados} aviso(s) de robos de fora repassado(s) ao Discord.")
+    externos, ids_externos = repassar_avisos_externos()
 
     robos = dl.ler_saude_robos()
     if not robos and not problemas:
@@ -244,7 +300,8 @@ def main() -> int:
         if r["saude"] not in dl.SAUDE_BOA:
             problemas.append(descrever_problema(r))
 
-    enviar_resumo_diario(robos, problemas)
+    if enviar_resumo_diario(robos, problemas, externos) and ids_externos:
+        dl.supabase_atualizar("notificacoes_hub", f"id=in.({','.join(map(str, ids_externos))})", {"lida": True})
 
     if problemas:
         n = len(problemas)
