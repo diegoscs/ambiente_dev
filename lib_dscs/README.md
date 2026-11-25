@@ -64,6 +64,7 @@ quem roda na mão.
 | Função | O que faz |
 |---|---|
 | `chamar_api_json(url, metodo, corpo, cabecalhos, token, timeout)` | requisição HTTP com corpo e resposta em JSON → `(status, payload)` |
+| `conferir_site(url, timeout)` | GET num site (HTML): `{"status", "ms", "erro"}`; nunca levanta (site fora do ar é resultado) |
 
 Só `urllib` da biblioteca padrão, sem `requests`. O tratamento de erro é
 **assimétrico de propósito**:
