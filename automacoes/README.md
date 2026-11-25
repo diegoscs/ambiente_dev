@@ -10,10 +10,11 @@ ninguém percebe.
 |---|---|---|
 | [005 · Backup Supabase](005_backup_supabase/README.md) | `robo_005_backup_supabase.yml` | 04:00 |
 | [006 · Saúde do DMC](006_saude_dmc/README.md) | `robo_006_saude_dmc.yml` | 05:00 |
+| [007 · Saúde do DMP](007_saude_dmp/README.md) | `robo_007_saude_dmp.yml` | 03:00 |
 | 003 · Sync Open Finance | `sync-openfinance.yml` no financas-app (botão: `robo_003_sync_openfinance.yml`) | 06:00 e 15:00 |
 | [001 · Check GitHub](001_check_github/README.md) | `robo_001_check_github.yml` | 07:00 |
 | [002 · Check Supabase](002_check_supabase/README.md) | `robo_002_check_supabase.yml` | 08:00 |
-| [Vigia](vigia_robos.py) | `vigia_robos.yml` | 09:00 (reserva pelo `schedule` à tarde) |
+| [Vigia](vigia_robos.py) | `vigia_robos.yml` | 09:00 e 16:00 (reserva pelo `schedule` ao meio-dia) |
 
 Quem marca a hora é o `pg_cron` do Supabase: na hora cheia ele chama o
 `workflow_dispatch` do robô, e o run começa em segundos
@@ -24,7 +25,7 @@ O token fica no Vault (`github_dispatch_token`).
 
 - **Hub** no celular: status, calendário de 14 dias e botão *Rodar agora*
   ([apps/hub/README.md](../apps/hub/README.md)).
-- **Vigia**: todo dia lê a `vw_saude_robos`, deixa notificação no hub e deixa o
+- **Vigia**: às 09:00 e às 16:00 lê a `vw_saude_robos`, manda o resumo no Discord e deixa o
   run vermelho (e-mail do GitHub) se algum robô estiver com `ERRO`, `ATRASADO`,
   `TRAVADO` ou `NUNCA_RODOU`. No PC:
 

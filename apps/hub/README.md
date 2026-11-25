@@ -21,9 +21,10 @@ Painel de celular com a saúde dos robôs, lido ao vivo do Supabase.
 - **▶ Rodar agora**, que dispara o workflow do robô no GitHub Actions, e o link
   para o log do último run. O workflow vem da coluna `workflow` de
   `controle_cargas`: robô novo cadastrado aparece com o botão sem mexer no hub.
-- **Notificações** do [vigia](../../automacoes/vigia_robos.py): uma por
-  verificação diária (em dia, atenção ou resolvido), com contador de não lidas
-  e "Marcar como lidas".
+- **Avisos ficam no Discord** (25/11/2026): a seção de notificações saiu do hub.
+  Erros, atrasos e o resumo do dia chegam em `#alertas` e `#resumo-diario`.
+- **Histórico de 30 dias**: calendário de cada robô e "ver todas as execuções".
+- **Sem cadastro pelo hub**: só "Entrar"; contas são criadas no painel do Supabase.
 - **Troca de senha** pelo botão *Senha* no topo.
 
 Atualiza sozinho a cada 2 minutos com a página visível, e na volta para a aba.

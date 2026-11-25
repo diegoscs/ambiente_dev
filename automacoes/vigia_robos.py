@@ -6,7 +6,9 @@
 #                  (exit 1) se algum robo estiver com ERRO, ATRASADO, TRAVADO
 #                  ou NUNCA_RODOU. Roda no GitHub Actions: run vermelho = e-mail
 #                  do GitHub, mais o aviso no Discord (#alertas). Todo dia
-#                  manda tambem o resumo de todos os robos em #resumo-diario.
+#                  manda tambem o resumo de todos os robos em #resumo-diario,
+#                  de manha (09:00) e a tarde (16:00, depois do sync das 15:00),
+#                  e repassa ao #alertas os avisos do sync do financas-app.
 #
 #                  Existe porque robo que nao roda nao avisa nada - o silencio
 #                  dele e identico ao do sucesso. O vigia transforma "nao rodou"
@@ -145,29 +147,76 @@ def enviar_resumo_diario(robos: list[dict], problemas: list[str]) -> None:
                       + (f"\n  {msg}" if msg else ""))
     if problemas:
         linhas += ["", "**Precisa de atenção:**", *problemas]
-    titulo = f"📋 Resumo de {datetime.now(TZ).strftime('%d/%m')}: " + (
+    titulo = f"📋 Resumo da {turno()} de {datetime.now(TZ).strftime('%d/%m')}: " + (
         f"{len(problemas)} ponto(s) de atenção" if problemas else f"{robos_txt(len(robos))} em dia")
     dl.notificar_discord("resumo", titulo, "\n".join(linhas), nivel="atencao" if problemas else "ok",
                          silencioso=True)
 
 
-def main() -> int:
-    # Uma notificacao por verificacao, para o hub mostrar que o vigia passou.
-    # "resolvido" quando a anterior era de atencao e agora esta tudo em dia.
-    try:
-        anterior = dl.ultima_notificacao("vigia")
-    except Exception as e:  # noqa: BLE001 - so muda o texto da notificacao
-        print(f"(nao consegui ler a notificacao anterior: {e})", file=sys.stderr)
-        anterior = None
+REPO = "diegoscs/ambiente_dev"
+ORIGENS_PROPRIAS = ("vigia", "saude_dmc")  # avisos que ja vao direto ao Discord
 
-    # --reserva: o schedule do GitHub. O vigia de verdade sai as 09:00 pelo
-    # pg_cron do Supabase; se ele ja passou hoje, a reserva nao tem o que fazer.
-    # Se nao passou, o disparo falhou - e isso vira um problema a mais.
+
+def turno() -> str:
+    """manha (vigia das 09:00) ou tarde (vigia das 16:00, depois do sync das 15:00)."""
+    return "manhã" if datetime.now(TZ).hour < 13 else "tarde"
+
+
+def execucoes_do_vigia() -> list[dict] | None:
+    """Ultimas execucoes deste workflow no GitHub (o historico do proprio vigia).
+    Precisa do GH_TOKEN do Actions; fora dele (no PC) devolve None."""
+    token = dl.ler_env().get("GH_TOKEN")
+    if not token:
+        return None
+    try:
+        status, dados = dl.chamar_api_json(
+            f"https://api.github.com/repos/{REPO}/actions/workflows/vigia_robos.yml/runs?per_page=10",
+            token=token, cabecalhos={"Accept": "application/vnd.github+json", "User-Agent": "vigia_robos"})
+    except Exception as e:  # noqa: BLE001
+        print(f"(nao consegui ler as execucoes do vigia: {e})", file=sys.stderr)
+        return None
+    if status != 200:
+        print(f"(execucoes do vigia: HTTP {status})", file=sys.stderr)
+        return None
+    atual = os.environ.get("GITHUB_RUN_ID")
+    return [r for r in dados.get("workflow_runs", []) if str(r.get("id")) != atual]
+
+
+def repassar_avisos_externos() -> int:
+    """Avisos que robos de fora (o sync do financas-app, via notificar_hub_externo)
+    deixam em notificacoes_hub: o hub nao mostra mais, entao o vigia leva ao
+    #alertas e marca como lidos. Devolve quantos repassou."""
+    try:
+        pendentes = dl.supabase_ler(
+            "notificacoes_hub?select=id,origem,nivel,titulo,detalhe&lida=is.false&order=dta_add")
+    except Exception as e:  # noqa: BLE001
+        print(f"(nao consegui ler os avisos pendentes: {e})", file=sys.stderr)
+        return 0
+    pendentes = [n for n in pendentes if n.get("origem") not in ORIGENS_PROPRIAS]
+    if not pendentes:
+        return 0
+    texto = "\n".join(f"• **{n['titulo']}**" + (f"\n  {n['detalhe'][:300]}" if n.get("detalhe") else "")
+                      for n in pendentes)
+    if dl.notificar_discord("alertas", f"📨 {len(pendentes)} aviso(s) dos robôs de fora", texto, nivel="atencao"):
+        ids = ",".join(str(n["id"]) for n in pendentes)
+        dl.supabase_atualizar("notificacoes_hub", f"id=in.({ids})", {"lida": True})
+    return len(pendentes)
+
+
+def main() -> int:
+    execucoes = execucoes_do_vigia()
+
+    # --reserva: o schedule do GitHub (meio-dia). O vigia de verdade sai as
+    # 09:00 pelo pg_cron; se alguma execucao dele ja deu certo hoje, a reserva
+    # nao tem o que fazer. Se nao, o disparo falhou - e isso vira um problema.
     problemas = []
     if RESERVA:
-        if anterior and datetime.fromisoformat(
-            anterior["dta_add"].replace("Z", "+00:00")
-        ).astimezone(TZ).date() == datetime.now(TZ).date():
+        hoje = datetime.now(TZ).date()
+        rodou_hoje = execucoes is not None and any(
+            r.get("event") == "workflow_dispatch" and r.get("conclusion") in ("success", "failure")
+            and datetime.fromisoformat(r["created_at"].replace("Z", "+00:00")).astimezone(TZ).date() == hoje
+            for r in execucoes)
+        if rodou_hoje:
             print("Reserva: o vigia ja passou hoje - nada a fazer.")
             return 0
         problemas.append(
@@ -177,6 +226,9 @@ def main() -> int:
 
     problemas += conferir_disparos()
     problemas += conferir_tokens()
+    repassados = repassar_avisos_externos()
+    if repassados:
+        print(f"{repassados} aviso(s) de robos de fora repassado(s) ao Discord.")
 
     robos = dl.ler_saude_robos()
     if not robos and not problemas:
@@ -194,27 +246,19 @@ def main() -> int:
 
     enviar_resumo_diario(robos, problemas)
 
-    # Detalhe das notificacoes: um robo por linha, com a ultima execucao.
-    em_dia = "\n".join(
-        f"• {nome(r)} · {quando(r.get('dta_fim') or r.get('dta_ini'))}"
-        for r in robos if r["saude"] in dl.SAUDE_BOA
-    )
-
     if problemas:
         n = len(problemas)
         titulo = f"⚠️ {n} {'ponto precisa' if n == 1 else 'pontos precisam'} de atenção"
-        detalhe = "\n".join(problemas) + (f"\n\nEm dia:\n{em_dia}" if em_dia else "")
-        dl.notificar_hub("atencao", titulo, detalhe)
         print(f"\nATENCAO: {'; '.join(problemas)}", file=sys.stderr)
         dl.notificar_discord("alertas", titulo, "\n".join(problemas), nivel="atencao")
         return 1
 
-    if anterior and anterior.get("nivel") == "atencao":
-        dl.notificar_hub("resolvido", f"✅ Voltou ao normal: {robos_txt(len(robos))} em dia", em_dia)
+    # "Voltou ao normal": a execucao anterior do vigia tinha falhado (achou problema).
+    anterior = next((r for r in (execucoes or []) if r.get("status") == "completed"), None)
+    if anterior and anterior.get("conclusion") == "failure":
+        em_dia = "\n".join(f"• {nome(r)} · {quando(r.get('dta_fim') or r.get('dta_ini'))}" for r in robos)
         dl.notificar_discord("alertas", f"✅ Voltou ao normal: {robos_txt(len(robos))} em dia", em_dia,
                              nivel="ok", silencioso=True)
-    else:
-        dl.notificar_hub("info", f"✅ Tudo certo: {robos_txt(len(robos))} em dia", em_dia)
     print(f"\nOK: {len(robos)} robo(s) em dia.")
     return 0
 

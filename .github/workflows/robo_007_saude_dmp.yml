@@ -1,0 +1,52 @@
+# =============================================
+# Robo 007 - saude do DMP (banco pessoal), so leitura.
+# Regras em automacoes/PADRAO_ROBOS.md; detalhes em automacoes/007_saude_dmp/README.md.
+# =============================================
+name: robo_007_saude_dmp
+
+on:
+  # 03:00 de Sao Paulo (06:00 UTC), disparado pelo pg_cron do Supabase
+  # (migration 20261125020000_robos_cadastro_robo_007). Antes do vigia (09:00).
+  # Nada de schedule aqui: o do GitHub atrasa 2 a 7 h.
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: robo-007
+  cancel-in-progress: false
+
+jobs:
+  saude:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    env:
+      MODO_EXECUCAO: CLOUD
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+      DISCORD_WEBHOOK_ALERTAS: ${{ secrets.DISCORD_WEBHOOK_ALERTAS }}
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Instalar dependencias
+        run: pip install -r requirements.txt
+
+      - name: Saude do DMP
+        run: python automacoes/007_saude_dmp/007_saude_dmp.py
+
+      - name: Guardar o log do erro
+        if: failure()
+        uses: actions/upload-artifact@v5
+        with:
+          name: log-erro-007
+          path: automacoes/007_saude_dmp/temp/erro_*.txt
+          if-no-files-found: ignore
