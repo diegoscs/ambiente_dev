@@ -18,12 +18,12 @@ ENV_FILE = RAIZ / ".env"
 # Prefixos das variaveis que o ambiente pode sobrescrever. A lista e branca de
 # proposito: o os.environ inteiro traria PATH, TEMP e companhia para dentro do
 # dicionario de credenciais. Robo novo com prefixo novo entra aqui - foi o que
-# aconteceu com SUPABASE_/TELEGRAM_/MODO_ no robo 002, que roda no GitHub
+# aconteceu com SUPABASE_/MODO_ no robo 002, que roda no GitHub
 # Actions, onde NAO existe .env e tudo chega por variavel de ambiente. GH_ veio
 # com o robo 001 na nuvem: o GitHub nao aceita secret com prefixo GITHUB_, entao
 # o token dele chega como GH_PAT. (PG_ saiu em 27/10/2026 com o Postgres local.)
 # BACKUP_ veio com o robo 005 (Postgres do teste de restore).
-PREFIXOS_AMBIENTE = ("GITHUB_", "GH_", "SUPABASE_", "TELEGRAM_", "MODO_", "BACKUP_", "FINANCAS_")
+PREFIXOS_AMBIENTE = ("GITHUB_", "GH_", "SUPABASE_", "DISCORD_", "MODO_", "BACKUP_", "FINANCAS_")
 
 
 def ler_env() -> dict[str, str]:

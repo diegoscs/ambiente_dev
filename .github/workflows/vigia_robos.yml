@@ -36,8 +36,8 @@ jobs:
       # So para conferir a validade (GET /rate_limit, sem gastar cota).
       GH_PAT: ${{ secrets.GH_PAT }}
       FINANCAS_DISPATCH_TOKEN: ${{ secrets.FINANCAS_DISPATCH_TOKEN }}
-      TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
-      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      DISCORD_WEBHOOK_ALERTAS: ${{ secrets.DISCORD_WEBHOOK_ALERTAS }}
+      DISCORD_WEBHOOK_RESUMO: ${{ secrets.DISCORD_WEBHOOK_RESUMO }}
 
     steps:
       - uses: actions/checkout@v5

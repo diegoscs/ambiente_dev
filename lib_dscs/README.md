@@ -160,7 +160,7 @@ lib_dscs\
 ├─ log.py                log em memória, arquivo só em caso de erro
 ├─ api.py                cliente HTTP/JSON dos robôs de API
 ├─ retry.py              executar_com_retry
-├─ notificacao.py        alerta no Telegram
+├─ notificacao.py        avisos no Discord (webhook por canal)
 ├─ supabase.py           controle de cargas, trava diária, hub e Minecraft
 └─ README.md
 ```

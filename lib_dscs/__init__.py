@@ -34,8 +34,8 @@ from .log import (
 )
 from .notificacao import (
     alertar_erro_robo,
-    alertar_telegram,
-    telegram_configurado,
+    discord_configurado,
+    notificar_discord,
 )
 from .retry import executar_com_retry
 from .supabase import (
@@ -75,7 +75,9 @@ from .supabase import (
 # 2.3.0 (24/11/2026): supabase_rpc, validade_token_github e prefixo FINANCAS_
 # (o vigia confere os tokens de disparo).
 # 2.4.0 (24/11/2026): conferir_site (robo 006, saude do DMC).
-__version__ = "2.4.0"
+# 2.5.0 (25/11/2026): Discord no lugar do Telegram (notificar_discord,
+# discord_configurado; alertar_erro_robo com canal do cliente). Prefixo DISCORD_.
+__version__ = "2.5.0"
 
 __all__ = [
     # config
@@ -92,9 +94,9 @@ __all__ = [
     "salvar_log_erro",
     "linhas_do_log",
     # notificacao
-    "alertar_telegram",
+    "notificar_discord",
     "alertar_erro_robo",
-    "telegram_configurado",
+    "discord_configurado",
     # retry
     "executar_com_retry",
     # api

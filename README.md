@@ -24,7 +24,7 @@ robô falhou, mas também se ele **deixou de rodar**.
 - **Hub web** na Vercel: login pelo Supabase Auth, leitura protegida por RLS e
   um botão que dispara o workflow sem expor token no navegador.
 - **Biblioteca compartilhada** (`lib_dscs`): registro de status, retry nas
-  etapas de rede, log só em caso de erro e alerta no Telegram. Os robôs não
+  etapas de rede, log só em caso de erro e aviso no Discord. Os robôs não
   abrem conexão nem leem credencial por conta própria.
 - **Schema versionado** em migrations e um [padrão documentado](automacoes/PADRAO_ROBOS.md)
   com [modelo](automacoes/_modelo) para criar robôs novos.
@@ -84,8 +84,8 @@ flowchart LR
 
 Cada execução marca `RUNNING` ao começar e fecha como `SUCCESS` ou `ERROR`,
 com uma mensagem legível, a quantidade de trabalho feito e o link do run no
-Actions. Na falha, o log completo sobe como artifact do run e sai um alerta no
-Telegram.
+Actions. Na falha, o log completo sobe como artifact do run e sai um aviso no
+Discord (#alertas); o vigia manda o resumo do dia em #resumo-diario.
 
 ## Hub
 
@@ -151,7 +151,7 @@ projeto ali tem o seu próprio repositório no GitHub.
 ## Stack
 
 Python · GitHub Actions · Supabase (Postgres, PostgREST, Auth, RLS) ·
-Vercel (site estático + função Node) · Telegram Bot API.
+Vercel (site estático + função Node) · webhooks do Discord.
 HTTP com `urllib` da biblioteca padrão e Postgres com `psycopg` 3.
 
 ## Rodando localmente

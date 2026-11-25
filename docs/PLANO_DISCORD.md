@@ -1,6 +1,6 @@
 # Plano: notificações no Discord
 
-Decidido em 24/11/2026. Ainda não implementado.
+Decidido em 24/11/2026. **Passos 1 a 3 feitos em 25/11/2026**: canais e webhooks criados, `#alertas` pela `lib_dscs` (`notificar_discord`, `alertar_erro_robo`), `#resumo-diario` pelo vigia e os avisos do robô 006 em `#cliente-estoque`. Falta o passo 4 dentro do DMC (eventos do estoque pelo `pg_net`).
 
 ## Papel de cada um
 
