@@ -18,8 +18,8 @@ configurado (os workflows passam `TELEGRAM_*`, mas os secrets não existem).
 
 | Canal | O que chega | Quem manda |
 |---|---|---|
-| `#alertas` | qualquer robô em ERROR, robô ATRASADO, token de disparo perto de vencer; do Open Finance, só o que pede ação (reconectar banco, falha do sync, lista de lançamentos para conferir **quando muda**) | robôs (pela `lib_dscs`) e vigia |
-| `#resumo-diario` | um resumo por turno: robôs ok/erro/atrasados, última execução de cada um e o bloco "Open Finance" (movimentações novas, data mudada, pendência repetida como "ainda pendente") | vigia (já roda todo dia) |
+| `#alertas` | qualquer robô em ERROR, robô ATRASADO, token de disparo perto de vencer; do Open Finance, só "não sincroniza desde <dia>" (nenhum dado novo do banco há mais de 36 h) | robôs (pela `lib_dscs`) e vigia |
+| `#resumo-diario` | um resumo por turno: robôs ok/erro/atrasados, última execução de cada um e o Open Finance só como status ("Ok, tudo em dia" ou "não sincroniza desde <dia>"); movimentação nova e lançamento para conferir não vão ao Discord | vigia (já roda todo dia) |
 | `#cliente-estoque` | falha que afeta o app do estoque (keepalive/backup do DMC, Edge Function), cliente novo, Pix registrado, assinatura vencendo ou vencida | o monitor do próprio DMC ([kit de cliente novo](KIT_CLIENTE_NOVO.md)) |
 | `#cliente-<nome>` | o mesmo, para cada cliente novo | idem |
 
