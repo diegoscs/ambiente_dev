@@ -22,8 +22,10 @@ on:
 
 # Token do Actions so com leitura (checkout). Escrita fora daqui usa
 # secret proprio (GH_PAT, Supabase), nunca o GITHUB_TOKEN.
+# actions: read para o vigia ler o proprio historico (reserva e "voltou ao normal").
 permissions:
   contents: read
+  actions: read
 
 jobs:
   vigiar:
@@ -38,6 +40,7 @@ jobs:
       FINANCAS_DISPATCH_TOKEN: ${{ secrets.FINANCAS_DISPATCH_TOKEN }}
       DISCORD_WEBHOOK_ALERTAS: ${{ secrets.DISCORD_WEBHOOK_ALERTAS }}
       DISCORD_WEBHOOK_RESUMO: ${{ secrets.DISCORD_WEBHOOK_RESUMO }}
+      GH_TOKEN: ${{ github.token }}
 
     steps:
       - uses: actions/checkout@v5

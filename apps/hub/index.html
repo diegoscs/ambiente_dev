@@ -76,7 +76,7 @@ button.primario{background:var(--ink); color:var(--bg); border-color:var(--ink);
 .msg{font:12.5px/1.5 var(--mono); color:var(--muted); background:var(--soft); border-radius:8px; padding:8px 10px; overflow-wrap:anywhere}
 .cal{display:flex; flex-direction:column; gap:6px}
 .cal .k{font:11px var(--mono); color:var(--muted); text-transform:uppercase; letter-spacing:.05em; display:flex; justify-content:space-between}
-.cells{display:grid; grid-template-columns:repeat(14,1fr); gap:4px}
+.cells{display:grid; grid-template-columns:repeat(15,1fr); gap:4px}
 .cell{aspect-ratio:1; border-radius:4px; background:var(--cell-empty); max-width:100%}
 .cell.ok{background:var(--ok)} .cell.err{background:var(--err)} .cell.mix{background:linear-gradient(135deg,var(--ok) 50%,var(--err) 50%)}
 .cell.today{outline:1.5px solid var(--ink); outline-offset:1px}
@@ -87,6 +87,7 @@ a{color:var(--run); text-decoration:none} a:hover{text-decoration:underline}
 
 h2{font-size:14px; margin:6px 0 0; color:var(--muted); font-weight:700; text-transform:uppercase; letter-spacing:.06em}
 .hist{background:var(--card); border:1px solid var(--line); border-radius:14px; overflow:hidden}
+.hist .mais summary{cursor:pointer; padding:12px 14px; font:600 13px var(--mono); color:var(--muted); border-top:1px solid var(--line)}
 .row{display:grid; grid-template-columns:10px 1fr auto; gap:12px; align-items:center; padding:10px 14px; border-top:1px solid var(--line)}
 .row:first-child{border-top:0}
 .row .dot{width:10px; height:10px; border-radius:50%}
@@ -105,16 +106,6 @@ footer{font:12px var(--mono); color:var(--muted); line-height:1.6}
 .login .erro{color:var(--err); font-size:13.5px; font-weight:600; min-height:1.2em}
 .login p{margin:0; color:var(--muted); font-size:13.5px}
 .trocar{background:none; border:0; padding:0; color:var(--run); font-weight:600; font-size:13.5px; cursor:pointer}
-.notif{gap:8px}
-.notif .n{display:grid; grid-template-columns:10px 1fr auto; gap:10px; align-items:start; padding:8px 0; border-top:1px solid var(--line)}
-.notif .n:first-child{border-top:0}
-.notif .n .dot{width:10px; height:10px; border-radius:50%; margin-top:6px}
-.notif .n .t1{font-weight:600; font-size:14px}
-.notif .n.lida .t1{font-weight:500; color:var(--muted)}
-.notif .n .t2{font:12px var(--mono); color:var(--muted); white-space:pre-line; overflow-wrap:anywhere}
-.notif .n .when{font:12px var(--mono); color:var(--muted); white-space:nowrap}
-.nv-info{background:var(--none)} .nv-resolvido{background:var(--ok)} .nv-atencao{background:var(--late)}
-.badge{font:600 11px var(--mono); background:var(--run); color:var(--bg); border-radius:999px; padding:1px 7px; margin-left:6px; vertical-align:2px}
 .troca{gap:8px} .troca label{font-weight:600; font-size:13px}
 .troca .linha{display:flex; gap:8px}
 .troca input{flex:1; min-width:0; font:15px var(--sans); color:var(--ink); background:var(--bg); border:1px solid var(--line); border-radius:10px; padding:10px 12px}
@@ -172,7 +163,6 @@ footer{font:12px var(--mono); color:var(--muted); line-height:1.6}
     <div id="login-erro" class="erro" role="alert"></div>
     <button id="btn-login" class="primario" type="submit">Entrar</button>
   </form>
-  <p><button id="alternar" class="trocar" type="button">Ainda não tenho conta: criar</button></p>
 </main>
 
 <!-- ─── painel ─── -->
@@ -199,13 +189,6 @@ footer{font:12px var(--mono); color:var(--muted); line-height:1.6}
   </form>
 
   <div id="banner" class="banner b-info" role="status"><span class="dot"></span><span id="banner-txt">Buscando o estado dos robôs…</span></div>
-  <section id="notif" class="card notif" hidden aria-labelledby="notif-titulo">
-    <div class="top">
-      <div class="name" id="notif-titulo">Notificações</div>
-      <button id="marcar-lidas" type="button" hidden>Marcar como lidas</button>
-    </div>
-    <div id="notif-lista"></div>
-  </section>
 
   <section id="mc" class="card" hidden aria-labelledby="mc-titulo">
     <div class="top">
@@ -236,7 +219,7 @@ footer{font:12px var(--mono); color:var(--muted); line-height:1.6}
   <h2>Últimas execuções</h2>
   <div id="hist" class="hist"><div class="empty">Carregando…</div></div>
 
-  <footer>Lê as views <b>vw_saude_robos</b>, <b>vw_metricas_robos</b> e <b>vw_execucoes_diarias</b> e as tabelas <b>historico_cargas</b>, <b>minecraft_status</b> e <b>minecraft_eventos</b> do Supabase. Horários em São Paulo, com as regras de acesso do banco. Atualiza sozinho a cada 2 minutos com a página aberta.</footer>
+  <footer>Avisos (erros, atrasos e o resumo do dia) chegam no Discord. Lê as views <b>vw_saude_robos</b>, <b>vw_metricas_robos</b> e <b>vw_execucoes_diarias</b> e as tabelas <b>historico_cargas</b>, <b>minecraft_status</b> e <b>minecraft_eventos</b> do Supabase. Horários em São Paulo, com as regras de acesso do banco. Atualiza sozinho a cada 2 minutos com a página aberta.</footer>
 </div>
 
 <script>
@@ -245,7 +228,7 @@ footer{font:12px var(--mono); color:var(--muted); line-height:1.6}
   const SUPABASE_URL = "https://mthipdxpedlfnkzddlar.supabase.co";
   const SUPABASE_KEY = "sb_publishable_Y3utSlAXuOl3vzrMeJWr1Q_Rq6Xbz-D";
   const REPO = "https://github.com/diegoscs/ambiente_dev";
-  const DIAS = 14;
+  const DIAS = 30;  // calendario e historico: sempre os ultimos 30 dias
 
   const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
     auth: { persistSession: true, autoRefreshToken: true },
@@ -253,7 +236,7 @@ footer{font:12px var(--mono); color:var(--muted); line-height:1.6}
 
   const $ = (id) => document.getElementById(id);
   const TXT = { OK: "OK", ERRO: "ERRO", ATRASADO: "ATRASADO", TRAVADO: "TRAVADO", RODANDO: "RODANDO", NUNCA_RODOU: "NUNCA RODOU" };
-  let busy = false, timer = null, last = null, criando = false;
+  let busy = false, timer = null, last = null;
   // Servidor Minecraft: o monitor da VM grava a cada minuto. VM ligada e sem
   // gravacao ha mais que isso, o monitor parou: nao da para saber do server.
   const MC_SEM_SINAL_MIN = 5, MC_EVENTOS = 80;
@@ -325,17 +308,6 @@ footer{font:12px var(--mono); color:var(--muted); line-height:1.6}
     $("tela-painel").hidden = false;
   }
 
-  $("alternar").addEventListener("click", () => {
-    criando = !criando;
-    $("btn-login").textContent = criando ? "Criar conta" : "Entrar";
-    $("alternar").textContent = criando ? "Já tenho conta: entrar" : "Ainda não tenho conta: criar";
-    $("senha").autocomplete = criando ? "new-password" : "current-password";
-    $("login-sub").textContent = criando
-      ? "A conta é criada no Supabase Auth do projeto. Pode ser preciso confirmar pelo e-mail."
-      : "Entre com a sua conta do Supabase Auth.";
-    $("login-erro").textContent = "";
-  });
-
   $("form-login").addEventListener("submit", async (ev) => {
     ev.preventDefault();
     const email = $("email").value.trim(), password = $("senha").value;
@@ -346,17 +318,9 @@ footer{font:12px var(--mono); color:var(--muted); line-height:1.6}
     $("btn-login").disabled = true;
     $("login-erro").textContent = "";
     try {
-      if (criando) {
-        const { data, error } = await sb.auth.signUp({ email, password });
-        if (error) throw error;
-        if (!data.session) {
-          $("login-erro").textContent = "Conta criada. Confirme pelo link que chegou no seu e-mail e depois entre aqui.";
-          return;
-        }
-      } else {
-        const { error } = await sb.auth.signInWithPassword({ email, password });
-        if (error) throw error;
-      }
+      // Sem cadastro pelo hub: as contas sao criadas no painel do Supabase.
+      const { error } = await sb.auth.signInWithPassword({ email, password });
+      if (error) throw error;
       await entrar();
     } catch (e) {
       const m = (e && e.message) || "";
@@ -420,13 +384,11 @@ footer{font:12px var(--mono); color:var(--muted); line-height:1.6}
     try {
       const desde = new Date(Date.now() - (DIAS + 1) * 86400000).toISOString();
       const desde30 = new Date(Date.now() - 31 * 86400000).toISOString().slice(0, 10);
-      const [saude, hist, notif, metr, diario, mcStatus, mcEventos, mcPedido] = await Promise.all([
+      const [saude, hist, metr, diario, mcStatus, mcEventos, mcPedido] = await Promise.all([
         sb.from("vw_saude_robos").select("*").order("id_carga"),
         sb.from("historico_cargas")
           .select("id_carga,status,dta_ini,dta_fim,ambiente,qtd_itens,mensagem,url_execucao")
-          .gte("dta_ini", desde).order("dta_ini", { ascending: false }).limit(200),
-        sb.from("notificacoes_hub").select("id,dta_add,nivel,titulo,detalhe,lida")
-          .order("dta_add", { ascending: false }).limit(8),
+          .gte("dta_ini", desde).order("dta_ini", { ascending: false }).limit(600),
         sb.from("vw_metricas_robos").select("*"),
         sb.from("vw_execucoes_diarias").select("*").gte("dia", desde30),
         // So o Create (o servidor padrao); o Pixelmon fica no hub do servidor.
@@ -442,7 +404,6 @@ footer{font:12px var(--mono); color:var(--muted); line-height:1.6}
       last = { saude: saude.data, historico: hist.data, agora: new Date().toISOString(),
                metricas: metr.error ? [] : metr.data, diario: diario.error ? [] : diario.data };
       render(last);
-      renderNotif(notif.error ? null : notif.data);
       // Minecraft e extra: se falhar, o card some e o resto segue.
       mc = mcStatus.error ? null : { status: mcStatus.data, eventos: mcEventos.error ? [] : mcEventos.data,
                                      pedido: mcPedido.error ? null : mcPedido.data, pedidoOk: !mcPedido.error };
@@ -477,37 +438,6 @@ footer{font:12px var(--mono); color:var(--muted); line-height:1.6}
       setTimeout(() => { botao.disabled = false; }, 15000);
     }
   }
-
-  // Notificacoes do vigia. Falha aqui so esconde a secao; o resto do painel segue.
-  function renderNotif(lista) {
-    const box = $("notif");
-    if (!lista || !lista.length) { box.hidden = true; return; }
-    box.hidden = false;
-    const naoLidas = lista.filter(n => !n.lida).length;
-    const titulo = $("notif-titulo");
-    titulo.replaceChildren(document.createTextNode("Notificações"));
-    if (naoLidas) titulo.append(el("span", "badge", String(naoLidas)));
-    $("marcar-lidas").hidden = !naoLidas;
-    const ul = $("notif-lista");
-    ul.replaceChildren();
-    const nowMs = Date.now();
-    for (const n of lista) {
-      const row = el("div", "n" + (n.lida ? " lida" : ""));
-      const txt = el("div");
-      txt.append(el("div", "t1", n.titulo));
-      if (n.detalhe) txt.append(el("div", "t2", n.detalhe));
-      row.append(el("span", `dot nv-${n.nivel}`), txt, el("span", "when", ago(n.dta_add, nowMs)));
-      ul.append(row);
-    }
-  }
-
-  $("marcar-lidas").addEventListener("click", async () => {
-    $("marcar-lidas").disabled = true;
-    const { error } = await sb.from("notificacoes_hub").update({ lida: true }).eq("lida", false);
-    $("marcar-lidas").disabled = false;
-    if (error) { banner("warn", `Não consegui marcar como lidas: ${error.message}`); return; }
-    carregar();
-  });
 
   // ─── servidor minecraft ───
   const MC_TXT = { ONLINE: "ONLINE", OFFLINE: "OFFLINE", SEM_SINAL: "SEM SINAL", LIGANDO: "LIGANDO…", DESLIGANDO: "DESLIGANDO…", DORMINDO: "DESLIGADO" };
@@ -822,7 +752,7 @@ footer{font:12px var(--mono); color:var(--muted); line-height:1.6}
     box.replaceChildren();
     if (!hist.length) box.append(el("div", "empty", "Nenhuma execução registrada nos últimos dias."));
     const nomes = Object.fromEntries(d.saude.map(r => [r.id_carga, r.nome_carga]));
-    for (const h of hist.slice(0, 12)) {
+    const linha = (h) => {
       const row = el("div", "row");
       const txt = el("div");
       txt.append(el("div", "t1", `${nomes[h.id_carga] || "id " + h.id_carga} · ${ambiente(h.ambiente)}`), el("div", "t2", h.mensagem || h.status));
@@ -830,7 +760,15 @@ footer{font:12px var(--mono); color:var(--muted); line-height:1.6}
       when.title = completo(h.dta_ini);
       when.append(el("b", null, quando(h.dta_ini, nowMs)), el("br"), document.createTextNode(`${ago(h.dta_fim || h.dta_ini, nowMs)} · ${dur(h.dta_ini, h.dta_fim)}`));
       row.append(el("span", `dot d-${h.status}`), txt, when);
-      box.append(row);
+      return row;
+    };
+    // As 12 mais recentes sempre a vista; o resto dos 30 dias num "ver todas".
+    for (const h of hist.slice(0, 12)) box.append(linha(h));
+    if (hist.length > 12) {
+      const mais = el("details", "mais");
+      mais.append(el("summary", null, `Ver todas as ${hist.length} execuções dos últimos ${DIAS} dias`));
+      for (const h of hist.slice(12)) mais.append(linha(h));
+      box.append(mais);
     }
   }
 

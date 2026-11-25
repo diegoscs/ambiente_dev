@@ -34,7 +34,6 @@ STATUS = "--status" in sys.argv
 
 IDCARGA = 6  # ★ mesmo numero da pasta e do id_carga em public.controle_cargas
 NOME_ROBO = "saude_dmc"
-ORIGEM_AVISO = "saude_dmc"  # origem das notificacoes no hub
 CANAL_DISCORD = "estoque"   # #cliente-estoque (erro vai tambem para #alertas)
 
 BASE = Path(__file__).resolve().parent
@@ -200,19 +199,23 @@ def checar_banco() -> list[tuple[str, str]]:
 # ─── carga ───────────────────────────────────────────────────────────────────
 
 
-def avisar_no_hub(avisos: list[str]) -> None:
-    """Notifica o hub so quando a lista de avisos muda (nada de repetir todo dia)."""
-    titulo = ("⚠️ DMC: " + "; ".join(avisos))[:200] if avisos else None
+def avisar_no_discord(avisos: list[str]) -> None:
+    """Avisa no #cliente-estoque so quando a lista de avisos muda (nada de repetir
+    todo dia). A memoria e a mensagem da execucao anterior deste robo, que ja
+    comeca com os avisos ("⚠️ ... |") quando havia algum."""
+    texto_avisos = " · ".join(avisos)
     try:
-        anterior = dl.ultima_notificacao(ORIGEM_AVISO)
+        anterior = dl.supabase_ler(f"historico_cargas?select=mensagem&id_carga=eq.{IDCARGA}"
+                                   f"&status=eq.SUCCESS&order=dta_ini.desc&limit=1")
     except Exception as e:  # noqa: BLE001 - aviso e extra, nao derruba o robo
-        dl.log(f"[HUB] nao consegui ler a ultima notificacao: {e}")
-        return
-    if titulo and (not anterior or anterior.get("titulo") != titulo):
-        dl.notificar_hub("atencao", titulo, None, origem=ORIGEM_AVISO)
-        dl.notificar_discord(CANAL_DISCORD, titulo, "\n".join(f"• {a}" for a in avisos), nivel="atencao")
-    elif not titulo and anterior and anterior.get("nivel") == "atencao":
-        dl.notificar_hub("resolvido", "✅ DMC: avisos resolvidos", None, origem=ORIGEM_AVISO)
+        dl.log(f"[DISCORD] nao consegui ler a execucao anterior: {e}")
+        anterior = []
+    msg_anterior = (anterior[0].get("mensagem") or "") if anterior else ""
+    tinha_aviso = msg_anterior.startswith("⚠️")
+    if avisos and not msg_anterior.startswith("⚠️ " + texto_avisos):
+        dl.notificar_discord(CANAL_DISCORD, ("⚠️ DMC: " + "; ".join(avisos))[:200],
+                             "\n".join(f"• {a}" for a in avisos), nivel="atencao")
+    elif not avisos and tinha_aviso:
         dl.notificar_discord(CANAL_DISCORD, "✅ DMC: avisos resolvidos", None, nivel="ok", silencioso=True)
 
 
@@ -234,7 +237,7 @@ def processar() -> tuple[int, str]:
     avisos = [t for n, t in checagens if n == "aviso"]
 
     if not (DEBUG or DRY_RUN):
-        avisar_no_hub(avisos)
+        avisar_no_discord(avisos)
     if erros:
         raise RuntimeError("DMC com problema: " + " · ".join(erros + avisos))
 
