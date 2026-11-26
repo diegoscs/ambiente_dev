@@ -1,4 +1,4 @@
--- MODELO - vira supabase/migrations/<AAAAMMDDHHMMSS>_cadastro_robo_NNN.sql
+-- MODELO - vira supabase/migrations/<AAAAMMDDHHMMSS>_robos_cadastro_robo_NNN.sql
 -- e e aplicado como migration (nunca SQL solto no painel).
 --
 -- Com a linha cadastrada, o robo aparece sozinho no hub, no vigia e na

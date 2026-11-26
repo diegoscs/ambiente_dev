@@ -33,13 +33,14 @@ robô falhou, mas também se ele **deixou de rodar**.
 
 | Robô | O que faz | Quando roda (São Paulo) |
 |---|---|---|
+| [**007 · Saúde do DMP**](automacoes/007_saude_dmp/README.md) | o mesmo do 006 para o banco pessoal: sites, Auth fechado, RLS, escrita do anônimo, tamanho, pg_cron e Vault | 03:00 |
 | [**005 · Backup Supabase**](automacoes/005_backup_supabase/README.md) | backup dos bancos Supabase só com Python (estrutura + CSV), restaurado e conferido todo dia, só o mais recente fica guardado num repo privado | 04:00 |
 | [**006 · Saúde do DMC**](automacoes/006_saude_dmc/README.md) | confere, só lendo, se os apps de clientes no DMC estão de pé e seguros: site, API, Auth, Edge Functions, RLS, tamanho e assinaturas | 05:00 |
-| [**007 · Saúde do DMP**](automacoes/007_saude_dmp/README.md) | o mesmo do 006 para o banco pessoal: sites, Auth fechado, RLS, escrita do anônimo, tamanho, pg_cron e Vault | 03:00 |
 | [**003 · Sync Open Finance**](.github/workflows/robo_003_sync_openfinance.yml) | sync do financas-app, meu app de finanças pessoais em repositório privado (Pluggy → Supabase OpenFinance), registrado no hub | 06:00 e 15:00 |
 | [**001 · Check GitHub**](automacoes/001_check_github/README.md) | registro diário num repositório próprio pela Contents API, com trava de uma execução por dia | 07:00 |
 | [**002 · Check Supabase**](automacoes/002_check_supabase/README.md) | keepalive dos projetos Supabase DMP e DMC: consulta real por Postgres e por REST em cada um, para o plano free não pausar | 08:00 |
-| [**Vigia**](automacoes/vigia_robos.py) | lê a saúde de todos os robôs, deixa uma notificação no hub e falha o run se algum estiver atrasado ou com erro | 09:00 (+ reserva à tarde) |
+| [**Vigia**](automacoes/vigia_robos.py) | lê a saúde de todos os robôs, manda o resumo no Discord (#resumo-diario) e avisa no #alertas se algum estiver atrasado ou com erro | 09:00 e 16:00 (+ reserva) |
+| [**Sentinela de sites**](supabase/migrations/20261126190000_robos_sentinela_sites.sql) | abre os 4 sites (hub, server-galera, financas-app e estoque) de dentro do Supabase, sem gastar Actions; 2 falhas seguidas avisam no #alertas (e no canal do cliente, se for dele) | a cada 15 min |
 | [**Minecraft na nuvem**](apps/minecraft/gcp/README.md) | servidor da galera numa VM do Google: status, chat, custo e backups no [hub do servidor](https://server-galera.vercel.app); desliga sozinho após 5 min vazio (não é carga) | a cada minuto, dentro da VM |
 
 O robô 004 (Clima Praias, ranking das praias de Ubatuba) foi aposentado em
