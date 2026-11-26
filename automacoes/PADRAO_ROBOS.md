@@ -14,8 +14,8 @@ processo novo é de um destes três tipos, e o tipo decide onde ele mora:
 
 | Tipo | Onde roda | Pode tocar | Exemplos |
 |---|---|---|---|
-| **Pessoal** | armazém (este repo, Actions) | só o DMP e os seus serviços | 001, 003, sites no ar, fim do Minecraft |
-| **Neutro** | armazém (este repo, Actions) | lê os dois bancos; no DMC **só lê** (manter acordado, copiar, conferir) | 002, 005, vigia, sites no ar, limites, segurança, migrations |
+| **Pessoal** | armazém (este repo, Actions) | só o DMP e os seus serviços | 001, 003, 007 (saúde do DMP), fim do Minecraft |
+| **Neutro** | armazém (este repo, Actions, ou pg_cron do DMP) | lê os dois bancos; no DMC **só lê** (manter acordado, copiar, conferir) | 002, 005, 006 (saúde do DMC), vigia, sentinela de sites |
 | **De clientes** | **dentro do DMC** (pg_cron do DMC) | só o DMC | monitor dos apps, teste de isolamento, avisos ao cliente |
 
 - Robô do armazém **não altera** o DMC. Mudança no DMC só por migration, com o
@@ -35,10 +35,10 @@ processo novo é de um destes três tipos, e o tipo decide onde ele mora:
 
 | Item | Padrão |
 |---|---|
-| Número | `NNN` sequencial, três dígitos. É ao mesmo tempo a pasta, o `IDCARGA` e o `id_carga` no banco |
+| Número | `NNN` sequencial, três dígitos. É ao mesmo tempo a pasta, o `IDCARGA` e o `id_carga` no banco. **Só ganha número o robô que existe** (cadastrado e com horário no pg_cron): ideia ou proposta fica sem número, para a lista bater com o que roda |
 | Pasta | `automacoes/NNN_nome_robo/` com `NNN_nome_robo.py` e `README.md` |
 | Workflow | `.github/workflows/robo_NNN_nome_robo.yml` |
-| Cadastro | migration `supabase/migrations/<versão>_cadastro_robo_NNN.sql` |
+| Cadastro | migration `supabase/migrations/<versão>_robos_cadastro_robo_NNN.sql` |
 | Módulos próprios | só se o arquivo passar de ~400 linhas: `config_robo.py`, etc., na pasta do robô |
 | Infra | sempre da [`lib_dscs`](../lib_dscs/README.md). Robô não abre conexão, não lê `.env` e não faz HTTP na mão |
 
@@ -82,8 +82,37 @@ dl.registrar_carga_supabase(IDCARGA, dl.STATUS_ERRO, dta_ini, fechar=True,
 - `try/except` explícito no `main()`: no `except`, registra `ERROR`, chama
   `dl.alertar_erro_robo`, `dl.salvar_log_erro()` e faz `raise` (exit 1 deixa o
   run vermelho e o GitHub manda e-mail).
+
+### Avisos (Discord)
+
+Decisão de 25/11/2026: o hub é o painel e o **Discord só avisa** (o Telegram
+saiu da lib na 2.5.0). Canais e secrets:
+
+| Canal | Secret | O que chega |
+|---|---|---|
+| `#alertas` | `DISCORD_WEBHOOK_ALERTAS` | erro de robô, atraso, site fora do ar, aviso que pede ação |
+| `#resumo-diario` | `DISCORD_WEBHOOK_RESUMO` | só o vigia (resumo de manhã e de tarde) |
+| `#cliente-<app>` | `DISCORD_WEBHOOK_<APP>` | o que afeta o app do cliente (hoje `#cliente-estoque`) |
+
+- Erro: `dl.alertar_erro_robo(IDCARGA, NOME_ROBO, str(e))`, que vai para o
+  `#alertas`. Se o robô cuida de um app de cliente, passe também
+  `canal_cliente="estoque"`.
+- Aviso que não é erro: `dl.notificar_discord(canal, titulo, detalhe)`, e
+  **só quando muda**. A memória é a própria execução anterior (a `mensagem` do
+  último registro no histórico), sem tabela nova. Aviso repetido todo dia vira
+  ruído e ninguém lê.
+- A URL do webhook é segredo: nunca vai para log, mensagem ou repositório. A
+  lib não levanta exceção se o Discord falhar.
 - **Log só em caso de erro.** Execução boa não deixa arquivo. No Actions, o
   `temp/erro_*.txt` sobe como artifact do run.
+
+### Robô de saúde (só leitura)
+
+Robô que confere um banco ou um app (como o 006 e o 007) **não altera nada**:
+só `select`, chamadas de API sem efeito e páginas abertas. O que ele achar vira
+aviso; a correção é uma migration revisada, nunca o próprio robô. `qtd_itens` é
+o número de checagens que passaram, e `SUCCESS` com aviso é normal: `ERROR` fica para
+quando a checagem em si não pôde rodar.
 
 ## 6. Workflow
 
@@ -102,7 +131,11 @@ Copie [`_modelo/robo_NNN_nome_robo.yml`](_modelo/robo_NNN_nome_robo.yml). O que 
 - `concurrency` por robô, `timeout-minutes`, `MODO_EXECUCAO: CLOUD`.
 - Upload do log de erro com `if: failure()`.
 - **Hora cheia** de São Paulo (o cron do `pg_cron` é em UTC: SP + 3), sem
-  repetir a de outro robô e **antes do vigia** (09:00).
+  repetir a de outro robô e **antes do vigia** (09:00 e 16:00).
+- **Processo leve sem Python** (só abrir uma URL, apagar linha antiga) pode
+  ser função SQL + `pg_cron` (+ `pg_net`) no próprio DMP, sem gastar Actions.
+  Ex.: a sentinela de sites e a retenção. Mesmo assim entra por migration, e o
+  segredo que ele usar fica no Vault do DMP.
 
 ## 7. Segredos
 
@@ -118,11 +151,15 @@ Copie [`_modelo/robo_NNN_nome_robo.yml`](_modelo/robo_NNN_nome_robo.yml). O que 
 
 - Toda mudança de schema é **migration** em `supabase/migrations/`, com o nome
   igual à versão registrada no Supabase. Nada de SQL solto no painel.
+- O nome da migration começa pelo schema que ela mexe: `robos_` (hub e robôs),
+  `openfinance_`, `estoque_`. Ex.: `20261126190000_robos_sentinela_sites.sql`.
 - Tabela nova: RLS ligada; `revoke` explícito de escrita para `anon` e
   `authenticated` (o Supabase concede tudo por padrão, e grant de coluna não
   restringe nada enquanto o de tabela existir). Se o hub precisar ler, policy
   `for select to authenticated using ((select private.eh_leitor_hub()))`.
 - Horários em `timestamptz`, gravados em UTC.
+- Histórico e tabelas que crescem guardam **30 dias** (`private.aplicar_retencao()`,
+  todo dia). Tabela nova que cresce entra nessa função.
 - Cadastro do robô em `controle_cargas` com `tempo_min`, `atraso_max_horas` e
   `workflow`. Com isso ele aparece sozinho no hub, no vigia e no botão
   "Rodar agora", sem mexer no código do hub.
@@ -132,6 +169,9 @@ Copie [`_modelo/robo_NNN_nome_robo.yml`](_modelo/robo_NNN_nome_robo.yml). O que 
 - `README.md` do robô: o que faz, origem/destino, fluxo, configuração
   (variáveis e secrets), flags, decisões e o porquê delas, estado atual com data.
 - Linha nova na tabela do [README da raiz](../README.md).
+- A página central (Mapa do ambiente_dev) é atualizada na mesma hora e precisa
+  **bater com o `cron.job` ativo**: robô novo, horário mudado ou robô desligado
+  muda o mapa.
 - Incidente ou decisão que mudou o comportamento vai no README com data e
   causa, como nos READMEs do 001 e do 002.
 
@@ -143,3 +183,4 @@ Copie [`_modelo/robo_NNN_nome_robo.yml`](_modelo/robo_NNN_nome_robo.yml). O que 
 - [ ] workflow disparado na mão termina verde, com `url_execucao` gravada
 - [ ] robô aparece `OK` no hub e o vigia passa
 - [ ] README do robô e da raiz atualizados
+- [ ] mapa do ambiente atualizado (bate com o pg_cron)
