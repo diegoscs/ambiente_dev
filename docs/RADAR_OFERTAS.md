@@ -106,8 +106,9 @@ Enquanto o segredo não existir, o aviso cai no `#alertas`.
 
 - **27/11/2026:** parse testado no DMP com a resposta real do canal
   (`?after=49530`): 13 posts, preços certos, e só os posts 49539 (5700X a
-  R$ 855) e 49543 (kit com 5700X a R$ 1569) marcariam aviso. As migrations
-  ainda **não estão aplicadas**: o MCP do Supabase recusou o
-  `apply_migration` nesta sessão, e falta aplicar pelo SQL Editor. Com
-  `ultimo_post` = 49530, a primeira rodada manda esses dois avisos de
-  verdade, que servem de teste do caminho todo.
+  R$ 855) e 49543 (kit com 5700X a R$ 1569) marcariam aviso.
+- **27/11/2026 16:56 UTC:** migrations aplicadas pelo usuário no SQL Editor
+  (o MCP recusou o `apply_migration` nesta sessão). O job `radar_ofertas`
+  entrou antes das funções e falhou por alguns segundos, até o primeiro
+  arquivo entrar. A primeira rodada boa leu do 49531 ao 49550 e avisou os
+  dois posts do 5700X; o Discord respondeu 204 aos dois. No ar.
