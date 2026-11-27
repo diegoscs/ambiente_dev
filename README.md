@@ -41,7 +41,7 @@ robô falhou, mas também se ele **deixou de rodar**.
 | [**002 · Check Supabase**](automacoes/002_check_supabase/README.md) | keepalive dos projetos Supabase DMP e DMC: consulta real por Postgres e por REST em cada um, para o plano free não pausar | 08:00 |
 | [**Vigia**](automacoes/vigia_robos.py) | lê a saúde de todos os robôs, manda o resumo no Discord (#resumo-diario) e avisa no #alertas se algum estiver atrasado ou com erro | 09:00 e 16:00 (+ reserva) |
 | [**Sentinela de sites**](supabase/migrations/20261126190000_robos_sentinela_sites.sql) | abre os 4 sites (hub, server-galera, financas-app e estoque) de dentro do Supabase, sem gastar Actions; 2 falhas seguidas avisam no #alertas (e no canal do cliente, se for dele) | a cada 15 min |
-| [**Radar de ofertas**](docs/RADAR_OFERTAS.md) | lê canais públicos de promoção do Telegram de dentro do Supabase e avisa no Discord quando sai oferta de um produto da lista (hoje o Ryzen 7 5700X) | a cada 20 s |
+| [**Radar de ofertas**](docs/RADAR_OFERTAS.md) | lê canais públicos de promoção do Telegram de dentro do Supabase e avisa no Discord quando sai oferta de um produto da lista (hoje o Ryzen 7 5700X), com resumo do dia e variação de preço às 22:00 | a cada 20 s (+ 22:00) |
 | [**Minecraft na nuvem**](apps/minecraft/gcp/README.md) | servidor da galera numa VM do Google: status, chat, custo e backups no [hub do servidor](https://server-galera.vercel.app); desliga sozinho após 5 min vazio (não é carga) | a cada minuto, dentro da VM |
 
 O robô 004 (Clima Praias, ranking das praias de Ubatuba) foi aposentado em

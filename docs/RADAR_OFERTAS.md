@@ -93,6 +93,28 @@ aponta para ele com `canal = 'ofertas'`. As falhas de leitura continuam no
   mandar para as promoções, inclua `canal` no insert:
   `insert into private.radar_produtos (nome, termos, canal) values ('RTX 4060', '{4060}', 'ofertas');`
 
+## Resumo diário (22:00)
+
+Pedido de 27/11/2026, para acompanhar a variação de preço. Todo dia às 22:00
+de Brasília (`radar_resumo_diario`, 01:00 UTC no pg_cron),
+`private.radar_resumo_diario()` manda **uma mensagem por produto ativo**, no
+canal do produto. A janela é das 22:00 de ontem às 22:00 de hoje.
+
+- **Topo:** quantas ofertas, o menor e o maior preço, e o menor preço
+  comparado com o das 24 h anteriores (▼ mais barato, ▲ mais caro, = igual).
+- **Lista:** uma linha por oferta, em ordem de hora, com preço, cupom,
+  título, link da loja e link do post. Mostra até 15; acima disso, diz quantas
+  ficaram de fora.
+- **Dia sem oferta:** a mensagem sai mesmo assim ("Nenhuma oferta nas últimas
+  24 h"), com o menor preço do dia anterior, se houver. Ela serve também de
+  sinal de que o radar está vivo.
+- **Rodapé:** diz se o radar está lendo normalmente ou com falha.
+
+O resumo lê só `radar_avisos`, que guarda 30 dias. O "maior" inclui os kits
+(placa-mãe + processador) quando eles batem com os termos.
+
+Mandar o resumo agora, fora do horário: `select private.radar_resumo_diario();`
+
 ## Limites conhecidos
 
 - **Só canal público.** Grupo ou canal privado precisa de login com a conta
@@ -119,3 +141,8 @@ aponta para ele com `canal = 'ofertas'`. As falhas de leitura continuam no
 - **27/11/2026 17:02 UTC:** canal dedicado a promoções criado pelo usuário;
   webhook gravado no Vault (`discord_webhook_ofertas`), 5700X apontado para
   ele e mensagem de teste entregue (204).
+- **27/11/2026 17:20 UTC:** resumo diário das 22:00 no ar (migration
+  `20261127180000`, aplicada pelo MCP desta vez). Os posts 49322 e 49496, de
+  antes de o radar ligar, entraram à mão em `radar_avisos`. Prévia conferida
+  sem envio: 4 ofertas, de R$ 799 a R$ 1569. O primeiro resumo sai hoje às
+  22:00.
