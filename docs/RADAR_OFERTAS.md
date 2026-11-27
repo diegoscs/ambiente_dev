@@ -5,6 +5,22 @@ oferta de um produto da lista. Pedido de 27/11/2026 (Black Friday): o usuário
 não tem notificação do Telegram no celular e quer saber na hora quando o
 Ryzen 7 5700X entrar em promoção.
 
+> **Pausado desde 27/11/2026 17:39 (Brasília)**, a pedido do usuário. Os
+> jobs `radar_ofertas` e `radar_resumo_diario` estão cadastrados, mas
+> inativos ([20261127190000_robos_radar_pausa.sql](../supabase/migrations/20261127190000_robos_radar_pausa.sql)).
+> Tabelas, produto, histórico e webhook continuam. Para religar:
+>
+> ```sql
+> select cron.alter_job(jobid, active := true) from cron.job
+>  where jobname in ('radar_ofertas', 'radar_resumo_diario');
+> -- opcional: recomeçar pelos 20 posts mais novos em vez de ler tudo o que saiu na pausa
+> update private.radar_fontes set ultimo_post = null;
+> ```
+>
+> Sem o `update`, a primeira rodada continua do último post lido (49672 em
+> 27/11) e vai avisando, 20 posts por rodada, as ofertas que saíram durante a
+> pausa.
+
 - **Tipo:** pessoal (só o DMP).
 - **Onde roda:** dentro do DMP, com `pg_cron` a cada 20 s e `pg_net`, igual à
   sentinela de sites. Não usa o Actions: ali o aviso levaria minutos, só para
@@ -146,3 +162,7 @@ Mandar o resumo agora, fora do horário: `select private.radar_resumo_diario();`
   antes de o radar ligar, entraram à mão em `radar_avisos`. Prévia conferida
   sem envio: 4 ofertas, de R$ 799 a R$ 1569. O primeiro resumo sai hoje às
   22:00.
+- **27/11/2026 20:39 UTC:** pausado a pedido do usuário ("não vou usar mais
+  por enquanto"). Os dois jobs foram desligados com `cron.alter_job(active
+  := false)`, sem apagar nada. O resumo das 22:00 não chegou a rodar nenhuma
+  vez.
