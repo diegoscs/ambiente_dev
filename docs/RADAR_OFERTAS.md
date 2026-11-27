@@ -53,6 +53,7 @@ Um termo não casa no meio de outra palavra ou número: `5700x` pega "5700X",
 -- produto novo
 insert into private.radar_produtos (nome, termos, excluir, preco_max)
 values ('RTX 4060', '{4060}', '{4060 ti|notebook}', 1800);
+-- (para cair no canal de promoções, inclua canal = 'ofertas': ver "Canal do Discord")
 
 -- não quer kit (placa-mãe + processador) do 5700X
 update private.radar_produtos set excluir = '{5700x3d,placa mae|kit}' where nome = 'Ryzen 7 5700X';
@@ -80,14 +81,17 @@ nulo), e o que bater entre eles já avisa.
 
 ## Canal do Discord
 
-Hoje tudo vai para o `#alertas`. Para ter um `#ofertas`:
+Desde 27/11/2026 os avisos de oferta vão para um canal dedicado a promoções.
+O webhook está no Vault do DMP como `discord_webhook_ofertas`, e cada produto
+aponta para ele com `canal = 'ofertas'`. As falhas de leitura continuam no
+`#alertas`.
 
-1. Criar o canal e um webhook nele.
-2. No Vault do DMP, criar o segredo `discord_webhook_ofertas` com a URL. Essa
-   parte é do usuário: a URL é segredo e não passa pelo Claude.
-3. Rodar `update private.radar_produtos set canal = 'ofertas';`
-
-Enquanto o segredo não existir, o aviso cai no `#alertas`.
+- Mover o canal de seção ou renomear não muda o webhook. Apagar o canal ou o
+  webhook muda: aí é preciso gravar a URL nova no Vault, com o mesmo nome.
+- Se o segredo do canal não existir, o aviso cai no `#alertas`, sem se perder.
+- Produto novo já nasce com `canal = 'alertas'` (o padrão da coluna). Para
+  mandar para as promoções, inclua `canal` no insert:
+  `insert into private.radar_produtos (nome, termos, canal) values ('RTX 4060', '{4060}', 'ofertas');`
 
 ## Limites conhecidos
 
@@ -112,3 +116,6 @@ Enquanto o segredo não existir, o aviso cai no `#alertas`.
   entrou antes das funções e falhou por alguns segundos, até o primeiro
   arquivo entrar. A primeira rodada boa leu do 49531 ao 49550 e avisou os
   dois posts do 5700X; o Discord respondeu 204 aos dois. No ar.
+- **27/11/2026 17:02 UTC:** canal dedicado a promoções criado pelo usuário;
+  webhook gravado no Vault (`discord_webhook_ofertas`), 5700X apontado para
+  ele e mensagem de teste entregue (204).
