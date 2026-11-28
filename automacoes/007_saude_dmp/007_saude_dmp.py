@@ -11,6 +11,7 @@
 from __future__ import annotations
 
 import os
+import re
 import sys
 from pathlib import Path
 
@@ -59,14 +60,15 @@ def validar_configuracao() -> None:
 # ─── checagens: lista de (nivel, texto), nivel = ok | aviso | erro ───────────
 
 
-def checar_sites() -> list[tuple[str, str]]:
+def checar_sites() -> list[tuple[str, ...]]:
     resultado = []
     for nome, url in SITES:
         r = dl.conferir_site(url)
         if r["status"] != 200:
             resultado.append(("erro", f"site {nome} fora do ar ({r['erro'] or r['status']})"))
         elif r["ms"] > SITE_LENTO_MS:
-            resultado.append(("aviso", f"site {nome} lento: {r['ms'] / 1000:.1f} s"))
+            resultado.append(("aviso", f"site {nome} lento", f"{url} abriu em {r['ms'] / 1000:.1f} s "
+                              f"(limite {SITE_LENTO_MS // 1000} s); uma vez só costuma ser a Vercel acordando."))
         else:
             resultado.append(("ok", f"{nome} {r['ms']:.0f} ms"))
     return resultado
@@ -84,13 +86,63 @@ def checar_auth() -> list[tuple[str, str]]:
     return [("ok", "Auth fechado")]
 
 
-def checar_banco() -> list[tuple[str, str]]:
+# Trechos do erro do Postgres -> o que costuma ser, em portugues.
+CAUSAS_PG_CRON = (
+    ("does not exist", "o job chama algo que não existe (função/tabela apagada, renomeada ou ainda não criada)"),
+    ("statement timeout", "a rodada passou do tempo limite"),
+    ("permission denied", "o job ficou sem permissão no que ele chama"),
+    ("job startup timeout", "o pg_cron não conseguiu iniciar o job (banco sobrecarregado ou sem conexão livre)"),
+    ("connection", "falha de conexão do pg_cron com o banco"),
+)
+
+
+def checar_pg_cron(conn: psycopg.Connection) -> list[tuple[str, str, str]]:
+    """Falhas das ultimas 24 h por job: quantas, quando, o erro e se ja voltou
+    a rodar com sucesso. Falha que ja normalizou vira ok (fica so no historico)."""
+    linhas = conn.execute(
+        "select j.jobname, j.active, count(*), "
+        "to_char(min(d.start_time) at time zone 'America/Sao_Paulo', 'DD/MM HH24:MI'), "
+        "to_char(max(d.start_time) at time zone 'America/Sao_Paulo', 'DD/MM HH24:MI'), "
+        "(array_agg(d.return_message order by d.start_time desc))[1], "
+        "(select count(*) from cron.job_run_details s where s.jobid = j.jobid "
+        "   and s.status = 'succeeded' and s.start_time > max(d.start_time)) "
+        "from cron.job_run_details d join cron.job j on j.jobid = d.jobid "
+        "where d.status = 'failed' and d.start_time > now() - interval '24 hours' "
+        "group by j.jobid, j.jobname, j.active order by max(d.start_time) desc").fetchall()
+    if not linhas:
+        return [("ok", "pg_cron sem falhas", "")]
+    resultado = []
+    for job, ativo, qtd, primeira, ultima, mensagem, sucessos_depois in linhas:
+        erro = next((l.strip() for l in (mensagem or "").splitlines() if l.strip()), "sem mensagem")
+        erro = erro.removeprefix("ERROR:").strip()[:160]
+        causa = next((c for trecho, c in CAUSAS_PG_CRON if trecho in erro.lower()), "")
+        quando = ultima if qtd == 1 else (f"de {primeira} a {ultima}" if primeira[:5] != ultima[:5]
+                                          else f"{primeira} a {ultima[6:]}")
+        if sucessos_depois:
+            resultado.append(("ok", f"pg_cron {job}: {qtd} falha(s) em {quando}, já normalizou", ""))
+            continue
+        detalhe = (f"{qtd} falha(s) em 24 h ({quando}, horário de Brasília), sem sucesso depois"
+                   f"{'; o job está pausado' if not ativo else ''}.\n"
+                   f"Erro: `{erro}`" + (f"\nProvável causa: {causa}." if causa else ""))
+        resultado.append(("aviso", f"pg_cron: {job} falhando", detalhe))
+    return resultado
+
+
+def checar_banco() -> list[tuple[str, ...]]:
     resultado = []
     with psycopg.connect(dl.obter_variavel("SUPABASE_DB_URL"), prepare_threshold=None, connect_timeout=30,
                          sslmode="require", application_name=f"robo_{IDCARGA:03d}") as conn:
         conn.read_only = True
         mb = conn.execute("select pg_database_size(current_database()) / 1e6").fetchone()[0]
-        resultado.append(("aviso" if mb > BANCO_AVISO_MB else "ok", f"banco {mb:.0f} MB de 500"))
+        if mb > BANCO_AVISO_MB:
+            maiores = conn.execute(
+                "select n.nspname || '.' || c.relname, pg_total_relation_size(c.oid) / 1e6 from pg_class c "
+                "join pg_namespace n on n.oid = c.relnamespace where c.relkind in ('r', 'm') "
+                "order by 2 desc limit 3").fetchall()
+            resultado.append(("aviso", f"banco {mb:.0f} MB de 500", "Maiores: " + ", ".join(
+                f"{t} {m:.0f} MB" for t, m in maiores) + ". Acima de 500 MB o plano grátis fica só leitura."))
+        else:
+            resultado.append(("ok", f"banco {mb:.0f} MB de 500"))
 
         sem_rls, total = conn.execute(
             "select count(*) filter (where not c.relrowsecurity), count(*) from pg_class c "
@@ -105,12 +157,7 @@ def checar_banco() -> list[tuple[str, str]]:
         resultado.append(("erro", f"papel anônimo com escrita em {anon} tabela(s)/view(s)") if anon
                          else ("ok", "anônimo sem escrita"))
 
-        falhas = conn.execute(
-            "select coalesce(string_agg(distinct j.jobname, ', '), ''), count(*) from cron.job_run_details d "
-            "join cron.job j using (jobid) where d.status = 'failed' and d.start_time > now() - interval '24 hours'"
-        ).fetchone()
-        resultado.append(("aviso", f"pg_cron: {falhas[1]} falha(s) em 24 h ({falhas[0]})") if falhas[1]
-                         else ("ok", "pg_cron sem falhas"))
+        resultado += checar_pg_cron(conn)
 
         presentes = {r[0] for r in conn.execute("select name from vault.secrets").fetchall()}
         faltam = [s for s in SEGREDOS_VAULT if s not in presentes]
@@ -123,9 +170,10 @@ def checar_banco() -> list[tuple[str, str]]:
 # ─── carga ───────────────────────────────────────────────────────────────────
 
 
-def avisar_no_discord(avisos: list[str]) -> None:
+def avisar_no_discord(avisos: list[str], detalhes: dict[str, str]) -> None:
     """Avisa no #alertas so quando a lista de avisos muda (memoria: a mensagem
-    da execucao anterior deste robo, que comeca com "⚠️ ..." quando havia aviso)."""
+    da execucao anterior deste robo, que comeca com "⚠️ ..." quando havia aviso).
+    O titulo e curto; o corpo explica cada aviso (quando, erro, provavel causa)."""
     texto = " · ".join(avisos)
     try:
         anterior = dl.supabase_ler(f"historico_cargas?select=mensagem&id_carga=eq.{IDCARGA}"
@@ -134,28 +182,36 @@ def avisar_no_discord(avisos: list[str]) -> None:
         dl.log(f"[DISCORD] nao consegui ler a execucao anterior: {e}")
         anterior = []
     msg = (anterior[0].get("mensagem") or "") if anterior else ""
-    if avisos and not msg.startswith("⚠️ " + texto):
+    # so a parte dos avisos: "⚠️ a · b — detalhes | DMP ok ..." -> "a · b"
+    eram = re.split(r" — | \| ", msg, maxsplit=1)[0].removeprefix("⚠️ ") if msg.startswith("⚠️") else ""
+    if avisos and eram != texto:
         dl.notificar_discord("alertas", ("⚠️ DMP: " + "; ".join(avisos))[:200],
-                             "\n".join(f"• {a}" for a in avisos), nivel="atencao")
-    elif not avisos and msg.startswith("⚠️"):
-        dl.notificar_discord("alertas", "✅ DMP: avisos resolvidos", None, nivel="ok", silencioso=True)
+                             "\n\n".join(f"**• {a}**" + (f"\n{detalhes[a]}" if detalhes.get(a) else "")
+                                         for a in avisos), nivel="atencao")
+    elif not avisos and eram:
+        dl.notificar_discord("alertas", "✅ DMP: avisos resolvidos", f"Eram: {eram}", nivel="ok", silencioso=True)
 
 
 def processar() -> tuple[int, str]:
     global ITENS_FEITOS
-    checagens = checar_sites() + checar_auth() + checar_banco()
-    for nivel, texto in checagens:
-        dl.log(f"[{nivel.upper():5}] {texto}")
-    ITENS_FEITOS = sum(1 for n, _ in checagens if n == "ok")
-    erros = [t for n, t in checagens if n == "erro"]
-    avisos = [t for n, t in checagens if n == "aviso"]
+    # cada checagem: (nivel, texto curto) ou (nivel, texto curto, detalhe)
+    checagens = [(c + ("",))[:3] for c in checar_sites() + checar_auth() + checar_banco()]
+    for nivel, texto, detalhe in checagens:
+        dl.log(f"[{nivel.upper():5}] {texto}" + (f" | {detalhe}" if detalhe else ""))
+    ITENS_FEITOS = sum(1 for n, _, _ in checagens if n == "ok")
+    erros = [t for n, t, _ in checagens if n == "erro"]
+    avisos = [t for n, t, _ in checagens if n == "aviso"]
+    detalhes = {t: d for _, t, d in checagens if d}
     if not (DEBUG or DRY_RUN):
-        avisar_no_discord(avisos)
+        avisar_no_discord(avisos, detalhes)
     if erros:
-        raise RuntimeError("DMP com problema: " + " · ".join(erros + avisos))
-    resumo = "DMP ok ✅ · " + " · ".join(t for n, t in checagens if n == "ok")
+        raise RuntimeError("DMP com problema: " + " · ".join(
+            f"{t} ({detalhes[t]})" if t in detalhes else t for t in erros + avisos).replace("\n", " "))
+    resumo = "DMP ok ✅ · " + " · ".join(t for n, t, _ in checagens if n == "ok")
     if avisos:
-        resumo = "⚠️ " + " · ".join(avisos) + " | " + resumo
+        # o comeco ("⚠️ " + avisos) e a memoria do avisar_no_discord: detalhe vem depois
+        explicacao = " ".join(detalhes.get(a, "") for a in avisos).replace("\n", " ").strip()
+        resumo = "⚠️ " + " · ".join(avisos) + (f" — {explicacao}" if explicacao else "") + " | " + resumo
     return ITENS_FEITOS, resumo[:500]
 
 
